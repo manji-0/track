@@ -17,6 +17,10 @@ pub enum Commands {
         /// Task name
         name: String,
         
+        /// Task description
+        #[arg(short, long)]
+        description: Option<String>,
+        
         /// Ticket ID (e.g., PROJ-123, owner/repo/456)
         #[arg(short, long)]
         ticket: Option<String>,
@@ -41,6 +45,16 @@ pub enum Commands {
 
     /// Show detailed information about the current task
     Info,
+
+    /// View or set task description
+    Desc {
+        /// Description text (if omitted, displays current description)
+        description: Option<String>,
+        
+        /// Target task ID (defaults to current task)
+        #[arg(short, long)]
+        task: Option<i64>,
+    },
 
     /// Link a ticket to a task
     Ticket {

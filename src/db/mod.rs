@@ -150,6 +150,17 @@ impl Database {
             self.conn.execute("ALTER TABLE git_items ADD COLUMN is_base INTEGER DEFAULT 0", [])?;
         }
 
+        // Check for description column in tasks
+        let count: i64 = self.conn.query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('tasks') WHERE name='description'",
+            [],
+            |row| row.get(0),
+        )?;
+
+        if count == 0 {
+            self.conn.execute("ALTER TABLE tasks ADD COLUMN description TEXT", [])?;
+        }
+
         Ok(())
     }
 

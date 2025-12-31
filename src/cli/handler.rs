@@ -18,12 +18,15 @@ impl CommandHandler {
 
     pub fn handle(&self, command: Commands) -> Result<()> {
         match command {
-            Commands::New { name, ticket, ticket_url } => {
-                self.handle_new(&name, ticket.as_deref(), ticket_url.as_deref())
+            Commands::New { name, description, ticket, ticket_url } => {
+                self.handle_new(&name, description.as_deref(), ticket.as_deref(), ticket_url.as_deref())
             }
             Commands::List { all } => self.handle_list(all),
             Commands::Switch { task_ref } => self.handle_switch(&task_ref),
             Commands::Info => self.handle_info(),
+            Commands::Desc { description, task } => {
+                self.handle_desc(description.as_deref(), task)
+            }
             Commands::Ticket { ticket_id, url, task } => {
                 self.handle_ticket(&ticket_id, &url, task)
             }
@@ -39,9 +42,9 @@ impl CommandHandler {
         }
     }
 
-    fn handle_new(&self, name: &str, ticket: Option<&str>, ticket_url: Option<&str>) -> Result<()> {
+    fn handle_new(&self, name: &str, description: Option<&str>, ticket: Option<&str>, ticket_url: Option<&str>) -> Result<()> {
         let task_service = TaskService::new(&self.db);
-        let task = task_service.create_task(name, ticket, ticket_url)?;
+        let task = task_service.create_task(name, description, ticket, ticket_url)?;
 
         println!("Created task #{}: {}", task.id, task.name);
         if let Some(ticket_id) = &task.ticket_id {
@@ -120,6 +123,13 @@ impl CommandHandler {
         println!("Created: {}", created);
         println!();
 
+        // Description
+        if let Some(desc) = &task.description {
+            println!("Description:");
+            println!("  {}", desc);
+            println!();
+        }
+
         // TODOs
         let todo_service = TodoService::new(&self.db);
         let todos = todo_service.list_todos(current_task_id)?;
@@ -169,6 +179,38 @@ impl CommandHandler {
                 let repo_links = worktree_service.list_repo_links(worktree.id)?;
                 for link in repo_links {
                     println!("      └─ {}: {}", link.kind, link.url);
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    fn handle_desc(&self, description: Option<&str>, task: Option<i64>) -> Result<()> {
+        let task_id = match task {
+            Some(id) => id,
+            None => self.db.get_current_task_id()?.ok_or(TrackError::NoActiveTask)?,
+        };
+
+        let task_service = TaskService::new(&self.db);
+        
+        match description {
+            Some(desc) => {
+                // Set mode
+                task_service.set_description(task_id, desc)?;
+                println!("Updated description for task #{}", task_id);
+            }
+            None => {
+                // View mode
+                let task = task_service.get_task(task_id)?;
+                println!("=== Task #{}: {} ===", task.id, task.name);
+                println!();
+                
+                if let Some(desc) = &task.description {
+                    println!("Description:");
+                    println!("  {}", desc);
+                } else {
+                    println!("No description set. Use 'track desc <text>' to add one.");
                 }
             }
         }

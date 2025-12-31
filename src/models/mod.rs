@@ -4,6 +4,7 @@ use chrono::{DateTime, Utc};
 pub struct Task {
     pub id: i64,
     pub name: String,
+    pub description: Option<String>,
     pub status: String,
     pub ticket_id: Option<String>,
     pub ticket_url: Option<String>,

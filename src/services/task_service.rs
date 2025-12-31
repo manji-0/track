@@ -13,7 +13,7 @@ impl<'a> TaskService<'a> {
         Self { db }
     }
 
-    pub fn create_task(&self, name: &str, ticket_id: Option<&str>, ticket_url: Option<&str>) -> Result<Task> {
+    pub fn create_task(&self, name: &str, description: Option<&str>, ticket_id: Option<&str>, ticket_url: Option<&str>) -> Result<Task> {
         if name.trim().is_empty() {
             return Err(TrackError::EmptyTaskName);
         }
@@ -32,8 +32,8 @@ impl<'a> TaskService<'a> {
         let conn = self.db.get_connection();
         
         conn.execute(
-            "INSERT INTO tasks (name, status, ticket_id, ticket_url, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
-            params![name, TaskStatus::Active.as_str(), ticket_id, ticket_url, now],
+            "INSERT INTO tasks (name, description, status, ticket_id, ticket_url, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![name, description, TaskStatus::Active.as_str(), ticket_id, ticket_url, now],
         )?;
 
         let task_id = conn.last_insert_rowid();
@@ -47,17 +47,18 @@ impl<'a> TaskService<'a> {
     pub fn get_task(&self, task_id: i64) -> Result<Task> {
         let conn = self.db.get_connection();
         let mut stmt = conn.prepare(
-            "SELECT id, name, status, ticket_id, ticket_url, created_at FROM tasks WHERE id = ?1"
+            "SELECT id, name, description, status, ticket_id, ticket_url, created_at FROM tasks WHERE id = ?1"
         )?;
 
         let task = stmt.query_row(params![task_id], |row| {
             Ok(Task {
                 id: row.get(0)?,
                 name: row.get(1)?,
-                status: row.get(2)?,
-                ticket_id: row.get(3)?,
-                ticket_url: row.get(4)?,
-                created_at: row.get::<_, String>(5)?.parse().unwrap(),
+                description: row.get(2)?,
+                status: row.get(3)?,
+                ticket_id: row.get(4)?,
+                ticket_url: row.get(5)?,
+                created_at: row.get::<_, String>(6)?.parse().unwrap(),
             })
         }).map_err(|_| TrackError::TaskNotFound(task_id))?;
 
@@ -67,9 +68,9 @@ impl<'a> TaskService<'a> {
     pub fn list_tasks(&self, include_archived: bool) -> Result<Vec<Task>> {
         let conn = self.db.get_connection();
         let query = if include_archived {
-            "SELECT id, name, status, ticket_id, ticket_url, created_at FROM tasks ORDER BY created_at DESC"
+            "SELECT id, name, description, status, ticket_id, ticket_url, created_at FROM tasks ORDER BY created_at DESC"
         } else {
-            "SELECT id, name, status, ticket_id, ticket_url, created_at FROM tasks WHERE status = 'active' ORDER BY created_at DESC"
+            "SELECT id, name, description, status, ticket_id, ticket_url, created_at FROM tasks WHERE status = 'active' ORDER BY created_at DESC"
         };
 
         let mut stmt = conn.prepare(query)?;
@@ -77,10 +78,11 @@ impl<'a> TaskService<'a> {
             Ok(Task {
                 id: row.get(0)?,
                 name: row.get(1)?,
-                status: row.get(2)?,
-                ticket_id: row.get(3)?,
-                ticket_url: row.get(4)?,
-                created_at: row.get::<_, String>(5)?.parse().unwrap(),
+                description: row.get(2)?,
+                status: row.get(3)?,
+                ticket_id: row.get(4)?,
+                ticket_url: row.get(5)?,
+                created_at: row.get::<_, String>(6)?.parse().unwrap(),
             })
         })?
         .collect::<std::result::Result<Vec<_>, _>>()?;
@@ -136,6 +138,22 @@ impl<'a> TaskService<'a> {
         Ok(())
     }
 
+    pub fn set_description(&self, task_id: i64, description: &str) -> Result<()> {
+        // Validate task exists and is active
+        let task = self.get_task(task_id)?;
+        if task.status == TaskStatus::Archived.as_str() {
+            return Err(TrackError::TaskArchived(task_id));
+        }
+
+        let conn = self.db.get_connection();
+        conn.execute(
+            "UPDATE tasks SET description = ?1 WHERE id = ?2",
+            params![description, task_id],
+        )?;
+
+        Ok(())
+    }
+
     pub fn resolve_task_id(&self, reference: &str) -> Result<i64> {
         // If it starts with "t:", it's a ticket reference
         if let Some(ticket_id) = reference.strip_prefix("t:") {
@@ -186,7 +204,7 @@ mod tests {
         let db = setup_db();
         let service = TaskService::new(&db);
 
-        let task = service.create_task("Test Task", None, None).unwrap();
+        let task = service.create_task("Test Task", None, None, None).unwrap();
         assert_eq!(task.name, "Test Task");
         assert_eq!(task.status, "active");
         assert!(task.ticket_id.is_none());
@@ -197,7 +215,7 @@ mod tests {
         let db = setup_db();
         let service = TaskService::new(&db);
 
-        let task = service.create_task("Test Task", Some("PROJ-123"), Some("https://example.com")).unwrap();
+        let task = service.create_task("Test Task", None, Some("PROJ-123"), Some("https://example.com")).unwrap();
         assert_eq!(task.ticket_id, Some("PROJ-123".to_string()));
         assert_eq!(task.ticket_url, Some("https://example.com".to_string()));
     }
@@ -207,7 +225,7 @@ mod tests {
         let db = setup_db();
         let service = TaskService::new(&db);
 
-        let result = service.create_task("", None, None);
+        let result = service.create_task("", None, None, None);
         assert!(matches!(result, Err(TrackError::EmptyTaskName)));
     }
 
@@ -216,8 +234,8 @@ mod tests {
         let db = setup_db();
         let service = TaskService::new(&db);
 
-        service.create_task("Task 1", Some("PROJ-123"), None).unwrap();
-        let result = service.create_task("Task 2", Some("PROJ-123"), None);
+        service.create_task("Task 1", None, Some("PROJ-123"), None).unwrap();
+        let result = service.create_task("Task 2", None, Some("PROJ-123"), None);
         assert!(matches!(result, Err(TrackError::DuplicateTicket(_, _))));
     }
 
@@ -226,7 +244,7 @@ mod tests {
         let db = setup_db();
         let service = TaskService::new(&db);
 
-        let created = service.create_task("Test Task", None, None).unwrap();
+        let created = service.create_task("Test Task", None, None, None).unwrap();
         let retrieved = service.get_task(created.id).unwrap();
         assert_eq!(retrieved.id, created.id);
         assert_eq!(retrieved.name, "Test Task");
@@ -246,8 +264,8 @@ mod tests {
         let db = setup_db();
         let service = TaskService::new(&db);
 
-        service.create_task("Task 1", None, None).unwrap();
-        service.create_task("Task 2", None, None).unwrap();
+        service.create_task("Task 1", None, None, None).unwrap();
+        service.create_task("Task 2", None, None, None).unwrap();
 
         let tasks = service.list_tasks(false).unwrap();
         assert_eq!(tasks.len(), 2);
@@ -258,8 +276,8 @@ mod tests {
         let db = setup_db();
         let service = TaskService::new(&db);
 
-        let task1 = service.create_task("Task 1", None, None).unwrap();
-        service.create_task("Task 2", None, None).unwrap();
+        let task1 = service.create_task("Task 1", None, None, None).unwrap();
+        service.create_task("Task 2", None, None, None).unwrap();
         service.archive_task(task1.id).unwrap();
 
         let tasks = service.list_tasks(false).unwrap();
@@ -274,7 +292,7 @@ mod tests {
         let db = setup_db();
         let service = TaskService::new(&db);
 
-        let task = service.create_task("Task 1", None, None).unwrap();
+        let task = service.create_task("Task 1", None, None, None).unwrap();
         let switched = service.switch_task(task.id).unwrap();
         assert_eq!(switched.id, task.id);
 
@@ -287,7 +305,7 @@ mod tests {
         let db = setup_db();
         let service = TaskService::new(&db);
 
-        let task = service.create_task("Task 1", None, None).unwrap();
+        let task = service.create_task("Task 1", None, None, None).unwrap();
         service.archive_task(task.id).unwrap();
 
         let result = service.switch_task(task.id);
@@ -299,7 +317,7 @@ mod tests {
         let db = setup_db();
         let service = TaskService::new(&db);
 
-        let task = service.create_task("Task 1", None, None).unwrap();
+        let task = service.create_task("Task 1", None, None, None).unwrap();
         service.archive_task(task.id).unwrap();
 
         let retrieved = service.get_task(task.id).unwrap();
@@ -315,7 +333,7 @@ mod tests {
         let db = setup_db();
         let service = TaskService::new(&db);
 
-        let task = service.create_task("Task 1", None, None).unwrap();
+        let task = service.create_task("Task 1", None, None, None).unwrap();
         service.link_ticket(task.id, "PROJ-456", "https://example.com").unwrap();
 
         let retrieved = service.get_task(task.id).unwrap();
@@ -327,8 +345,8 @@ mod tests {
         let db = setup_db();
         let service = TaskService::new(&db);
 
-        service.create_task("Task 1", Some("PROJ-123"), None).unwrap();
-        let task2 = service.create_task("Task 2", None, None).unwrap();
+        service.create_task("Task 1", None, Some("PROJ-123"), None).unwrap();
+        let task2 = service.create_task("Task 2", None, None, None).unwrap();
 
         let result = service.link_ticket(task2.id, "PROJ-123", "https://example.com");
         assert!(matches!(result, Err(TrackError::DuplicateTicket(_, _))));
@@ -339,7 +357,7 @@ mod tests {
         let db = setup_db();
         let service = TaskService::new(&db);
 
-        let task = service.create_task("Task 1", None, None).unwrap();
+        let task = service.create_task("Task 1", None, None, None).unwrap();
         let resolved = service.resolve_task_id(&task.id.to_string()).unwrap();
         assert_eq!(resolved, task.id);
     }
@@ -349,7 +367,7 @@ mod tests {
         let db = setup_db();
         let service = TaskService::new(&db);
 
-        let task = service.create_task("Task 1", Some("PROJ-789"), None).unwrap();
+        let task = service.create_task("Task 1", None, Some("PROJ-789"), None).unwrap();
         let resolved = service.resolve_task_id("t:PROJ-789").unwrap();
         assert_eq!(resolved, task.id);
     }
