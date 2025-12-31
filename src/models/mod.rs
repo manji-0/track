@@ -16,6 +16,7 @@ pub struct Todo {
     pub id: i64,
     #[allow(dead_code)]
     pub task_id: i64,
+    pub task_index: i64,
     pub content: String,
     pub status: String,
     #[allow(dead_code)]

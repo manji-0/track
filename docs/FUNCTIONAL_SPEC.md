@@ -278,9 +278,27 @@ Updated description for task #6
 
 ## 2. TODO Management Functions
 
+### Task-Scoped TODO Indexing
+
+**Overview**: TODOs use task-scoped sequential indices (1, 2, 3...) for user-facing operations, while maintaining global IDs internally for database integrity.
+
+**Key Concepts**:
+- Each task has its own TODO numbering starting from 1
+- TODO indices are sequential and unique within a task
+- Commands accept task-scoped indices, not global IDs
+- All TODO operations require an active task context
+
+**Example**:
+```
+Task #1 TODOs:          Task #2 TODOs:
+  [1] Design schema      [1] Write tests
+  [2] Implement code     [2] Update docs
+  [3] Add tests          [3] Review PR
+```
+
 ### 2.1. `track todo add <text>` - Add TODO
 
-**Overview**: Adds a TODO to the current task.
+**Overview**: Adds a TODO to the current task with the next available task-scoped index.
 
 **Input**:
 | Argument | Type | Required | Description |
@@ -289,13 +307,15 @@ Updated description for task #6
 
 **Process Flow**:
 1. Get current Task ID (Error if not set).
-2. INSERT record into `todos` table.
+2. Calculate next task_index for this task.
+3. INSERT record into `todos` table.
+   - `task_index`: Next sequential number within task
    - `status`: `'pending'`
    - `created_at`: Current time
 
 **Output**:
 ```
-Added TODO #<id>: <text>
+Added TODO #<index>: <text>
 ```
 
 **Error Cases**:
@@ -307,26 +327,29 @@ Added TODO #<id>: <text>
 
 ### 2.2. `track todo list` - Display TODO List
 
-**Overview**: Displays the TODO list for the current task.
+**Overview**: Displays the TODO list for the current task with task-scoped indices.
 
 **Output Example**:
 ```
   ID | Status  | Content
 -----+---------+---------------------------
-   1 | pending | Endpoint design
-   2 | done    | Schema definition
+   1 | pending | Design schema
+   2 | done    | Implement code
+   3 | pending | Add tests
 ```
+
+**Note**: The ID column shows task-scoped indices (1, 2, 3...), not global database IDs.
 
 ---
 
-### 2.3. `track todo update <id> <status>` - Update TODO Status
+### 2.3. `track todo update <index> <status>` - Update TODO Status
 
-**Overview**: Updates the status of a specific TODO.
+**Overview**: Updates the status of a specific TODO using its task-scoped index.
 
 **Input**:
 | Argument | Type | Required | Description |
 |---|---|---|---|
-| `id` | Integer | ✓ | TODO ID |
+| `index` | Integer | ✓ | Task-scoped TODO index (1, 2, 3...) |
 | `status` | String | ✓ | New status |
 
 **Valid Status Values**:
@@ -334,42 +357,85 @@ Added TODO #<id>: <text>
 - `done`: Completed
 - `cancelled`: Cancelled
 
+**Process Flow**:
+1. Get current Task ID.
+2. Resolve task-scoped index to internal TODO ID.
+3. Update TODO status.
+
 **Output**:
 ```
-Updated TODO #<id> status to '<status>'
+Updated TODO #<index> status to '<status>'
+```
+
+**Error Cases**:
+| Condition | Error Message |
+|---|---|
+| No active task | `Error: No active task. Run 'track new' or 'track switch' first.` |
+| Index out of range | `Error: TODO #<index> not found in current task` |
+
+---
+
+### 2.4. `track todo done <index>` - Complete TODO
+
+**Overview**: Marks a TODO as done and handles associated worktree cleanup.
+
+**Input**:
+| Argument | Type | Required | Description |
+|---|---|---|---|
+| `index` | Integer | ✓ | Task-scoped TODO index |
+
+**Process Flow**:
+1. Get current Task ID.
+2. Resolve task-scoped index to internal TODO ID.
+3. If TODO has associated worktree:
+   - Merge worktree branch to base branch.
+   - Remove worktree.
+4. Update TODO status to 'done'.
+
+**Output**:
+```
+Merged and removed worktree for TODO #<index> (branch: <branch>).
+Marked TODO #<index> as done.
 ```
 
 ---
 
-### 2.4. `track todo delete <id>` - Delete TODO
+### 2.5. `track todo delete <index>` - Delete TODO
 
-**Overview**: Deletes a specific TODO.
+**Overview**: Deletes a specific TODO using its task-scoped index.
 
 **Input**:
 | Argument/Flag | Type | Required | Description |
 |---|---|---|---|
-| `id` | Integer | ✓ | TODO ID to delete |
+| `index` | Integer | ✓ | Task-scoped TODO index to delete |
 | `--force` / `-f` | Flag | | Skip confirmation prompt |
 
 **Process Flow**:
-1. Validate that the TODO with the specified ID exists.
-2. If `--force` is not specified, display a confirmation prompt.
-3. Execute deletion only if user enters `y` or `yes`.
+1. Get current Task ID.
+2. Resolve task-scoped index to internal TODO ID.
+3. If `--force` is not specified, display a confirmation prompt.
+4. Execute deletion only if user enters `y` or `yes`.
 
 **Confirmation Prompt**:
 ```
-Delete TODO #<id>: "<content>"? [y/N]: 
+Delete TODO #<index>: "<content>"? [y/N]: 
 ```
 
 **Output**:
 ```
-Deleted TODO #<id>
+Deleted TODO #<index>
 ```
 
 **On Cancel**:
 ```
 Cancelled.
 ```
+
+**Error Cases**:
+| Condition | Error Message |
+|---|---|
+| No active task | `Error: No active task. Run 'track new' or 'track switch' first.` |
+| Index out of range | `Error: TODO #<index> not found in current task` |
 
 ---
 

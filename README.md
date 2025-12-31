@@ -65,13 +65,15 @@ track info
 
 ### TODO Management
 
+TODOs are numbered sequentially within each task (1, 2, 3...). All TODO commands operate on the current task.
+
 | Command | Description |
 |---------|-------------|
 | `track todo add <text> [--worktree]` | Add a TODO (optionally create worktrees) |
-| `track todo list` | Display TODO list |
-| `track todo update <id> <status>` | Update TODO status |
-| `track todo done <id>` | Complete a TODO (merges and removes worktrees) |
-| `track todo delete <id>` | Delete a TODO |
+| `track todo list` | Display TODO list with task-scoped indices |
+| `track todo update <index> <status>` | Update TODO status (index: 1, 2, 3...) |
+| `track todo done <index>` | Complete a TODO (merges and removes worktrees) |
+| `track todo delete <index>` | Delete a TODO |
 
 ### Link Management
 

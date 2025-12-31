@@ -141,7 +141,7 @@ impl CommandHandler {
                     "cancelled" => "[-]",
                     _ => "[ ]",
                 };
-                println!("  {} {}", marker, todo.content);
+                println!("  {} [{}] {}", marker, todo.task_index, todo.content);
             }
             println!();
         }
@@ -252,7 +252,7 @@ impl CommandHandler {
         match command {
             TodoCommands::Add { text, worktree } => {
                 let todo = todo_service.add_todo(current_task_id, &text)?;
-                println!("Added TODO #{}: {}", todo.id, todo.content);
+                println!("Added TODO #{}: {}", todo.task_index, todo.content);
                 
                 if worktree {
                     let repo_service = RepoService::new(&self.db);
@@ -295,7 +295,7 @@ impl CommandHandler {
 
                 for todo in todos {
                     table.add_row(Row::new(vec![
-                        Cell::new(&todo.id.to_string()),
+                        Cell::new(&todo.task_index.to_string()),
                         Cell::new(&todo.status),
                         Cell::new(&todo.content),
                     ]));
@@ -304,21 +304,28 @@ impl CommandHandler {
                 table.printstd();
             }
             TodoCommands::Update { id, status } => {
-                todo_service.update_status(id, &status)?;
+                // Resolve task_index to internal ID
+                let todo = todo_service.get_todo_by_index(current_task_id, id)?;
+                todo_service.update_status(todo.id, &status)?;
                 println!("Updated TODO #{} status to '{}'", id, status);
             }
             TodoCommands::Done { id } => {
+                // Resolve task_index to internal ID
+                let todo = todo_service.get_todo_by_index(current_task_id, id)?;
+                
                 let worktree_service = WorktreeService::new(&self.db);
-                if let Some(branch) = worktree_service.complete_worktree_for_todo(id)? {
+                if let Some(branch) = worktree_service.complete_worktree_for_todo(todo.id)? {
                      println!("Merged and removed worktree for TODO #{} (branch: {}).", id, branch);
                 }
                 
-                todo_service.update_status(id, "done")?;
+                todo_service.update_status(todo.id, "done")?;
                 println!("Marked TODO #{} as done.", id);
             }
             TodoCommands::Delete { id, force } => {
+                // Resolve task_index to internal ID
+                let todo = todo_service.get_todo_by_index(current_task_id, id)?;
+                
                 if !force {
-                    let todo = todo_service.get_todo(id)?;
                     print!("Delete TODO #{}: \"{}\"? [y/N]: ", id, todo.content);
                     io::stdout().flush()?;
                     
@@ -331,7 +338,7 @@ impl CommandHandler {
                     }
                 }
 
-                todo_service.delete_todo(id)?;
+                todo_service.delete_todo(todo.id)?;
                 println!("Deleted TODO #{}", id);
             }
         }

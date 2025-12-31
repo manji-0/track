@@ -17,9 +17,16 @@ impl<'a> TodoService<'a> {
         let now = Utc::now().to_rfc3339();
         let conn = self.db.get_connection();
 
+        // Get next task_index for this task
+        let next_index: i64 = conn.query_row(
+            "SELECT COALESCE(MAX(task_index), 0) + 1 FROM todos WHERE task_id = ?1",
+            params![task_id],
+            |row| row.get(0),
+        )?;
+
         conn.execute(
-            "INSERT INTO todos (task_id, content, status, created_at) VALUES (?1, ?2, ?3, ?4)",
-            params![task_id, content, TodoStatus::Pending.as_str(), now],
+            "INSERT INTO todos (task_id, task_index, content, status, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![task_id, next_index, content, TodoStatus::Pending.as_str(), now],
         )?;
 
         let todo_id = conn.last_insert_rowid();
@@ -29,16 +36,17 @@ impl<'a> TodoService<'a> {
     pub fn get_todo(&self, todo_id: i64) -> Result<Todo> {
         let conn = self.db.get_connection();
         let mut stmt = conn.prepare(
-            "SELECT id, task_id, content, status, created_at FROM todos WHERE id = ?1"
+            "SELECT id, task_id, task_index, content, status, created_at FROM todos WHERE id = ?1"
         )?;
 
         let todo = stmt.query_row(params![todo_id], |row| {
             Ok(Todo {
                 id: row.get(0)?,
                 task_id: row.get(1)?,
-                content: row.get(2)?,
-                status: row.get(3)?,
-                created_at: row.get::<_, String>(4)?.parse().unwrap(),
+                task_index: row.get(2)?,
+                content: row.get(3)?,
+                status: row.get(4)?,
+                created_at: row.get::<_, String>(5)?.parse().unwrap(),
             })
         }).map_err(|_| TrackError::TodoNotFound(todo_id))?;
 
@@ -48,21 +56,42 @@ impl<'a> TodoService<'a> {
     pub fn list_todos(&self, task_id: i64) -> Result<Vec<Todo>> {
         let conn = self.db.get_connection();
         let mut stmt = conn.prepare(
-            "SELECT id, task_id, content, status, created_at FROM todos WHERE task_id = ?1 ORDER BY created_at ASC"
+            "SELECT id, task_id, task_index, content, status, created_at FROM todos WHERE task_id = ?1 ORDER BY task_index ASC"
         )?;
 
         let todos = stmt.query_map(params![task_id], |row| {
             Ok(Todo {
                 id: row.get(0)?,
                 task_id: row.get(1)?,
-                content: row.get(2)?,
-                status: row.get(3)?,
-                created_at: row.get::<_, String>(4)?.parse().unwrap(),
+                task_index: row.get(2)?,
+                content: row.get(3)?,
+                status: row.get(4)?,
+                created_at: row.get::<_, String>(5)?.parse().unwrap(),
             })
         })?
         .collect::<std::result::Result<Vec<_>, _>>()?;
 
         Ok(todos)
+    }
+
+    pub fn get_todo_by_index(&self, task_id: i64, task_index: i64) -> Result<Todo> {
+        let conn = self.db.get_connection();
+        let mut stmt = conn.prepare(
+            "SELECT id, task_id, task_index, content, status, created_at FROM todos WHERE task_id = ?1 AND task_index = ?2"
+        )?;
+
+        let todo = stmt.query_row(params![task_id, task_index], |row| {
+            Ok(Todo {
+                id: row.get(0)?,
+                task_id: row.get(1)?,
+                task_index: row.get(2)?,
+                content: row.get(3)?,
+                status: row.get(4)?,
+                created_at: row.get::<_, String>(5)?.parse().unwrap(),
+            })
+        }).map_err(|_| TrackError::Other(format!("TODO #{} not found in current task", task_index)))?;
+
+        Ok(todo)
     }
 
     pub fn update_status(&self, todo_id: i64, status: &str) -> Result<()> {
@@ -210,6 +239,86 @@ mod tests {
 
         let result = service.delete_todo(999);
         assert!(matches!(result, Err(TrackError::TodoNotFound(999))));
+    }
+
+    #[test]
+    fn test_task_index_sequential() {
+        let db = setup_db();
+        let task_id = create_test_task(&db);
+        let service = TodoService::new(&db);
+
+        let todo1 = service.add_todo(task_id, "TODO 1").unwrap();
+        let todo2 = service.add_todo(task_id, "TODO 2").unwrap();
+        let todo3 = service.add_todo(task_id, "TODO 3").unwrap();
+
+        assert_eq!(todo1.task_index, 1);
+        assert_eq!(todo2.task_index, 2);
+        assert_eq!(todo3.task_index, 3);
+    }
+
+    #[test]
+    fn test_task_index_independence() {
+        let db = setup_db();
+        let task_service = TaskService::new(&db);
+        let task1_id = task_service.create_task("Task 1", None, None, None).unwrap().id;
+        let task2_id = task_service.create_task("Task 2", None, None, None).unwrap().id;
+        let service = TodoService::new(&db);
+
+        let task1_todo1 = service.add_todo(task1_id, "Task 1 TODO 1").unwrap();
+        let task2_todo1 = service.add_todo(task2_id, "Task 2 TODO 1").unwrap();
+        let task1_todo2 = service.add_todo(task1_id, "Task 1 TODO 2").unwrap();
+        let task2_todo2 = service.add_todo(task2_id, "Task 2 TODO 2").unwrap();
+
+        // Each task should have independent indexing starting from 1
+        assert_eq!(task1_todo1.task_index, 1);
+        assert_eq!(task1_todo2.task_index, 2);
+        assert_eq!(task2_todo1.task_index, 1);
+        assert_eq!(task2_todo2.task_index, 2);
+    }
+
+    #[test]
+    fn test_get_todo_by_index_success() {
+        let db = setup_db();
+        let task_id = create_test_task(&db);
+        let service = TodoService::new(&db);
+
+        service.add_todo(task_id, "TODO 1").unwrap();
+        let created = service.add_todo(task_id, "TODO 2").unwrap();
+        service.add_todo(task_id, "TODO 3").unwrap();
+
+        let retrieved = service.get_todo_by_index(task_id, 2).unwrap();
+        assert_eq!(retrieved.id, created.id);
+        assert_eq!(retrieved.task_index, 2);
+        assert_eq!(retrieved.content, "TODO 2");
+    }
+
+    #[test]
+    fn test_get_todo_by_index_not_found() {
+        let db = setup_db();
+        let task_id = create_test_task(&db);
+        let service = TodoService::new(&db);
+
+        service.add_todo(task_id, "TODO 1").unwrap();
+
+        let result = service.get_todo_by_index(task_id, 5);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_list_todos_ordered_by_index() {
+        let db = setup_db();
+        let task_id = create_test_task(&db);
+        let service = TodoService::new(&db);
+
+        service.add_todo(task_id, "TODO 1").unwrap();
+        service.add_todo(task_id, "TODO 2").unwrap();
+        service.add_todo(task_id, "TODO 3").unwrap();
+
+        let todos = service.list_todos(task_id).unwrap();
+        assert_eq!(todos.len(), 3);
+        assert_eq!(todos[0].task_index, 1);
+        assert_eq!(todos[1].task_index, 2);
+        assert_eq!(todos[2].task_index, 3);
     }
 }
 
