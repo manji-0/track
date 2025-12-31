@@ -235,6 +235,15 @@ impl CommandHandler {
                 todo_service.update_status(id, &status)?;
                 println!("Updated TODO #{} status to '{}'", id, status);
             }
+            TodoCommands::Done { id } => {
+                let worktree_service = WorktreeService::new(&self.db);
+                if let Some(branch) = worktree_service.complete_worktree_for_todo(id)? {
+                     println!("Merged and removed worktree for TODO #{} (branch: {}).", id, branch);
+                }
+                
+                todo_service.update_status(id, "done")?;
+                println!("Marked TODO #{} as done.", id);
+            }
             TodoCommands::Delete { id, force } => {
                 if !force {
                     let todo = todo_service.get_todo(id)?;
@@ -324,7 +333,25 @@ impl CommandHandler {
         let worktree_service = WorktreeService::new(&self.db);
 
         match command {
-            WorktreeCommands::Add { repo_path, branch } => {
+            WorktreeCommands::Init { repo_path } => {
+                // Get ticket ID from current task
+                let task_service = TaskService::new(&self.db);
+                let task = task_service.get_task(current_task_id)?;
+                
+                let worktree = worktree_service.add_worktree(
+                    current_task_id,
+                    &repo_path,
+                    None,
+                    task.ticket_id.as_deref(),
+                    None,
+                    true, // is_base
+                )?;
+
+                println!("Initialized base worktree: {}", worktree.path);
+                println!("Branch: {}", worktree.branch);
+                println!("Linked to task #{}", current_task_id);
+            }
+            WorktreeCommands::Add { repo_path, branch, todo } => {
                 // Get ticket ID from current task
                 let task_service = TaskService::new(&self.db);
                 let task = task_service.get_task(current_task_id)?;
@@ -334,11 +361,17 @@ impl CommandHandler {
                     &repo_path,
                     branch.as_deref(),
                     task.ticket_id.as_deref(),
+                    todo,
+                    false, // is_base
                 )?;
 
                 println!("Created worktree: {}", worktree.path);
                 println!("Branch: {}", worktree.branch);
-                println!("Linked to task #{}", current_task_id);
+                if let Some(todo_id) = todo {
+                    println!("Linked to TODO #{}", todo_id);
+                } else {
+                    println!("Linked to task #{}", current_task_id);
+                }
             }
             WorktreeCommands::List => {
                 let worktrees = worktree_service.list_worktrees(current_task_id)?;

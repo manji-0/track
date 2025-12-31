@@ -1,4 +1,4 @@
-use rusqlite::params;
+use rusqlite::{params, OptionalExtension};
 use chrono::Utc;
 use std::path::Path;
 use std::process::Command;
@@ -21,6 +21,8 @@ impl<'a> WorktreeService<'a> {
         repo_path: &str,
         branch: Option<&str>,
         ticket_id: Option<&str>,
+        todo_id: Option<i64>,
+        is_base: bool,
     ) -> Result<GitItem> {
         // Verify it's a git repository
         if !self.is_git_repository(repo_path)? {
@@ -28,7 +30,7 @@ impl<'a> WorktreeService<'a> {
         }
 
         // Determine branch name
-        let branch_name = self.determine_branch_name(branch, ticket_id, task_id)?;
+        let branch_name = self.determine_branch_name(branch, ticket_id, task_id, todo_id)?;
 
         // Check if branch already exists
         if self.branch_exists(repo_path, &branch_name)? {
@@ -46,8 +48,8 @@ impl<'a> WorktreeService<'a> {
         let conn = self.db.get_connection();
 
         conn.execute(
-            "INSERT INTO git_items (task_id, path, branch, base_repo, status, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-            params![task_id, worktree_path, branch_name, repo_path, "active", now],
+            "INSERT INTO git_items (task_id, path, branch, base_repo, status, created_at, todo_id, is_base) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            params![task_id, worktree_path, branch_name, repo_path, "active", now, todo_id, is_base as i32],
         )?;
 
         let git_item_id = conn.last_insert_rowid();
@@ -57,10 +59,11 @@ impl<'a> WorktreeService<'a> {
     pub fn get_git_item(&self, git_item_id: i64) -> Result<GitItem> {
         let conn = self.db.get_connection();
         let mut stmt = conn.prepare(
-            "SELECT id, task_id, path, branch, base_repo, status, created_at FROM git_items WHERE id = ?1"
+            "SELECT id, task_id, path, branch, base_repo, status, created_at, todo_id, is_base FROM git_items WHERE id = ?1"
         )?;
 
         let git_item = stmt.query_row(params![git_item_id], |row| {
+            let is_base: i32 = row.get(8).unwrap_or(0);
             Ok(GitItem {
                 id: row.get(0)?,
                 task_id: row.get(1)?,
@@ -69,6 +72,8 @@ impl<'a> WorktreeService<'a> {
                 base_repo: row.get(4)?,
                 status: row.get(5)?,
                 created_at: row.get::<_, String>(6)?.parse().unwrap(),
+                todo_id: row.get(7)?,
+                is_base: is_base != 0,
             })
         }).map_err(|_| TrackError::WorktreeNotFound(git_item_id))?;
 
@@ -78,10 +83,11 @@ impl<'a> WorktreeService<'a> {
     pub fn list_worktrees(&self, task_id: i64) -> Result<Vec<GitItem>> {
         let conn = self.db.get_connection();
         let mut stmt = conn.prepare(
-            "SELECT id, task_id, path, branch, base_repo, status, created_at FROM git_items WHERE task_id = ?1 ORDER BY created_at ASC"
+            "SELECT id, task_id, path, branch, base_repo, status, created_at, todo_id, is_base FROM git_items WHERE task_id = ?1 ORDER BY created_at ASC"
         )?;
 
         let git_items = stmt.query_map(params![task_id], |row| {
+            let is_base: i32 = row.get(8).unwrap_or(0);
             Ok(GitItem {
                 id: row.get(0)?,
                 task_id: row.get(1)?,
@@ -90,6 +96,8 @@ impl<'a> WorktreeService<'a> {
                 base_repo: row.get(4)?,
                 status: row.get(5)?,
                 created_at: row.get::<_, String>(6)?.parse().unwrap(),
+                todo_id: row.get(7)?,
+                is_base: is_base != 0,
             })
         })?
         .collect::<std::result::Result<Vec<_>, _>>()?;
@@ -188,12 +196,20 @@ impl<'a> WorktreeService<'a> {
         branch: Option<&str>,
         ticket_id: Option<&str>,
         task_id: i64,
+        todo_id: Option<i64>,
     ) -> Result<String> {
-        match (branch, ticket_id) {
-            (Some(b), Some(t)) => Ok(format!("{}/{}", t, b)),
-            (None, Some(t)) => Ok(format!("task/{}", t)),
-            (Some(b), None) => Ok(b.to_string()),
-            (None, None) => {
+        match (branch, ticket_id, todo_id) {
+            // If branch is explicitly specified, use it (with ticket prefix if available)
+            (Some(b), Some(t), _) => Ok(format!("{}/{}", t, b)),
+            (Some(b), None, _) => Ok(b.to_string()),
+
+            // If todo_id is present
+            (None, Some(t), Some(todo)) => Ok(format!("{}-todo-{}", t, todo)),
+            (None, None, Some(todo)) => Ok(format!("task-{}-todo-{}", task_id, todo)),
+
+            // Base worktree (no todo_id)
+            (None, Some(t), None) => Ok(format!("task/{}", t)),
+            (None, None, None) => {
                 let timestamp = Utc::now().timestamp();
                 Ok(format!("task-{}-{}", task_id, timestamp))
             }
@@ -253,5 +269,92 @@ impl<'a> WorktreeService<'a> {
         } else {
             "Link".to_string()
         }
+    }
+
+    pub fn complete_worktree_for_todo(&self, todo_id: i64) -> Result<Option<String>> {
+        let wt = match self.get_worktree_by_todo(todo_id)? {
+            Some(wt) => wt,
+            None => return Ok(None),
+        };
+
+        let base_wt = self.get_base_worktree(wt.task_id)?
+            .ok_or_else(|| TrackError::Other("Base worktree not found. Please init a base worktree first.".to_string()))?;
+
+        if self.has_uncommitted_changes(&wt.path)? {
+            return Err(TrackError::Other(format!("Worktree {} has uncommitted changes. Please commit or stash them.", wt.path)));
+        }
+
+        self.merge_branch(&base_wt.path, &wt.branch)?;
+        self.remove_worktree(wt.id, false)?;
+
+        Ok(Some(wt.branch))
+    }
+
+    fn get_worktree_by_todo(&self, todo_id: i64) -> Result<Option<GitItem>> {
+        let conn = self.db.get_connection();
+        let mut stmt = conn.prepare(
+            "SELECT id, task_id, path, branch, base_repo, status, created_at, todo_id, is_base FROM git_items WHERE todo_id = ?1"
+        )?;
+
+        let result = stmt.query_row(params![todo_id], |row| {
+            let is_base: i32 = row.get(8).unwrap_or(0);
+            Ok(GitItem {
+                id: row.get(0)?,
+                task_id: row.get(1)?,
+                path: row.get(2)?,
+                branch: row.get(3)?,
+                base_repo: row.get(4)?,
+                status: row.get(5)?,
+                created_at: row.get::<_, String>(6)?.parse().unwrap(),
+                todo_id: row.get(7)?,
+                is_base: is_base != 0,
+            })
+        }).optional()?;
+
+        Ok(result)
+    }
+
+    fn get_base_worktree(&self, task_id: i64) -> Result<Option<GitItem>> {
+        let conn = self.db.get_connection();
+        let mut stmt = conn.prepare(
+            "SELECT id, task_id, path, branch, base_repo, status, created_at, todo_id, is_base FROM git_items WHERE task_id = ?1 AND is_base = 1"
+        )?;
+
+        let result = stmt.query_row(params![task_id], |row| {
+            let is_base: i32 = row.get(8).unwrap_or(0);
+            Ok(GitItem {
+                id: row.get(0)?,
+                task_id: row.get(1)?,
+                path: row.get(2)?,
+                branch: row.get(3)?,
+                base_repo: row.get(4)?,
+                status: row.get(5)?,
+                created_at: row.get::<_, String>(6)?.parse().unwrap(),
+                todo_id: row.get(7)?,
+                is_base: is_base != 0,
+            })
+        }).optional()?;
+
+        Ok(result)
+    }
+
+    fn has_uncommitted_changes(&self, path: &str) -> Result<bool> {
+        let output = Command::new("git")
+            .args(&["-C", path, "status", "--porcelain"])
+            .output()?;
+        
+        Ok(!output.stdout.is_empty())
+    }
+
+    fn merge_branch(&self, target_path: &str, branch: &str) -> Result<()> {
+        let output = Command::new("git")
+            .args(&["-C", target_path, "merge", "--no-ff", branch])
+            .output()?;
+
+        if !output.status.success() {
+            let error = String::from_utf8_lossy(&output.stderr);
+            return Err(TrackError::Git(format!("Merge failed: {}", error)));
+        }
+        Ok(())
     }
 }

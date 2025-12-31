@@ -116,6 +116,12 @@ pub enum TodoCommands {
         status: String,
     },
 
+    /// Complete a TODO (merges worktree if exists)
+    Done {
+        /// TODO ID
+        id: i64,
+    },
+
     /// Delete a TODO
     Delete {
         /// TODO ID
@@ -156,6 +162,12 @@ pub enum ScrapCommands {
 
 #[derive(Subcommand)]
 pub enum WorktreeCommands {
+    /// Initialize a base worktree for the current task
+    Init {
+        /// Repository path
+        repo_path: String,
+    },
+
     /// Create a new worktree
     Add {
         /// Repository path
@@ -163,6 +175,10 @@ pub enum WorktreeCommands {
         
         /// Branch name (optional, auto-generated if not provided)
         branch: Option<String>,
+
+        /// Associate with a TODO ID
+        #[arg(long)]
+        todo: Option<i64>,
     },
 
     /// List worktrees
