@@ -45,6 +45,8 @@ pub struct GitItem {
     pub base_repo: Option<String>,
     pub status: String,
     pub created_at: DateTime<Utc>,
+    pub todo_id: Option<i64>,
+    pub is_base: bool,
 }
 
 #[derive(Debug, Clone)]

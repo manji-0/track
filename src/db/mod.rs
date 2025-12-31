@@ -80,7 +80,10 @@ impl Database {
                 base_repo TEXT,
                 status TEXT NOT NULL DEFAULT 'active',
                 created_at TEXT NOT NULL,
-                FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
+                todo_id INTEGER,
+                is_base INTEGER DEFAULT 0,
+                FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
+                FOREIGN KEY (todo_id) REFERENCES todos(id) ON DELETE SET NULL
             );
 
             CREATE TABLE IF NOT EXISTS repo_links (
@@ -99,6 +102,36 @@ impl Database {
             CREATE INDEX IF NOT EXISTS idx_repo_links_git_item_id ON repo_links(git_item_id);
             "#
         )?;
+
+        self.migrate_schema()?;
+
+        Ok(())
+    }
+
+    fn migrate_schema(&self) -> Result<()> {
+        // Check for todo_id column in git_items
+        let count: i64 = self.conn.query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('git_items') WHERE name='todo_id'",
+            [],
+            |row| row.get(0),
+        )?;
+
+        if count == 0 {
+            self.conn.execute("ALTER TABLE git_items ADD COLUMN todo_id INTEGER REFERENCES todos(id) ON DELETE SET NULL", [])?;
+        }
+        self.conn.execute("CREATE INDEX IF NOT EXISTS idx_git_items_todo_id ON git_items(todo_id)", [])?;
+
+        // Check for is_base column in git_items
+        let count: i64 = self.conn.query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('git_items') WHERE name='is_base'",
+            [],
+            |row| row.get(0),
+        )?;
+
+        if count == 0 {
+            self.conn.execute("ALTER TABLE git_items ADD COLUMN is_base INTEGER DEFAULT 0", [])?;
+        }
+
         Ok(())
     }
 
