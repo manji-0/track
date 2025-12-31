@@ -143,7 +143,6 @@ See [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md) for details.
 
 - [DESIGN.md](DESIGN.md) - Design specification
 - [docs/FUNCTIONAL_SPEC.md](docs/FUNCTIONAL_SPEC.md) - Functional specification
-- [docs/BRANCH_STRATEGY.md](docs/BRANCH_STRATEGY.md) - **NEW:** Hierarchical worktree branch workflow strategy
 - [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md) - Project structure
 
 ## License
