@@ -235,8 +235,56 @@ impl CommandHandler {
 
     fn handle_archive(&self, task_ref: &str) -> Result<()> {
         let task_service = TaskService::new(&self.db);
+        let worktree_service = WorktreeService::new(&self.db);
+        
         let task_id = task_service.resolve_task_id(task_ref)?;
         let task = task_service.get_task(task_id)?;
+
+        // 1. Get all worktrees for this task
+        let worktrees = worktree_service.list_worktrees(task_id)?;
+        
+        // 2. Check for uncommitted changes in worktrees that exist on disk
+        let mut dirty_worktrees = Vec::new();
+        for worktree in &worktrees {
+            if std::path::Path::new(&worktree.path).exists() {
+                if worktree_service.has_uncommitted_changes(&worktree.path).unwrap_or(false) {
+                    dirty_worktrees.push(worktree);
+                }
+            }
+        }
+        
+        if !dirty_worktrees.is_empty() {
+             println!("WARNING: The following worktrees have uncommitted changes:");
+             for wt in &dirty_worktrees {
+                 println!("  #{} {}", wt.id, wt.path);
+             }
+             println!();
+             print!("Archive and remove worktrees anyway? [y/N]: ");
+             io::stdout().flush()?;
+             let mut input = String::new();
+             io::stdin().read_line(&mut input)?;
+             
+             if !matches!(input.trim().to_lowercase().as_str(), "y" | "yes") {
+                 println!("Cancelled.");
+                 return Ok(());
+             }
+        }
+        
+        // 3. Remove worktrees
+        if !worktrees.is_empty() {
+            println!("Cleaning up worktrees...");
+            for worktree in worktrees {
+                 match worktree_service.remove_worktree(worktree.id, false) {
+                     Ok(_) => {
+                         println!("  Removed worktree #{}: {}", worktree.id, worktree.path);
+                     },
+                     Err(e) => {
+                         eprintln!("  Error removing worktree #{}: {}", worktree.id, e);
+                         // We continue even if one fails
+                     }
+                 }
+            }
+        }
 
         task_service.archive_task(task_id)?;
         println!("Archived task #{}: {}", task.id, task.name);

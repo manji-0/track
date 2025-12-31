@@ -60,6 +60,21 @@ track worktree sync
    - Delete git_item record
 3. Update TODO status to 'done'
 
+
+### 4. Task Lifecycle Integration
+
+#### Archiving Tasks
+
+`track archive <task_id>`
+
+**Behavior:**
+1. Check for uncommitted changes in all worktrees associated with the task (both TODO worktrees and any others).
+2. If changes exist, warn and require confirmation.
+3. For each worktree:
+   - Remove the worktree directory (`git worktree remove`)
+   - Delete the `git_items` record
+4. Update task status to 'archived'
+
 ## Database Schema Changes
 
 ### New Table: `task_repos`

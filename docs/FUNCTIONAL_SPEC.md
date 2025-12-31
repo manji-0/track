@@ -628,18 +628,19 @@ Automatically manages relevant worktrees according to task state changes.
 #### `track archive <task_id>` - On Task Archive
 
 **Process Flow**:
-1. Update task `status` to `'archived'`.
-2. For all related worktrees:
-   - Check for uncommitted changes.
+1. Check for uncommitted changes in all unrelated worktrees.
    - If changes exist, display warning and ask for confirmation.
-   - After confirmation, update worktree `status` to `'archived'`.
-3. If `app_state`'s `current_task_id` matches the task, clear it.
+2. For all related worktrees:
+   - Execute `git worktree remove <path>`.
+   - Delete record from DB.
+3. Update task `status` to `'archived'`.
+4. If `app_state`'s `current_task_id` matches the task, clear it.
 
 **Output**:
 ```
 Archived task #<task_id>: <name>
-  └─ Worktree #1: /path/to/worktree (archived)
-  └─ Worktree #2: /path/to/worktree2 (archived)
+  └─ Removed worktree #1: /path/to/worktree
+  └─ Removed worktree #2: /path/to/worktree2
 ```
 
 **Warning (If uncommitted changes exist)**:
@@ -648,14 +649,14 @@ WARNING: Worktree #<id> has uncommitted changes:
   M  src/main.rs
   ?? new_file.txt
 
-Archive anyway? [y/N]: 
+Archive and remove worktrees anyway? [y/N]: 
 ```
 
 ---
 
-#### `track cleanup [--dry-run]` - Delete Archived Worktrees
+#### `track cleanup [--dry-run]` - Clean Legacy/Orphaned Worktrees
 
-**Overview**: Deletes `archived` worktrees from disk.
+**Overview**: Deletes `archived` worktrees from disk (if they exist) and cleans up DB records. Primarily used for migrating old tasks or cleaning up failed removals.
 
 **Input**:
 | Flag | Description |
@@ -666,7 +667,7 @@ Archive anyway? [y/N]:
 **Process Flow**:
 1. Collect worktrees with `status = 'archived'` from all tasks.
 2. For each worktree:
-   - Execute `git worktree remove <path>`.
+   - Execute `git worktree remove <path>` (if path exists).
    - Delete record from DB.
 
 **Output (dry-run)**:

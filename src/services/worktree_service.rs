@@ -338,7 +338,7 @@ impl<'a> WorktreeService<'a> {
         Ok(result)
     }
 
-    fn has_uncommitted_changes(&self, path: &str) -> Result<bool> {
+    pub fn has_uncommitted_changes(&self, path: &str) -> Result<bool> {
         let output = Command::new("git")
             .args(&["-C", path, "status", "--porcelain"])
             .output()?;
@@ -454,6 +454,45 @@ mod tests {
         let result = service.determine_branch_name(None, None, 4, None).unwrap();
         // Should contain "task-4-" followed by timestamp
         assert!(result.starts_with("task-4-"));
+    }
+
+    #[test]
+    fn test_has_uncommitted_changes() {
+        use std::process::Command;
+        use std::fs::File;
+        // Setup temp git repo
+        let temp_dir = tempfile::tempdir().unwrap();
+        let path = temp_dir.path().to_str().unwrap();
+
+        Command::new("git").args(&["init", path]).output().unwrap();
+        
+        // Configure user for commit
+        Command::new("git").args(&["-C", path, "config", "user.email", "test@example.com"]).output().unwrap();
+        Command::new("git").args(&["-C", path, "config", "user.name", "Test User"]).output().unwrap();
+
+        let db = setup_db();
+        let service = WorktreeService::new(&db);
+
+        // No changes initially
+        assert!(!service.has_uncommitted_changes(path).unwrap());
+
+        // Create a file (untracked)
+        File::create(temp_dir.path().join("test.txt")).unwrap();
+        // Untracked files count as changes with --porcelain
+        assert!(service.has_uncommitted_changes(path).unwrap());
+
+        // Commit it
+        Command::new("git").args(&["-C", path, "add", "."]).output().unwrap();
+        // Staged changes
+        assert!(service.has_uncommitted_changes(path).unwrap());
+
+        Command::new("git").args(&["-C", path, "commit", "-m", "init"]).output().unwrap();
+        // Clean
+        assert!(!service.has_uncommitted_changes(path).unwrap());
+        
+        // Modify
+        std::fs::write(temp_dir.path().join("test.txt"), "mod").unwrap();
+        assert!(service.has_uncommitted_changes(path).unwrap());
     }
 }
 
