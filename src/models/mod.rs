@@ -120,3 +120,37 @@ impl TodoStatus {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_task_status_as_str() {
+        assert_eq!(TaskStatus::Active.as_str(), "active");
+        assert_eq!(TaskStatus::Archived.as_str(), "archived");
+    }
+
+    #[test]
+    fn test_task_status_from_str() {
+        assert!(matches!(TaskStatus::from_str("active"), Some(TaskStatus::Active)));
+        assert!(matches!(TaskStatus::from_str("archived"), Some(TaskStatus::Archived)));
+        assert!(TaskStatus::from_str("invalid").is_none());
+    }
+
+    #[test]
+    fn test_todo_status_as_str() {
+        assert_eq!(TodoStatus::Pending.as_str(), "pending");
+        assert_eq!(TodoStatus::Done.as_str(), "done");
+        assert_eq!(TodoStatus::Cancelled.as_str(), "cancelled");
+    }
+
+    #[test]
+    fn test_todo_status_from_str() {
+        assert!(matches!(TodoStatus::from_str("pending"), Some(TodoStatus::Pending)));
+        assert!(matches!(TodoStatus::from_str("done"), Some(TodoStatus::Done)));
+        assert!(matches!(TodoStatus::from_str("cancelled"), Some(TodoStatus::Cancelled)));
+        assert!(TodoStatus::from_str("invalid").is_none());
+    }
+}
+

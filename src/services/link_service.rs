@@ -136,3 +136,132 @@ impl<'a> ScrapService<'a> {
         Ok(scraps)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::db::Database;
+    use crate::services::TaskService;
+
+    fn setup_db() -> Database {
+        Database::new_in_memory().unwrap()
+    }
+
+    fn create_test_task(db: &Database) -> i64 {
+        let task_service = TaskService::new(db);
+        task_service.create_task("Test Task", None, None).unwrap().id
+    }
+
+    // LinkService tests
+    #[test]
+    fn test_add_link_success() {
+        let db = setup_db();
+        let task_id = create_test_task(&db);
+        let service = LinkService::new(&db);
+
+        let link = service.add_link(task_id, "https://example.com", Some("Example")).unwrap();
+        assert_eq!(link.url, "https://example.com");
+        assert_eq!(link.title, "Example");
+    }
+
+    #[test]
+    fn test_add_link_default_title() {
+        let db = setup_db();
+        let task_id = create_test_task(&db);
+        let service = LinkService::new(&db);
+
+        let link = service.add_link(task_id, "https://example.com", None).unwrap();
+        assert_eq!(link.title, "https://example.com");
+    }
+
+    #[test]
+    fn test_add_link_invalid_url() {
+        let db = setup_db();
+        let task_id = create_test_task(&db);
+        let service = LinkService::new(&db);
+
+        let result = service.add_link(task_id, "invalid-url", None);
+        assert!(matches!(result, Err(TrackError::InvalidUrl(_))));
+    }
+
+    #[test]
+    fn test_list_links() {
+        let db = setup_db();
+        let task_id = create_test_task(&db);
+        let service = LinkService::new(&db);
+
+        service.add_link(task_id, "https://example1.com", None).unwrap();
+        service.add_link(task_id, "https://example2.com", None).unwrap();
+
+        let links = service.list_links(task_id).unwrap();
+        assert_eq!(links.len(), 2);
+    }
+
+    #[test]
+    fn test_validate_url_http() {
+        let db = setup_db();
+        let service = LinkService::new(&db);
+
+        assert!(service.validate_url("http://example.com").is_ok());
+    }
+
+    #[test]
+    fn test_validate_url_https() {
+        let db = setup_db();
+        let service = LinkService::new(&db);
+
+        assert!(service.validate_url("https://example.com").is_ok());
+    }
+
+    #[test]
+    fn test_validate_url_invalid() {
+        let db = setup_db();
+        let service = LinkService::new(&db);
+
+        assert!(matches!(
+            service.validate_url("ftp://example.com"),
+            Err(TrackError::InvalidUrl(_))
+        ));
+    }
+
+    // ScrapService tests
+    #[test]
+    fn test_add_scrap_success() {
+        let db = setup_db();
+        let task_id = create_test_task(&db);
+        let service = ScrapService::new(&db);
+
+        let scrap = service.add_scrap(task_id, "Test scrap content").unwrap();
+        assert_eq!(scrap.content, "Test scrap content");
+    }
+
+    #[test]
+    fn test_get_scrap_success() {
+        let db = setup_db();
+        let task_id = create_test_task(&db);
+        let service = ScrapService::new(&db);
+
+        let created = service.add_scrap(task_id, "Test scrap").unwrap();
+        let retrieved = service.get_scrap(created.id).unwrap();
+        assert_eq!(retrieved.id, created.id);
+        assert_eq!(retrieved.content, "Test scrap");
+    }
+
+    #[test]
+    fn test_list_scraps() {
+        let db = setup_db();
+        let task_id = create_test_task(&db);
+        let service = ScrapService::new(&db);
+
+        service.add_scrap(task_id, "Scrap 1").unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(10));
+        service.add_scrap(task_id, "Scrap 2").unwrap();
+
+        let scraps = service.list_scraps(task_id).unwrap();
+        assert_eq!(scraps.len(), 2);
+        // Should be in descending order (newest first)
+        assert_eq!(scraps[0].content, "Scrap 2");
+        assert_eq!(scraps[1].content, "Scrap 1");
+    }
+}
+

@@ -358,3 +358,102 @@ impl<'a> WorktreeService<'a> {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::db::Database;
+
+    fn setup_db() -> Database {
+        Database::new_in_memory().unwrap()
+    }
+
+    #[test]
+    fn test_determine_link_kind_pr() {
+        let db = setup_db();
+        let service = WorktreeService::new(&db);
+
+        assert_eq!(service.determine_link_kind("https://github.com/owner/repo/pull/123"), "PR");
+        assert_eq!(service.determine_link_kind("https://gitlab.com/owner/repo/merge_requests/456"), "PR");
+    }
+
+    #[test]
+    fn test_determine_link_kind_issue() {
+        let db = setup_db();
+        let service = WorktreeService::new(&db);
+
+        assert_eq!(service.determine_link_kind("https://github.com/owner/repo/issues/789"), "Issue");
+    }
+
+    #[test]
+    fn test_determine_link_kind_discussion() {
+        let db = setup_db();
+        let service = WorktreeService::new(&db);
+
+        assert_eq!(service.determine_link_kind("https://github.com/owner/repo/discussions/42"), "Discussion");
+    }
+
+    #[test]
+    fn test_determine_link_kind_generic() {
+        let db = setup_db();
+        let service = WorktreeService::new(&db);
+
+        assert_eq!(service.determine_link_kind("https://example.com/some/page"), "Link");
+    }
+
+    #[test]
+    fn test_determine_branch_name_with_explicit_branch_and_ticket() {
+        let db = setup_db();
+        let service = WorktreeService::new(&db);
+
+        let result = service.determine_branch_name(Some("feature-x"), Some("PROJ-123"), 1, None).unwrap();
+        assert_eq!(result, "PROJ-123/feature-x");
+    }
+
+    #[test]
+    fn test_determine_branch_name_with_explicit_branch_only() {
+        let db = setup_db();
+        let service = WorktreeService::new(&db);
+
+        let result = service.determine_branch_name(Some("feature-y"), None, 1, None).unwrap();
+        assert_eq!(result, "feature-y");
+    }
+
+    #[test]
+    fn test_determine_branch_name_with_ticket_and_todo() {
+        let db = setup_db();
+        let service = WorktreeService::new(&db);
+
+        let result = service.determine_branch_name(None, Some("PROJ-456"), 1, Some(5)).unwrap();
+        assert_eq!(result, "PROJ-456-todo-5");
+    }
+
+    #[test]
+    fn test_determine_branch_name_with_todo_only() {
+        let db = setup_db();
+        let service = WorktreeService::new(&db);
+
+        let result = service.determine_branch_name(None, None, 2, Some(7)).unwrap();
+        assert_eq!(result, "task-2-todo-7");
+    }
+
+    #[test]
+    fn test_determine_branch_name_base_with_ticket() {
+        let db = setup_db();
+        let service = WorktreeService::new(&db);
+
+        let result = service.determine_branch_name(None, Some("PROJ-789"), 3, None).unwrap();
+        assert_eq!(result, "task/PROJ-789");
+    }
+
+    #[test]
+    fn test_determine_branch_name_base_without_ticket() {
+        let db = setup_db();
+        let service = WorktreeService::new(&db);
+
+        let result = service.determine_branch_name(None, None, 4, None).unwrap();
+        // Should contain "task-4-" followed by timestamp
+        assert!(result.starts_with("task-4-"));
+    }
+}
+

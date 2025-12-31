@@ -22,6 +22,14 @@ impl Database {
         Ok(db)
     }
 
+    #[cfg(test)]
+    pub fn new_in_memory() -> Result<Self> {
+        let conn = Connection::open_in_memory()?;
+        let db = Database { conn };
+        db.initialize_schema()?;
+        Ok(db)
+    }
+
     fn get_db_path() -> Result<PathBuf> {
         let proj_dirs = ProjectDirs::from("", "", "track")
             .ok_or_else(|| crate::utils::TrackError::Other("Failed to determine data directory".to_string()))?;
@@ -172,3 +180,78 @@ impl Database {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_new_in_memory() {
+        let db = Database::new_in_memory().unwrap();
+        // Verify connection is valid by querying
+        let result: i64 = db.get_connection().query_row("SELECT 1", [], |row| row.get(0)).unwrap();
+        assert_eq!(result, 1);
+    }
+
+    #[test]
+    fn test_app_state_get_set() {
+        let db = Database::new_in_memory().unwrap();
+
+        // Initially should be None
+        let value = db.get_app_state("test_key").unwrap();
+        assert!(value.is_none());
+
+        // Set a value
+        db.set_app_state("test_key", "test_value").unwrap();
+
+        // Get the value back
+        let value = db.get_app_state("test_key").unwrap();
+        assert_eq!(value, Some("test_value".to_string()));
+
+        // Update the value
+        db.set_app_state("test_key", "new_value").unwrap();
+        let value = db.get_app_state("test_key").unwrap();
+        assert_eq!(value, Some("new_value".to_string()));
+    }
+
+    #[test]
+    fn test_current_task_id() {
+        let db = Database::new_in_memory().unwrap();
+
+        // Initially should be None
+        let task_id = db.get_current_task_id().unwrap();
+        assert!(task_id.is_none());
+
+        // Set a task ID
+        db.set_current_task_id(42).unwrap();
+
+        // Get the task ID back
+        let task_id = db.get_current_task_id().unwrap();
+        assert_eq!(task_id, Some(42));
+
+        // Clear the task ID
+        db.clear_current_task_id().unwrap();
+        let task_id = db.get_current_task_id().unwrap();
+        assert!(task_id.is_none());
+    }
+
+    #[test]
+    fn test_schema_initialization() {
+        let db = Database::new_in_memory().unwrap();
+        let conn = db.get_connection();
+
+        // Verify all tables exist
+        let tables = vec!["app_state", "tasks", "todos", "links", "scraps", "git_items", "repo_links"];
+        for table in tables {
+            let result: i64 = conn
+                .query_row(
+                    "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=?1",
+                    [table],
+                    |row| row.get(0),
+                )
+                .unwrap();
+            assert_eq!(result, 1, "Table {} should exist", table);
+        }
+    }
+}
+

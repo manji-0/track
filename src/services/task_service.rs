@@ -171,3 +171,215 @@ impl<'a> TaskService<'a> {
         Err(TrackError::InvalidTicketFormat(ticket_id.to_string()))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::db::Database;
+
+    fn setup_db() -> Database {
+        Database::new_in_memory().unwrap()
+    }
+
+    #[test]
+    fn test_create_task_success() {
+        let db = setup_db();
+        let service = TaskService::new(&db);
+
+        let task = service.create_task("Test Task", None, None).unwrap();
+        assert_eq!(task.name, "Test Task");
+        assert_eq!(task.status, "active");
+        assert!(task.ticket_id.is_none());
+    }
+
+    #[test]
+    fn test_create_task_with_ticket() {
+        let db = setup_db();
+        let service = TaskService::new(&db);
+
+        let task = service.create_task("Test Task", Some("PROJ-123"), Some("https://example.com")).unwrap();
+        assert_eq!(task.ticket_id, Some("PROJ-123".to_string()));
+        assert_eq!(task.ticket_url, Some("https://example.com".to_string()));
+    }
+
+    #[test]
+    fn test_create_task_empty_name() {
+        let db = setup_db();
+        let service = TaskService::new(&db);
+
+        let result = service.create_task("", None, None);
+        assert!(matches!(result, Err(TrackError::EmptyTaskName)));
+    }
+
+    #[test]
+    fn test_create_task_duplicate_ticket() {
+        let db = setup_db();
+        let service = TaskService::new(&db);
+
+        service.create_task("Task 1", Some("PROJ-123"), None).unwrap();
+        let result = service.create_task("Task 2", Some("PROJ-123"), None);
+        assert!(matches!(result, Err(TrackError::DuplicateTicket(_, _))));
+    }
+
+    #[test]
+    fn test_get_task_success() {
+        let db = setup_db();
+        let service = TaskService::new(&db);
+
+        let created = service.create_task("Test Task", None, None).unwrap();
+        let retrieved = service.get_task(created.id).unwrap();
+        assert_eq!(retrieved.id, created.id);
+        assert_eq!(retrieved.name, "Test Task");
+    }
+
+    #[test]
+    fn test_get_task_not_found() {
+        let db = setup_db();
+        let service = TaskService::new(&db);
+
+        let result = service.get_task(999);
+        assert!(matches!(result, Err(TrackError::TaskNotFound(999))));
+    }
+
+    #[test]
+    fn test_list_tasks() {
+        let db = setup_db();
+        let service = TaskService::new(&db);
+
+        service.create_task("Task 1", None, None).unwrap();
+        service.create_task("Task 2", None, None).unwrap();
+
+        let tasks = service.list_tasks(false).unwrap();
+        assert_eq!(tasks.len(), 2);
+    }
+
+    #[test]
+    fn test_list_tasks_exclude_archived() {
+        let db = setup_db();
+        let service = TaskService::new(&db);
+
+        let task1 = service.create_task("Task 1", None, None).unwrap();
+        service.create_task("Task 2", None, None).unwrap();
+        service.archive_task(task1.id).unwrap();
+
+        let tasks = service.list_tasks(false).unwrap();
+        assert_eq!(tasks.len(), 1);
+
+        let all_tasks = service.list_tasks(true).unwrap();
+        assert_eq!(all_tasks.len(), 2);
+    }
+
+    #[test]
+    fn test_switch_task_success() {
+        let db = setup_db();
+        let service = TaskService::new(&db);
+
+        let task = service.create_task("Task 1", None, None).unwrap();
+        let switched = service.switch_task(task.id).unwrap();
+        assert_eq!(switched.id, task.id);
+
+        let current_id = db.get_current_task_id().unwrap();
+        assert_eq!(current_id, Some(task.id));
+    }
+
+    #[test]
+    fn test_switch_task_archived() {
+        let db = setup_db();
+        let service = TaskService::new(&db);
+
+        let task = service.create_task("Task 1", None, None).unwrap();
+        service.archive_task(task.id).unwrap();
+
+        let result = service.switch_task(task.id);
+        assert!(matches!(result, Err(TrackError::TaskArchived(_))));
+    }
+
+    #[test]
+    fn test_archive_task() {
+        let db = setup_db();
+        let service = TaskService::new(&db);
+
+        let task = service.create_task("Task 1", None, None).unwrap();
+        service.archive_task(task.id).unwrap();
+
+        let retrieved = service.get_task(task.id).unwrap();
+        assert_eq!(retrieved.status, "archived");
+
+        // Current task should be cleared
+        let current_id = db.get_current_task_id().unwrap();
+        assert!(current_id.is_none());
+    }
+
+    #[test]
+    fn test_link_ticket_success() {
+        let db = setup_db();
+        let service = TaskService::new(&db);
+
+        let task = service.create_task("Task 1", None, None).unwrap();
+        service.link_ticket(task.id, "PROJ-456", "https://example.com").unwrap();
+
+        let retrieved = service.get_task(task.id).unwrap();
+        assert_eq!(retrieved.ticket_id, Some("PROJ-456".to_string()));
+    }
+
+    #[test]
+    fn test_link_ticket_duplicate() {
+        let db = setup_db();
+        let service = TaskService::new(&db);
+
+        service.create_task("Task 1", Some("PROJ-123"), None).unwrap();
+        let task2 = service.create_task("Task 2", None, None).unwrap();
+
+        let result = service.link_ticket(task2.id, "PROJ-123", "https://example.com");
+        assert!(matches!(result, Err(TrackError::DuplicateTicket(_, _))));
+    }
+
+    #[test]
+    fn test_resolve_task_id_by_id() {
+        let db = setup_db();
+        let service = TaskService::new(&db);
+
+        let task = service.create_task("Task 1", None, None).unwrap();
+        let resolved = service.resolve_task_id(&task.id.to_string()).unwrap();
+        assert_eq!(resolved, task.id);
+    }
+
+    #[test]
+    fn test_resolve_task_id_by_ticket() {
+        let db = setup_db();
+        let service = TaskService::new(&db);
+
+        let task = service.create_task("Task 1", Some("PROJ-789"), None).unwrap();
+        let resolved = service.resolve_task_id("t:PROJ-789").unwrap();
+        assert_eq!(resolved, task.id);
+    }
+
+    #[test]
+    fn test_validate_ticket_format_jira() {
+        let db = setup_db();
+        let service = TaskService::new(&db);
+
+        assert!(service.validate_ticket_format("PROJ-123").is_ok());
+        assert!(service.validate_ticket_format("ABC-999").is_ok());
+    }
+
+    #[test]
+    fn test_validate_ticket_format_github() {
+        let db = setup_db();
+        let service = TaskService::new(&db);
+
+        assert!(service.validate_ticket_format("owner/repo/123").is_ok());
+    }
+
+    #[test]
+    fn test_validate_ticket_format_invalid() {
+        let db = setup_db();
+        let service = TaskService::new(&db);
+
+        assert!(matches!(
+            service.validate_ticket_format("invalid"),
+            Err(TrackError::InvalidTicketFormat(_))
+        ));
+    }
+}
+
