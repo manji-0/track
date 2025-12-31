@@ -1,103 +1,103 @@
-# WorkTracker CLI 機能仕様書
+# WorkTracker CLI Functional Specification
 
-本ドキュメントは、WorkTracker CLIツールの具体的な機能仕様を定義します。
+This document defines the specific functional specifications for the WorkTracker CLI tool.
 
 ---
 
-## 1. タスク管理機能
+## 1. Task Management Functions
 
-### 1.1. `track new <name>` - 新規タスク作成
+### 1.1. `track new <name>` - Create New Task
 
-**概要**: 新しい作業コンテキスト（タスク）を作成し、アクティブなタスクとして設定する。
+**Overview**: Creates a new work context (task) and sets it as the active task.
 
-**入力**:
-| 引数/フラグ | 型 | 必須 | 説明 |
-|-------------|------|------|------|
-| `name` | 文字列 | ✓ | タスク名（任意の長さ、空文字不可） |
-| `--ticket` / `-t` | 文字列 | | チケットID（下記形式参照） |
-| `--ticket-url` | URL | | チケットURL |
+**Input**:
+| Argument/Flag | Type | Required | Description |
+|---|---|---|---|
+| `name` | String | ✓ | Task name (arbitrary length, cannot be empty) |
+| `--ticket` / `-t` | String | | Ticket ID (see format below) |
+| `--ticket-url` | URL | | Ticket URL |
 
-**チケットID形式**:
-| プラットフォーム | 形式 | 例 |
-|------------------|------|-----|
+**Ticket ID Format**:
+| Platform | Format | Example |
+|---|---|---|
 | Jira | `<PROJECT>-<NUMBER>` | `PROJ-123` |
 | GitHub Issue | `<owner>/<repo>/<number>` | `myorg/api/456` |
 | GitLab Issue | `<group>/<project>/<number>` | `mygroup/app/789` |
 
-**処理フロー**:
-1. `name` が空文字でないことを検証
-2. `--ticket` が指定された場合:
-   - チケットIDの形式を検証（上記いずれかに一致）
-   - `--ticket-url` が未指定の場合、空欄で登録
-3. `tasks` テーブルに新規レコードを INSERT
+**Process Flow**:
+1. Validate that `name` is not empty.
+2. If `--ticket` is specified:
+   - Validate Ticket ID format (matches one of the above).
+   - If `--ticket-url` is unspecified, register as empty.
+3. INSERT a new record into the `tasks` table.
    - `status`: `'active'`
-   - `ticket_id`: チケットID（指定時）
-   - `ticket_url`: チケットURL（指定時）
-   - `created_at`: 現在時刻（UTC）
-4. `app_state` テーブルの `current_task_id` を新規タスクのIDに更新
-5. 成功メッセージを出力
+   - `ticket_id`: Ticket ID (if specified)
+   - `ticket_url`: Ticket URL (if specified)
+   - `created_at`: Current time (UTC)
+4. Update `current_task_id` in the `app_state` table to the new task ID.
+5. Output success message.
 
-**出力**:
+**Output**:
 ```
 Created task #<id>: <name>
 Ticket: <ticket_id> (<ticket_url>)
 Switched to task #<id>
 ```
 
-**エラーケース**:
-| 条件 | エラーメッセージ |
-|------|------------------|
-| 名前が空 | `Error: Task name cannot be empty` |
-| チケットID重複 | `Error: Ticket '<ticket_id>' is already linked to task #<existing_id>` |
-| DB書き込み失敗 | `Error: Failed to create task: <detail>` |
+**Error Cases**:
+| Condition | Error Message |
+|---|---|
+| Name is empty | `Error: Task name cannot be empty` |
+| Duplicate Ticket ID | `Error: Ticket '<ticket_id>' is already linked to task #<existing_id>` |
+| DB write failure | `Error: Failed to create task: <detail>` |
 
 ---
 
-### 1.2. チケットID によるタスク参照
+### 1.2. Task Reference by Ticket ID
 
-タスクIDが必要なすべてのコマンドで、チケットIDによる参照が可能。
+All commands requiring a Task ID support reference by Ticket ID.
 
-**記法**:
-- 数値: タスクID（例: `1`, `42`）
-- `t:<ticket_id>`: チケットによる参照（例: `t:PROJ-123`, `t:myorg/api/456`）
+**Notation**:
+- Numeric: Task ID (e.g., `1`, `42`)
+- `t:<ticket_id>`: Reference by Ticket (e.g., `t:PROJ-123`, `t:myorg/api/456`)
 
-**使用例**:
+**Usage Examples**:
 ```bash
-# タスクIDで切り替え
+# Switch by Task ID
 track switch 1
 
-# チケットIDで切り替え
+# Switch by Ticket ID
 track switch t:PROJ-123
 
-# GitHub Issue形式のチケットで切り替え
+# Switch by GitHub Issue format ticket
 track switch t:myorg/api/456
 
-# チケットIDでエクスポート
+# Export by Ticket ID
 track export t:PROJ-123
 
-# チケットIDでアーカイブ
+# Archive by Ticket ID
 track archive t:PROJ-123
 ```
 
-**解決フロー**:
-1. 引数が数値の場合: そのままタスクIDとして使用
-2. `t:` で始まる場合: `tasks.ticket_id` から対応するタスクを検索
-3. 該当タスクが見つからない場合: エラー
+**Resolution Flow**:
+1. If argument is numeric: Use as Task ID directly.
+2. If starts with `t:`: Search `tasks.ticket_id` for the corresponding task.
+3. If no matching task found: Error.
 
 ---
 
-### 1.3. `track ticket <ticket_id> <url>` - 既存タスクにチケット登録
+### 1.3. `track ticket <ticket_id> <url>` - Register Ticket to Existing Task
 
-**概要**: 現在のタスク（または指定タスク）にチケット情報を追加・更新する。
+**Overview**: Adds or updates ticket information for the current task (or specified task).
 
-**入力**:
-| 引数/フラグ | 型 | 必須 | 説明 |
-|-------------|------|------|------|
-| `ticket_id` | 文字列 | ✓ | チケットID |
-| `url` | URL | ✓ | チケットURL |
-| `--task` | 整数 | | 対象タスクID（省略時: 現在のタスク） |
+**Input**:
+| Argument/Flag | Type | Required | Description |
+|---|---|---|---|
+| `ticket_id` | String | ✓ | Ticket ID |
+| `url` | URL | ✓ | Ticket URL |
+| `--task` | Integer | | Target Task ID (Default: Current task) |
 
-**出力**:
+**Output**:
 ```
 Linked ticket <ticket_id> to task #<task_id>
 URL: <url>
@@ -105,111 +105,111 @@ URL: <url>
 
 ---
 
-### 1.4. ブランチ命名規則
+### 1.4. Branch Naming Convention
 
-チケットIDが登録されているタスクでは、worktree作成時のブランチ名に自動的にチケットIDを使用。
+For tasks with registered Ticket IDs, the worktree branch name automatically uses the Ticket ID.
 
-**命名パターン**:
-| 条件 | ブランチ名 |
-|------|-----------|
-| チケットあり + ブランチ名省略 | `task/<ticket_id>` (例: `task/PROJ-123`) |
-| チケットあり + ブランチ名指定 | `<ticket_id>/<branch>` (例: `PROJ-123/feat-auth`) |
-| チケットなし + ブランチ名省略 | `task-<task_id>-<timestamp>` |
-| チケットなし + ブランチ名指定 | 指定されたブランチ名をそのまま使用 |
+**Naming Patterns**:
+| Condition | Branch Name |
+|---|---|
+| Ticket exists + Branch name omitted | `task/<ticket_id>` (e.g., `task/PROJ-123`) |
+| Ticket exists + Branch name specified | `<ticket_id>/<branch>` (e.g., `PROJ-123/feat-auth`) |
+| No Ticket + Branch name omitted | `task-<task_id>-<timestamp>` |
+| No Ticket + Branch name specified | Use specified branch name as is |
 
-**worktree add での動作**:
+**Behavior in `worktree add`**:
 ```bash
-# チケット PROJ-123 が登録されている場合
+# When ticket PROJ-123 is registered
 track worktree add /path/to/repo
-# -> ブランチ: task/PROJ-123
+# -> Branch: task/PROJ-123
 
 track worktree add /path/to/repo feat-auth
-# -> ブランチ: PROJ-123/feat-auth
+# -> Branch: PROJ-123/feat-auth
 ```
 
 ---
 
-### 1.5. `track list` - タスク一覧表示
+### 1.5. `track list` - Display Task List
 
-**概要**: 登録されているタスクの一覧を表示する。
+**Overview**: Displays a list of registered tasks.
 
-**入力**:
-| フラグ | 説明 |
-|--------|------|
-| `--all` / `-a` | アーカイブ済みを含む全タスクを表示 |
-| (default) | `status = 'active'` のタスクのみ表示 |
+**Input**:
+| Flag | Description |
+|---|---|
+| `--all` / `-a` | Show all tasks including archived ones |
+| (default) | Show only tasks with `status = 'active'` |
 
-**処理フロー**:
-1. `app_state` から `current_task_id` を取得
-2. `tasks` テーブルからレコードを取得（フラグに応じてフィルタ）
-3. テーブル形式で出力（現在のタスクには `*` を付与）
+**Process Flow**:
+1. Get `current_task_id` from `app_state`.
+2. Retrieve records from `tasks` table (filtered by flag).
+3. Output in table format (mark current task with `*`).
 
-**出力例**:
+**Output Example**:
 ```
   ID | Ticket     | Name              | Status   | Created
 -----+------------+-------------------+----------+---------------------
-*  1 | PROJ-123   | API実装           | active   | 2025-01-01 10:00:00
-   2 | -          | バグ修正          | active   | 2025-01-02 14:30:00
+*  1 | PROJ-123   | API Implementation| active   | 2025-01-01 10:00:00
+   2 | -          | Bug Fix           | active   | 2025-01-02 14:30:00
 ```
 
 ---
 
-### 1.6. `track switch <task_id>` - タスク切り替え
+### 1.6. `track switch <task_id>` - Switch Task
 
-**概要**: 作業対象のタスクを切り替える。
+**Overview**: Switches the active working task.
 
-**入力**:
-| 引数 | 型 | 必須 | 説明 |
-|------|------|------|------|
-| `task_id` | 整数 | ✓ | 切り替え先のタスクID |
+**Input**:
+| Argument | Type | Required | Description |
+|---|---|---|---|
+| `task_id` | Integer | ✓ | Target Task ID |
 
-**処理フロー**:
-1. 指定IDのタスクが存在することを検証
-2. タスクの `status` が `'active'` であることを検証
-3. `app_state` の `current_task_id` を更新
+**Process Flow**:
+1. Validate that the task with the specified ID exists.
+2. Validate that the task `status` is `'active'`.
+3. Update `current_task_id` in `app_state`.
 
-**出力**:
+**Output**:
 ```
 Switched to task #<id>: <name>
 ```
 
-**エラーケース**:
-| 条件 | エラーメッセージ |
-|------|------------------|
-| タスクが存在しない | `Error: Task #<id> not found` |
-| アーカイブ済み | `Error: Task #<id> is archived` |
+**Error Cases**:
+| Condition | Error Message |
+|---|---|
+| Task does not exist | `Error: Task #<id> not found` |
+| Archived | `Error: Task #<id> is archived` |
 
 ---
 
-### 1.7. `track info` - 現在タスク詳細表示
+### 1.7. `track info` - Display Current Task Details
 
-**概要**: 現在のタスクに関連する全情報を一覧表示する。
+**Overview**: Displays all information related to the current task.
 
-**処理フロー**:
-1. `app_state` から現在の `task_id` を取得
-2. 以下の関連データを取得・整形して出力:
-   - タスク基本情報（名前、チケット、作成日時）
-   - TODO一覧（ステータス別にグループ化）
-   - リンク一覧
-   - Scrap一覧（直近5件）
-   - 関連Worktree一覧
+**Process Flow**:
+1. Get current `task_id` from `app_state`.
+2. Retrieve and format the following related data:
+   - Task basic info (Name, Ticket, Created At)
+   - TODO list (Grouped by status)
+   - Link list
+   - Scrap list (Last 5 entries)
+   - Related Worktree list
 
-**出力例**:
+**Output Example**:
 ```
-=== Task #1: API実装 ===
+=== Task #1: API Implementation ===
 Ticket: PROJ-123 (https://jira.example.com/browse/PROJ-123)
 Created: 2025-01-01 10:00:00
 
 [ TODOs ]
-  [ ] エンドポイント設計
-  [x] スキーマ定義
+  [ ] Endpoint design
+  [x] Schema definition
 
 [ Links ]
-  - Figma設計書: https://figma.com/...
+  - Figma Design: https://figma.com/...
 
 [ Recent Scraps ]
-  [10:30] DB設計を完了
-
+  [10:30] Completed DB design.
+  
 [ Worktrees ]
   #1 /home/user/api-worktrees/task/PROJ-123 (task/PROJ-123)
       └─ PR: https://github.com/.../pull/123
@@ -217,220 +217,220 @@ Created: 2025-01-01 10:00:00
 
 ---
 
-## 2. TODO管理機能
+## 2. TODO Management Functions
 
-### 2.1. `track todo add <text>` - TODO追加
+### 2.1. `track todo add <text>` - Add TODO
 
-**概要**: 現在のタスクにTODOを追加する。
+**Overview**: Adds a TODO to the current task.
 
-**入力**:
-| 引数 | 型 | 必須 | 説明 |
-|------|------|------|------|
-| `text` | 文字列 | ✓ | TODO内容 |
+**Input**:
+| Argument | Type | Required | Description |
+|---|---|---|---|
+| `text` | String | ✓ | TODO content |
 
-**処理フロー**:
-1. 現在のタスクIDを取得（未設定の場合エラー）
-2. `todos` テーブルにレコードを INSERT
+**Process Flow**:
+1. Get current Task ID (Error if not set).
+2. INSERT record into `todos` table.
    - `status`: `'pending'`
-   - `created_at`: 現在時刻
+   - `created_at`: Current time
 
-**出力**:
+**Output**:
 ```
 Added TODO #<id>: <text>
 ```
 
-**エラーケース**:
-| 条件 | エラーメッセージ |
-|------|------------------|
-| タスク未選択 | `Error: No active task. Run 'track new' or 'track switch' first.` |
+**Error Cases**:
+| Condition | Error Message |
+|---|---|
+| No task selected | `Error: No active task. Run 'track new' or 'track switch' first.` |
 
 ---
 
-### 2.2. `track todo list` - TODO一覧表示
+### 2.2. `track todo list` - Display TODO List
 
-**概要**: 現在のタスクのTODO一覧を表示する。
+**Overview**: Displays the TODO list for the current task.
 
-**出力例**:
+**Output Example**:
 ```
   ID | Status  | Content
 -----+---------+---------------------------
-   1 | pending | エンドポイント設計
-   2 | done    | スキーマ定義
+   1 | pending | Endpoint design
+   2 | done    | Schema definition
 ```
 
 ---
 
-### 2.3. `track todo update <id> <status>` - TODOステータス更新
+### 2.3. `track todo update <id> <status>` - Update TODO Status
 
-**概要**: 指定したTODOのステータスを更新する。
+**Overview**: Updates the status of a specific TODO.
 
-**入力**:
-| 引数 | 型 | 必須 | 説明 |
-|------|------|------|------|
-| `id` | 整数 | ✓ | TODO ID |
-| `status` | 文字列 | ✓ | 新しいステータス |
+**Input**:
+| Argument | Type | Required | Description |
+|---|---|---|---|
+| `id` | Integer | ✓ | TODO ID |
+| `status` | String | ✓ | New status |
 
-**有効なステータス値**:
-- `pending`: 未完了
-- `done`: 完了
-- `cancelled`: キャンセル
+**Valid Status Values**:
+- `pending`: Incomplete
+- `done`: Completed
+- `cancelled`: Cancelled
 
-**出力**:
+**Output**:
 ```
 Updated TODO #<id> status to '<status>'
 ```
 
 ---
 
-### 2.4. `track todo delete <id>` - TODO削除
+### 2.4. `track todo delete <id>` - Delete TODO
 
-**概要**: 指定したTODOを削除する。
+**Overview**: Deletes a specific TODO.
 
-**入力**:
-| 引数/フラグ | 型 | 必須 | 説明 |
-|-------------|------|------|------|
-| `id` | 整数 | ✓ | 削除するTODO ID |
-| `--force` / `-f` | フラグ | | 確認プロンプトをスキップ |
+**Input**:
+| Argument/Flag | Type | Required | Description |
+|---|---|---|---|
+| `id` | Integer | ✓ | TODO ID to delete |
+| `--force` / `-f` | Flag | | Skip confirmation prompt |
 
-**処理フロー**:
-1. 指定IDのTODOが存在することを検証
-2. `--force` が指定されていない場合、確認プロンプトを表示
-3. ユーザーが `y` または `yes` を入力した場合のみ削除を実行
+**Process Flow**:
+1. Validate that the TODO with the specified ID exists.
+2. If `--force` is not specified, display a confirmation prompt.
+3. Execute deletion only if user enters `y` or `yes`.
 
-**確認プロンプト**:
+**Confirmation Prompt**:
 ```
 Delete TODO #<id>: "<content>"? [y/N]: 
 ```
 
-**出力**:
+**Output**:
 ```
 Deleted TODO #<id>
 ```
 
-**キャンセル時**:
+**On Cancel**:
 ```
 Cancelled.
 ```
 
 ---
 
-## 3. リンク管理機能
+## 3. Link Management Functions
 
-### 3.1. `track link add <url> [title]` - リンク追加
+### 3.1. `track link add <url> [title]` - Add Link
 
-**概要**: 現在のタスクに参考URLを追加する。
+**Overview**: Adds a reference URL to the current task.
 
-**入力**:
-| 引数 | 型 | 必須 | 説明 |
-|------|------|------|------|
-| `url` | 文字列 | ✓ | URL（http/https で始まる） |
-| `title` | 文字列 | | リンクのタイトル（省略時はURLをそのまま使用） |
+**Input**:
+| Argument | Type | Required | Description |
+|---|---|---|---|
+| `url` | String | ✓ | URL (starts with http/https) |
+| `title` | String | | Link title (defaults to URL if omitted) |
 
-**処理フロー**:
-1. URLの形式を検証（http:// または https:// で始まる）
-2. `links` テーブルにレコードを INSERT
+**Process Flow**:
+1. Validate URL format (starts with http:// or https://).
+2. INSERT record into `links` table.
 
-**出力**:
+**Output**:
 ```
 Added link #<id>: <title>
 ```
 
 ---
 
-### 3.2. `track link list` - リンク一覧表示
+### 3.2. `track link list` - Display Link List
 
-**出力例**:
+**Output Example**:
 ```
   ID | Title                | URL
 -----+----------------------+--------------------------------
-   1 | Figma設計書          | https://figma.com/file/...
-   2 | API仕様書            | https://docs.example.com/...
+   1 | Figma Design         | https://figma.com/file/...
+   2 | API Spec             | https://docs.example.com/...
 ```
 
 ---
 
-## 4. Scrap（作業メモ）管理機能
+## 4. Scrap (Work Note) Management Functions
 
-### 4.1. `track scrap add <content>` - Scrap追加
+### 4.1. `track scrap add <content>` - Add Scrap
 
-**概要**: 作業メモ（Scrap）を追加する。一時的な思考やメモを時系列で記録する。
+**Overview**: Adds a work note (Scrap). Records temporary thoughts or notes in chronological order.
 
-**入力**:
-| 引数 | 型 | 必須 | 説明 |
-|------|------|------|------|
-| `content` | 文字列 | ✓ | メモ内容 |
+**Input**:
+| Argument | Type | Required | Description |
+|---|---|---|---|
+| `content` | String | ✓ | Note content |
 
-**出力**:
+**Output**:
 ```
 Added scrap at <timestamp>
 ```
 
 ---
 
-### 4.2. `track scrap list` - Scrap一覧表示
+### 4.2. `track scrap list` - Display Scrap List
 
-**概要**: 時系列順にScrapを表示する。
+**Overview**: Displays Scraps in chronological order.
 
-**出力例**:
+**Output Example**:
 ```
 [2025-01-01 10:30:00]
-  DB設計を完了。テーブル構成は DESIGN.md を参照。
+  DB design completed. see DESIGN.md for table structure.
 
 [2025-01-01 14:15:00]
-  API実装開始。まずは認証周りから。
+  Started API implementation. Starting with authentication.
 ```
 
 ---
 
-## 5. Worktree（リポジトリ作業ディレクトリ）連携機能
+## 5. Worktree Integration Functions
 
-Git worktree を活用し、タスクごとに独立した作業ディレクトリを管理する。
-タスクのライフサイクルに連動して worktree の作成・削除を自動化する。
+Leverages Git worktree to manage independent working directories for each task.
+Automates creation and deletion of worktrees linked to the task lifecycle.
 
-### 5.1. `track worktree add <repo_path> [branch]` - Worktree作成・登録
+### 5.1. `track worktree add <repo_path> [branch]` - Create & Register Worktree
 
-**概要**: 指定したリポジトリに新しい worktree を作成し、現在のタスクに関連付ける。
+**Overview**: Creates a new worktree in the specified repository and links it to the current task.
 
-**入力**:
-| 引数 | 型 | 必須 | 説明 |
-|------|------|------|------|
-| `repo_path` | パス | ✓ | 元となるGitリポジトリのパス |
-| `branch` | 文字列 | | 作成するブランチ名（省略時: `task-<task_id>-<timestamp>`） |
+**Input**:
+| Argument | Type | Required | Description |
+|---|---|---|---|
+| `repo_path` | Path | ✓ | Path to base Git repository |
+| `branch` | String | | Branch name to create (Default: `task-<task_id>-<timestamp>`) |
 
-**処理フロー**:
-1. `repo_path` がGitリポジトリであることを検証
-2. ブランチ名を決定（指定 or 自動生成）
-3. worktree 用のディレクトリパスを決定
-   - デフォルト: `<repo_path>/../<repo_name>-worktrees/<branch>`
-4. git worktree を作成
-   - コマンド: `git -C <repo_path> worktree add -b <branch> <worktree_path>`
-5. `git_items` テーブルにレコードを INSERT
-   - `path`: worktree のパス
-   - `branch`: ブランチ名
-   - `base_repo`: 元リポジトリのパス
+**Process Flow**:
+1. Validate that `repo_path` is a Git repository.
+2. Determine branch name (specified or auto-generated).
+3. Determine directory path for worktree.
+   - Default: `<repo_path>/../<repo_name>-worktrees/<branch>`
+4. Create git worktree.
+   - Command: `git -C <repo_path> worktree add -b <branch> <worktree_path>`
+5. INSERT record into `git_items` table.
+   - `path`: Worktree path
+   - `branch`: Branch name
+   - `base_repo`: Base repository path
    - `status`: `'active'`
 
-**出力**:
+**Output**:
 ```
 Created worktree: <worktree_path>
 Branch: <branch>
 Linked to task #<task_id>
 ```
 
-**エラーケース**:
-| 条件 | エラーメッセージ |
-|------|------------------|
-| リポジトリでない | `Error: <repo_path> is not a Git repository` |
-| ブランチが既存 | `Error: Branch '<branch>' already exists` |
-| worktree作成失敗 | `Error: Failed to create worktree: <detail>` |
+**Error Cases**:
+| Condition | Error Message |
+|---|---|
+| Not a repository | `Error: <repo_path> is not a Git repository` |
+| Branch exists | `Error: Branch '<branch>' already exists` |
+| Worktree creation failed | `Error: Failed to create worktree: <detail>` |
 
 ---
 
-### 5.2. `track worktree list` - Worktree一覧表示
+### 5.2. `track worktree list` - Display Worktree List
 
-**概要**: 現在のタスクに関連付けられた worktree 一覧を表示する。
+**Overview**: Displays a list of worktrees linked to the current task.
 
-**出力例**:
+**Output Example**:
 ```
   ID | Path                              | Branch      | Status | Links
 -----+-----------------------------------+-------------+--------+------------------
@@ -440,84 +440,84 @@ Linked to task #<task_id>
 
 ---
 
-### 5.3. `track worktree link <worktree_id> <url>` - WorktreeにURL紐付け
+### 5.3. `track worktree link <worktree_id> <url>` - Link URL to Worktree
 
-**概要**: 登録済み worktree にIssue/PRなどのURLを紐付ける。
+**Overview**: Links an Issue/PR URL to a registered worktree.
 
-**入力**:
-| 引数 | 型 | 必須 | 説明 |
-|------|------|------|------|
-| `worktree_id` | 整数 | ✓ | Worktree ID |
-| `url` | 文字列 | ✓ | 紐付けるURL |
+**Input**:
+| Argument | Type | Required | Description |
+|---|---|---|---|
+| `worktree_id` | Integer | ✓ | Worktree ID |
+| `url` | String | ✓ | URL to link |
 
-**URL種別自動判定**:
-| パターン | 判定結果 |
-|----------|----------|
-| `/pull/` または `/merge_requests/` | `PR` |
+**Automatic URL Type Detection**:
+| Pattern | Detection Result |
+|---|---|
+| `/pull/` or `/merge_requests/` | `PR` |
 | `/issues/` | `Issue` |
 | `/discussions/` | `Discussion` |
-| その他 | `Link` |
+| Other | `Link` |
 
-**出力**:
+**Output**:
 ```
 Added <kind> link to worktree #<worktree_id>: <url>
 ```
 
 ---
 
-### 5.4. `track worktree remove <worktree_id>` - Worktree削除
+### 5.4. `track worktree remove <worktree_id>` - Remove Worktree
 
-**概要**: worktree の登録を解除し、ディスク上の worktree も削除する。
+**Overview**: Unregisters the worktree and deletes the worktree from disk.
 
-**入力**:
-| 引数/フラグ | 型 | 必須 | 説明 |
-|-------------|------|------|------|
-| `worktree_id` | 整数 | ✓ | 削除する Worktree ID |
-| `--force` / `-f` | フラグ | | 確認プロンプトをスキップ |
-| `--keep-files` | フラグ | | ディスク上のファイルを保持（登録のみ解除） |
+**Input**:
+| Argument/Flag | Type | Required | Description |
+|---|---|---|---|
+| `worktree_id` | Integer | ✓ | Worktree ID to remove |
+| `--force` / `-f` | Flag | | Skip confirmation prompt |
+| `--keep-files` | Flag | | Keep files on disk (unregister only) |
 
-**処理フロー**:
-1. 指定IDの worktree が存在することを検証
-2. `--force` が指定されていない場合、確認プロンプトを表示
-3. ユーザーが承認した場合:
-   - `--keep-files` がない場合: `git worktree remove <path>` を実行
-   - DBからレコードを削除（関連 `repo_links` も CASCADE 削除）
+**Process Flow**:
+1. Validate that the worktree with the specified ID exists.
+2. If `--force` is not specified, display confirmation prompt.
+3. If user approves:
+   - If `--keep-files` is absent: Execute `git worktree remove <path>`.
+   - Delete record from DB (Cascade delete related `repo_links`).
 
-**確認プロンプト**:
+**Confirmation Prompt**:
 ```
 Remove worktree #<id>: "<path>" (branch: <branch>)?
 This will delete the worktree directory. [y/N]: 
 ```
 
-**出力**:
+**Output**:
 ```
 Removed worktree #<worktree_id>: <path>
 ```
 
 ---
 
-### 5.5. タスクライフサイクル連動
+### 5.5. Task Lifecycle Integration
 
-タスクの状態変更に応じて、関連する worktree を自動的に管理する。
+Automatically manages relevant worktrees according to task state changes.
 
-#### `track archive <task_id>` - タスクアーカイブ時
+#### `track archive <task_id>` - On Task Archive
 
-**処理フロー**:
-1. タスクの `status` を `'archived'` に更新
-2. 関連するすべての worktree に対して:
-   - 未コミットの変更がないか確認
-   - 変更がある場合は警告を表示し、確認を求める
-   - 確認後、worktree の `status` を `'archived'` に更新
-3. `app_state` の `current_task_id` が該当タスクの場合、クリア
+**Process Flow**:
+1. Update task `status` to `'archived'`.
+2. For all related worktrees:
+   - Check for uncommitted changes.
+   - If changes exist, display warning and ask for confirmation.
+   - After confirmation, update worktree `status` to `'archived'`.
+3. If `app_state`'s `current_task_id` matches the task, clear it.
 
-**出力**:
+**Output**:
 ```
 Archived task #<task_id>: <name>
   └─ Worktree #1: /path/to/worktree (archived)
   └─ Worktree #2: /path/to/worktree2 (archived)
 ```
 
-**警告（未コミット変更がある場合）**:
+**Warning (If uncommitted changes exist)**:
 ```
 WARNING: Worktree #<id> has uncommitted changes:
   M  src/main.rs
@@ -528,100 +528,100 @@ Archive anyway? [y/N]:
 
 ---
 
-#### `track cleanup [--dry-run]` - アーカイブ済みWorktreeの削除
+#### `track cleanup [--dry-run]` - Delete Archived Worktrees
 
-**概要**: `archived` 状態の worktree をディスクから削除する。
+**Overview**: Deletes `archived` worktrees from disk.
 
-**入力**:
-| フラグ | 説明 |
-|--------|------|
-| `--dry-run` | 削除対象を表示するのみ（実際には削除しない） |
-| `--force` / `-f` | 確認プロンプトをスキップ |
+**Input**:
+| Flag | Description |
+|---|---|
+| `--dry-run` | Only display what would be deleted (no actual deletion) |
+| `--force` / `-f` | Skip confirmation prompt |
 
-**処理フロー**:
-1. `status = 'archived'` の worktree を全タスクから収集
-2. 各 worktree に対して:
-   - `git worktree remove <path>` を実行
-   - DBから該当レコードを削除
+**Process Flow**:
+1. Collect worktrees with `status = 'archived'` from all tasks.
+2. For each worktree:
+   - Execute `git worktree remove <path>`.
+   - Delete record from DB.
 
-**出力（dry-run）**:
+**Output (dry-run)**:
 ```
 Would remove:
-  Task #1 (API実装):
+  Task #1 (API Implementation):
     └─ /home/user/api-worktrees/feat-auth
-  Task #3 (バグ修正):
+  Task #3 (Bug Fix):
     └─ /home/user/web-worktrees/fix-123
 
 Total: 2 worktrees
 ```
 
-**出力（実行時）**:
+**Output (execution)**:
 ```
 Removed 2 archived worktrees.
 ```
 
 ---
 
-## 6. 共通仕様
+## 6. Common Specifications
 
-### 6.1. データベースパス
+### 6.1. Database Path
 
 ```
 $HOME/.local/share/track/track.db
 ```
 
-XDG Base Directory 仕様に準拠。`directories` クレートを使用。
+Complies with XDG Base Directory specification. Uses `directories` crate.
 
-### 6.2. タイムスタンプ形式
+### 6.2. Timestamp Format
 
-- 保存形式: ISO 8601 (UTC)
-- 表示形式: ローカル時刻 `YYYY-MM-DD HH:MM:SS`
+- Storage: ISO 8601 (UTC)
+- Display: Local Time `YYYY-MM-DD HH:MM:SS`
 
-### 6.3. 終了コード
+### 6.3. Exit Codes
 
-| コード | 意味 |
-|--------|------|
-| `0` | 成功 |
-| `1` | 一般的なエラー |
-| `2` | 引数エラー |
+| Code | Meaning |
+|---|---|
+| `0` | Success |
+| `1` | General Error |
+| `2` | Argument Error |
 
-### 6.4. 共通エラーハンドリング
+### 6.4. Common Error Handling
 
 ```rust
-// anyhow::Result を使用し、コンテキストを付与
+// Use anyhow::Result to attach context
 db.execute(...)
     .context("Failed to insert task")?;
 ```
 
 ---
 
-## 7. エクスポート機能（LLM連携）
+## 7. Export Functionality (LLM Integration)
 
-タスクの全情報を構造化された形式でエクスポートする。
-LLMエージェントがタスクレポート生成や作業引き継ぎに活用することを想定。
+Exports full task information in a structured format.
+Intended for use by LLM agents to generate task reports or for task handovers.
 
-### 7.1. `track export [task_id]` - タスク情報エクスポート
+### 7.1. `track export [task_id]` - Export Task Info
 
-**概要**: 指定タスク（省略時: 現在のタスク）の全情報を構造化形式で出力する。
+**Overview**: Outputs full information for the specified task (Default: current task) in a structured format.
 
-**入力**:
-| 引数/フラグ | 型 | 必須 | 説明 |
-|-------------|------|------|------|
-| `task_id` | 整数 | | エクスポート対象のタスクID（省略時: 現在のタスク） |
-| `--format` / `-f` | 文字列 | | 出力形式: `markdown`（デフォルト）, `json`, `yaml` |
-| `--output` / `-o` | パス | | ファイルに出力（省略時: stdout） |
-| `--template` / `-t` | パス | | カスタムテンプレートファイル |
+**Input**:
+| Argument/Flag | Type | Required | Description |
+|---|---|---|---|
+| `task_id` | Integer | | Task ID to export (Default: current task) |
+| `--format` / `-f` | String | | Output format: `markdown` (default), `json`, `yaml` |
+| `--output` / `-o` | Path | | Output to file (Default: stdout) |
+| `--template` / `-t` | Path | | Custom template file |
 
 ---
 
-### 7.2. 出力形式
+### 7.2. Output Formats
 
-#### Markdown形式（デフォルト）
+#### Markdown Format (Default)
 
-LLMが直接処理しやすい構造化されたMarkdown。
+Structured Markdown easy for LLMs to process directly.
 
 ```markdown
-# Task Report: API実装
+# Task Report: API Implementation
 
 ## Metadata
 - **Task ID**: 1
@@ -630,29 +630,29 @@ LLMが直接処理しやすい構造化されたMarkdown。
 - **Last Activity**: 2025-01-05 15:30:00
 
 ## Summary
-<!-- LLMによる要約生成用のプレースホルダー -->
+<!-- Placeholder for LLM generated summary -->
 
 ## TODOs
 
 ### Pending
-- [ ] エンドポイント設計
-- [ ] 認証処理実装
+- [ ] Endpoint design
+- [ ] Implement authentication logic
 
 ### Completed
-- [x] スキーマ定義
-- [x] DB接続設定
+- [x] Schema definition
+- [x] DB connection setup
 
 ## Scraps (Work Log)
 
 ### 2025-01-01 10:30
-DB設計を完了。テーブル構成は DESIGN.md を参照。
+DB design completed. see DESIGN.md for table structure.
 
 ### 2025-01-02 14:15
-API実装開始。まずは認証周りから。
+Started API implementation. Starting with authentication.
 
 ## Links
-- [Figma設計書](https://figma.com/file/...)
-- [API仕様書](https://docs.example.com/...)
+- [Figma Design](https://figma.com/file/...)
+- [API Spec](https://docs.example.com/...)
 
 ## Worktrees
 
@@ -666,28 +666,28 @@ API実装開始。まずは認証周りから。
 
 ---
 
-#### JSON形式
+#### JSON Format
 
-プログラムやLLM APIでの処理に適した構造化データ。
+Structured data suitable for programmatic or LLM API processing.
 
 ```json
 {
   "task": {
     "id": 1,
-    "name": "API実装",
+    "name": "API Implementation",
     "status": "active",
     "created_at": "2025-01-01T10:00:00Z",
     "last_activity": "2025-01-05T15:30:00Z"
   },
   "todos": [
-    {"id": 1, "content": "エンドポイント設計", "status": "pending"},
-    {"id": 2, "content": "スキーマ定義", "status": "done"}
+    {"id": 1, "content": "Endpoint design", "status": "pending"},
+    {"id": 2, "content": "Schema definition", "status": "done"}
   ],
   "scraps": [
-    {"timestamp": "2025-01-01T10:30:00Z", "content": "DB設計を完了。..."}
+    {"timestamp": "2025-01-01T10:30:00Z", "content": "DB design completed..."}
   ],
   "links": [
-    {"id": 1, "title": "Figma設計書", "url": "https://..."}
+    {"id": 1, "title": "Figma Design", "url": "https://..."}
   ],
   "worktrees": [
     {
@@ -705,14 +705,14 @@ API実装開始。まずは認証周りから。
 
 ---
 
-### 7.3. LLMプロンプト用テンプレート
+### 7.3. LLM Prompt Template
 
-`--template` オプションで、LLMへの指示を含むカスタムテンプレートを使用可能。
+With the `--template` option, you can use a custom template that includes instructions for the LLM.
 
-**テンプレート例** (`report_template.md`):
+**Template Example** (`report_template.md`):
 ```markdown
-あなたはプロジェクトマネージャーです。以下のタスク情報を元に、
-進捗報告書を日本語で作成してください。
+You are a Project Manager. Based on the following task information,
+please create a progress report in English.
 
 ---
 
@@ -720,59 +720,58 @@ API実装開始。まずは認証周りから。
 
 ---
 
-## 出力要件
-1. 完了した作業の要約（箇条書き）
-2. 残作業と見積もり時間
-3. ブロッカーや懸念事項
-4. 次のアクション項目
+## Output Requirements
+1. Summary of completed work (bullet points)
+2. Remaining work and estimated time
+3. Blockers or concerns
+4. Next action items
 ```
 
-**処理フロー**:
-1. テンプレートファイルを読み込む
-2. `{{task_export}}` を実際のタスク情報で置換
-3. 結果を出力
+**Process Flow**:
+1. Load template file.
+2. Replace `{{task_export}}` with actual task information.
+3. Output result.
 
-**出力**:
+**Output**:
 ```
-あなたはプロジェクトマネージャーです。以下のタスク情報を元に、
-進捗報告書を日本語で作成してください。
+You are a Project Manager. Based on the following task information,
+please create a progress report in English.
 
 ---
 
-# Task Report: API実装
-...（実際のタスク情報）...
+# Task Report: API Implementation
+... (Actual task info) ...
 
 ---
 
-## 出力要件
+## Output Requirements
 ...
 ```
 
 ---
 
-### 7.4. パイプライン連携例
+### 7.4. Pipeline Integration Examples
 
 ```bash
-# LLMにタスクレポート生成を依頼
-track export | llm "このタスクの進捗を要約して"
+# Request LLM to generate task report
+track export | llm "Summarize the progress of this task"
 
-# JSON形式でスクリプトに渡す
+# Pass to script in JSON format
 track export --format json | jq '.todos[] | select(.status == "pending")'
 
-# ファイルに保存
+# Save to file
 track export --output ~/reports/task-1-report.md
 
-# カスタムテンプレートでレポート生成
+# Generate report with custom template
 track export --template ~/.config/track/report_template.md | llm
 ```
 
 ---
 
-## 8. 将来拡張（未実装）
+## 8. Future Support (Not Implemented)
 
-以下は現時点で実装対象外だが、将来的に検討:
+The following are not currently implemented but are under consideration for the future:
 
-- `track search <query>`: 全文検索
-- `track import`: 外部データのインポート
-- MCP Server連携: LLMエージェントからの直接操作
-
+- `track search <query>`: Full text search
+- `track import`: Import external data
+- `track server`: MCP Server integration for direct manipulation by LLM agents
