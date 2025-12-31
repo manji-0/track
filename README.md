@@ -63,9 +63,10 @@ track info
 
 | Command | Description |
 |---------|-------------|
-| `track todo add <text>` | Add a TODO |
+| `track todo add <text> [--worktree]` | Add a TODO (optionally create worktrees) |
 | `track todo list` | Display TODO list |
 | `track todo update <id> <status>` | Update TODO status |
+| `track todo done <id>` | Complete a TODO (merges and removes worktrees) |
 | `track todo delete <id>` | Delete a TODO |
 
 ### Link Management
@@ -82,10 +83,19 @@ track info
 | `track scrap add <content>` | Add a work note |
 | `track scrap list` | Display note list |
 
+### Repository Management
+
+| Command | Description |
+|---------|-------------|
+| `track repo add [path]` | Register a repository to the current task |
+| `track repo list` | Display registered repositories |
+| `track repo remove <id>` | Remove a repository registration |
+
 ### Worktree Management
 
 | Command | Description |
 |---------|-------------|
+| `track worktree sync` | Sync repositories and setup task branches |
 | `track worktree add <repo_path> [branch]` | Create a worktree |
 | `track worktree list` | Display worktree list |
 | `track worktree link <worktree_id> <url>` | Link a URL to a worktree |

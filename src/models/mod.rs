@@ -72,6 +72,16 @@ pub struct RepoLink {
 }
 
 #[derive(Debug, Clone)]
+pub struct TaskRepo {
+    pub id: i64,
+    #[allow(dead_code)]
+    pub task_id: i64,
+    pub repo_path: String,
+    #[allow(dead_code)]
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone)]
 pub enum TaskStatus {
     Active,
     Archived,

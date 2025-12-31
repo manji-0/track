@@ -103,11 +103,21 @@ impl Database {
                 FOREIGN KEY (git_item_id) REFERENCES git_items(id) ON DELETE CASCADE
             );
 
+            CREATE TABLE IF NOT EXISTS task_repos (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                task_id INTEGER NOT NULL,
+                repo_path TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
+                UNIQUE(task_id, repo_path)
+            );
+
             CREATE INDEX IF NOT EXISTS idx_todos_task_id ON todos(task_id);
             CREATE INDEX IF NOT EXISTS idx_links_task_id ON links(task_id);
             CREATE INDEX IF NOT EXISTS idx_scraps_task_id ON scraps(task_id);
             CREATE INDEX IF NOT EXISTS idx_git_items_task_id ON git_items(task_id);
             CREATE INDEX IF NOT EXISTS idx_repo_links_git_item_id ON repo_links(git_item_id);
+            CREATE INDEX IF NOT EXISTS idx_task_repos_task_id ON task_repos(task_id);
             "#
         )?;
 

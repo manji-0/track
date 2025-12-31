@@ -768,7 +768,228 @@ track export --template ~/.config/track/report_template.md | llm
 
 ---
 
-## 8. Future Support (Not Implemented)
+## 8. Repository Management and Worktree Sync
+
+### 8.1. `track repo add [path]` - Register Repository
+
+**Overview**: Registers a Git repository to the current task.
+
+**Input**:
+| Argument | Type | Required | Description |
+|---|---|---|---| 
+| `path` | Path | | Repository path (Default: current directory `.`) |
+
+**Process Flow**:
+1. Validate that a task is currently active.
+2. Resolve path to absolute path.
+3. Validate that path is a Git repository (check for `.git` directory).
+4. Check if repository is already registered for this task.
+5. INSERT record into `task_repos` table.
+
+**Output**:
+```
+Registered repository: /absolute/path/to/repo
+```
+
+**Error Cases**:
+| Condition | Error Message |
+|---|---|
+| No active task | `Error: No active task. Run 'track new' or 'track switch' first.` |
+| Not a Git repository | `Error: <path> is not a Git repository` |
+| Already registered | `Error: Repository already registered for this task` |
+
+---
+
+### 8.2. `track repo list` - List Repositories
+
+**Overview**: Lists all repositories registered to the current task.
+
+**Output Example**:
+```
+  ID | Repository Path
+-----+----------------------------------
+   1 | /home/user/projects/api
+   2 | /home/user/projects/frontend
+```
+
+---
+
+### 8.3. `track repo remove <id>` - Remove Repository
+
+**Overview**: Removes a repository registration from the current task.
+
+**Input**:
+| Argument | Type | Required | Description |
+|---|---|---|---| 
+| `id` | Integer | ✓ | Repository ID |
+
+**Output**:
+```
+Removed repository #<id>
+```
+
+---
+
+### 8.4. `track worktree sync` - Sync Repositories
+
+**Overview**: Synchronizes all registered repositories with the task branch.
+
+**Process Flow**:
+1. Get current task.
+2. Determine task branch name:
+   - If `ticket_id` exists: `task/<ticket_id>` (e.g., `task/PROJ-123`)
+   - Otherwise: `task/task-<task_id>` (e.g., `task/task-5`)
+3. For each registered repository:
+   - Check if repository path exists.
+   - Check if task branch exists.
+   - If branch doesn't exist:
+     - Get current branch as base.
+     - Create task branch from current HEAD.
+   - Checkout task branch.
+   - Display sync status.
+
+**Output Example**:
+```
+Syncing task branch: task/PROJ-123
+
+Repository: /home/user/projects/api
+  ✓ Branch task/PROJ-123 created from main
+  ✓ Checked out task/PROJ-123
+
+Repository: /home/user/projects/frontend
+  ✓ Branch task/PROJ-123 already exists
+  ✓ Checked out task/PROJ-123
+
+Sync complete.
+```
+
+**Error Cases**:
+| Condition | Error Message |
+|---|---|
+| No active task | `Error: No active task` |
+| No repositories registered | `Error: No repositories registered for this task` |
+| Repository path doesn't exist | `Warning: Repository <path> not found, skipping` |
+| Dirty working directory | `Error: Repository <path> has uncommitted changes` |
+
+---
+
+### 8.5. `track todo add <text> --worktree` - Add TODO with Worktree
+
+**Overview**: Adds a TODO and automatically creates worktrees in all registered repositories.
+
+**Input**:
+| Argument/Flag | Type | Required | Description |
+|---|---|---|---| 
+| `text` | String | ✓ | TODO content |
+| `--worktree` / `-w` | Flag | | Create worktrees for this TODO |
+
+**Process Flow** (when `--worktree` is specified):
+1. Create TODO record.
+2. Get all registered repositories for the current task.
+3. For each repository:
+   - Determine worktree branch name:
+     - If `ticket_id` exists: `<ticket_id>/todo-<todo_id>` (e.g., `PROJ-123/todo-15`)
+     - Otherwise: `task-<task_id>/todo-<todo_id>` (e.g., `task-5/todo-15`)
+   - Determine worktree path: `<repo_path>/../<repo_name>-worktrees/<branch_name>`
+   - Create worktree: `git worktree add -b <branch> <path>`
+   - INSERT `git_items` record with `todo_id` set.
+
+**Output Example**:
+```
+Added TODO #15: Implement login endpoint
+
+Created worktrees:
+  /home/user/projects/api-worktrees/PROJ-123/todo-15 (PROJ-123/todo-15)
+  /home/user/projects/frontend-worktrees/PROJ-123/todo-15 (PROJ-123/todo-15)
+```
+
+**Error Cases**:
+| Condition | Error Message |
+|---|---|
+| No repositories registered | `Warning: No repositories registered, worktree creation skipped` |
+| Branch already exists | `Error: Branch <branch> already exists in <repo>` |
+| Worktree creation fails | `Error: Failed to create worktree: <detail>` |
+
+---
+
+### 8.6. `track todo done <id>` - Complete TODO with Worktree Cleanup
+
+**Overview**: Completes a TODO and automatically merges and removes associated worktrees.
+
+**Input**:
+| Argument | Type | Required | Description |
+|---|---|---|---| 
+| `id` | Integer | ✓ | TODO ID |
+
+**Process Flow**:
+1. Validate TODO exists and belongs to current task.
+2. Find all `git_items` where `todo_id = <id>`.
+3. For each worktree:
+   - Check for uncommitted changes: `git -C <path> status --porcelain`
+   - If changes exist, display warning and prompt for confirmation.
+   - Get task branch name (from task ticket or ID).
+   - Checkout task branch in base repository.
+   - Merge worktree branch: `git merge --no-ff <worktree_branch>`
+   - If merge succeeds:
+     - Remove worktree: `git worktree remove <path>`
+     - Delete `git_items` record.
+   - If merge fails:
+     - Display error and abort.
+4. Update TODO status to `'done'`.
+
+**Output Example**:
+```
+Completing TODO #15: Implement login endpoint
+
+Worktree: /home/user/projects/api-worktrees/PROJ-123/todo-15
+  ✓ No uncommitted changes
+  ✓ Merged PROJ-123/todo-15 into task/PROJ-123
+  ✓ Removed worktree
+
+Worktree: /home/user/projects/frontend-worktrees/PROJ-123/todo-15
+  ✓ No uncommitted changes
+  ✓ Merged PROJ-123/todo-15 into task/PROJ-123
+  ✓ Removed worktree
+
+TODO #15 marked as done.
+```
+
+**Warning Example** (uncommitted changes):
+```
+WARNING: Worktree has uncommitted changes:
+  M  src/auth.rs
+  ?? new_file.txt
+
+Continue anyway? [y/N]: 
+```
+
+**Error Cases**:
+| Condition | Error Message |
+|---|---|
+| TODO not found | `Error: TODO #<id> not found` |
+| Merge conflict | `Error: Merge conflict in <repo>. Please resolve manually.` |
+| Worktree removal fails | `Error: Failed to remove worktree: <detail>` |
+
+---
+
+### 8.7. Database Schema: `task_repos`
+
+```sql
+CREATE TABLE task_repos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_id INTEGER NOT NULL,
+    repo_path TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
+    UNIQUE(task_id, repo_path)
+);
+
+CREATE INDEX idx_task_repos_task_id ON task_repos(task_id);
+```
+
+---
+
+## 9. Future Support (Not Implemented)
 
 The following are not currently implemented but are under consideration for the future:
 

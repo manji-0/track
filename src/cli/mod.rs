@@ -77,6 +77,10 @@ pub enum Commands {
     #[command(subcommand)]
     Worktree(WorktreeCommands),
 
+    /// Repository management
+    #[command(subcommand)]
+    Repo(RepoCommands),
+
     /// Export task information
     Export {
         /// Task ID or ticket reference (defaults to current task)
@@ -102,6 +106,10 @@ pub enum TodoCommands {
     Add {
         /// TODO content
         text: String,
+
+        /// Create worktrees for this TODO
+        #[arg(short, long)]
+        worktree: bool,
     },
 
     /// List TODOs
@@ -168,6 +176,9 @@ pub enum WorktreeCommands {
         repo_path: String,
     },
 
+    /// Sync repositories and setup task branches
+    Sync,
+
     /// Create a new worktree
     Add {
         /// Repository path
@@ -205,5 +216,23 @@ pub enum WorktreeCommands {
         /// Keep files on disk (only remove from database)
         #[arg(long)]
         keep_files: bool,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum RepoCommands {
+    /// Add a repository to the current task
+    Add {
+        /// Repository path (defaults to current directory)
+        path: Option<String>,
+    },
+
+    /// List repositories
+    List,
+
+    /// Remove a repository
+    Remove {
+        /// Repository ID
+        id: i64,
     },
 }
