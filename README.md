@@ -1,163 +1,163 @@
 # WorkTracker CLI
 
-開発者の作業ログを「コンテキスト（現在の作業状態）」に基づいて記録・管理するCLIツールです。
+A CLI tool for recording and managing developer work logs based on "context" (current work state).
 
-## 特徴
+## Features
 
-- **コンテキストベースの作業管理**: 現在のタスクを設定することで、都度IDを指定せずにTODO、メモ、リポジトリを管理
-- **チケット統合**: Jira、GitHub Issue、GitLab Issueとの連携
-- **Git Worktree管理**: タスクごとに独立した作業ディレクトリを自動管理
-- **シンプルなCLI**: 直感的なコマンド体系
-- **高速**: Rustによるシングルバイナリ実装
+- **Context-based work management**: Manage TODOs, notes, and repositories without specifying IDs each time by setting the current task
+- **Ticket integration**: Integration with Jira, GitHub Issues, and GitLab Issues
+- **Git Worktree management**: Automatically manage independent working directories for each task
+- **Simple CLI**: Intuitive command structure
+- **Fast**: Single binary implementation in Rust
 
-## インストール
+## Installation
 
 ```bash
-# ビルド
+# Build
 cargo build --release
 
-# インストール（オプション）
+# Install (optional)
 cargo install --path .
 ```
 
-## クイックスタート
+## Quick Start
 
 ```bash
-# 新しいタスクを作成
-track new "API実装" --ticket PROJ-123 --ticket-url https://jira.example.com/browse/PROJ-123
+# Create a new task
+track new "API Implementation" --ticket PROJ-123 --ticket-url https://jira.example.com/browse/PROJ-123
 
-# タスク一覧を表示
+# List tasks
 track list
 
-# TODOを追加
-track todo add "エンドポイント設計"
-track todo add "認証処理実装"
+# Add TODOs
+track todo add "Design endpoints"
+track todo add "Implement authentication"
 
-# リンクを追加
-track link add https://figma.com/design/... "Figma設計書"
+# Add links
+track link add https://figma.com/design/... "Figma Design Document"
 
-# 作業メモを追加
-track scrap add "DB設計を完了。テーブル構成はDESIGN.mdを参照"
+# Add work notes
+track scrap add "Completed DB design. See DESIGN.md for table structure"
 
-# Worktreeを作成
+# Create a worktree
 track worktree add /path/to/repo
 
-# 現在のタスク情報を表示
+# Display current task information
 track info
 ```
 
-## コマンド一覧
+## Command Reference
 
-### タスク管理
+### Task Management
 
-| コマンド | 説明 |
-|---------|------|
-| `track new <name>` | 新規タスクを作成し、アクティブに設定 |
-| `track list [--all]` | タスク一覧を表示 |
-| `track switch <task_id>` | タスクを切り替え |
-| `track info` | 現在のタスクの詳細情報を表示 |
-| `track ticket <ticket_id> <url>` | タスクにチケットを紐付け |
-| `track archive <task_id>` | タスクをアーカイブ |
+| Command | Description |
+|---------|-------------|
+| `track new <name>` | Create a new task and set it as active |
+| `track list [--all]` | Display task list |
+| `track switch <task_id>` | Switch tasks |
+| `track info` | Display detailed information about the current task |
+| `track ticket <ticket_id> <url>` | Link a ticket to the task |
+| `track archive <task_id>` | Archive a task |
 
-### TODO管理
+### TODO Management
 
-| コマンド | 説明 |
-|---------|------|
-| `track todo add <text>` | TODOを追加 |
-| `track todo list` | TODO一覧を表示 |
-| `track todo update <id> <status>` | TODOステータスを更新 |
-| `track todo delete <id>` | TODOを削除 |
+| Command | Description |
+|---------|-------------|
+| `track todo add <text>` | Add a TODO |
+| `track todo list` | Display TODO list |
+| `track todo update <id> <status>` | Update TODO status |
+| `track todo delete <id>` | Delete a TODO |
 
-### リンク管理
+### Link Management
 
-| コマンド | 説明 |
-|---------|------|
-| `track link add <url> [title]` | 参考URLを追加 |
-| `track link list` | リンク一覧を表示 |
+| Command | Description |
+|---------|-------------|
+| `track link add <url> [title]` | Add a reference URL |
+| `track link list` | Display link list |
 
-### Scrap（作業メモ）管理
+### Scrap (Work Notes) Management
 
-| コマンド | 説明 |
-|---------|------|
-| `track scrap add <content>` | 作業メモを追加 |
-| `track scrap list` | メモ一覧を表示 |
+| Command | Description |
+|---------|-------------|
+| `track scrap add <content>` | Add a work note |
+| `track scrap list` | Display note list |
 
-### Worktree管理
+### Worktree Management
 
-| コマンド | 説明 |
-|---------|------|
-| `track worktree add <repo_path> [branch]` | Worktreeを作成 |
-| `track worktree list` | Worktree一覧を表示 |
-| `track worktree link <worktree_id> <url>` | WorktreeにURLを紐付け |
-| `track worktree remove <worktree_id>` | Worktreeを削除 |
+| Command | Description |
+|---------|-------------|
+| `track worktree add <repo_path> [branch]` | Create a worktree |
+| `track worktree list` | Display worktree list |
+| `track worktree link <worktree_id> <url>` | Link a URL to a worktree |
+| `track worktree remove <worktree_id>` | Remove a worktree |
 
-## チケット参照
+## Ticket Reference
 
-タスクIDの代わりにチケットIDで参照可能：
+You can reference tasks by ticket ID instead of task ID:
 
 ```bash
-# チケットIDでタスクを切り替え
+# Switch task by ticket ID
 track switch t:PROJ-123
 
-# チケットIDでアーカイブ
+# Archive by ticket ID
 track archive t:PROJ-123
 ```
 
-## ブランチ命名規則
+## Branch Naming Convention
 
-チケットが登録されているタスクでは、Worktree作成時に自動的にチケットIDを使用：
+For tasks with registered tickets, the ticket ID is automatically used when creating worktrees:
 
 ```bash
-# チケット PROJ-123 が登録されている場合
+# When ticket PROJ-123 is registered
 track worktree add /path/to/repo
-# → ブランチ: task/PROJ-123
+# → Branch: task/PROJ-123
 
 track worktree add /path/to/repo feat-auth
-# → ブランチ: PROJ-123/feat-auth
+# → Branch: PROJ-123/feat-auth
 ```
 
-## データベース
+## Database
 
-データは以下のパスに保存されます：
+Data is stored at the following path:
 
 ```
 $HOME/.local/share/track/track.db
 ```
 
-XDG Base Directory仕様に準拠しています。
+Complies with the XDG Base Directory specification.
 
-## 技術スタック
+## Technology Stack
 
-- **言語**: Rust (Edition 2021)
+- **Language**: Rust (Edition 2021)
 - **CLI**: clap v4.4+
-- **データベース**: SQLite (rusqlite with bundled feature)
-- **エラー処理**: anyhow, thiserror
-- **日時**: chrono
-- **表示**: prettytable-rs
+- **Database**: SQLite (rusqlite with bundled feature)
+- **Error handling**: anyhow, thiserror
+- **Date/time**: chrono
+- **Display**: prettytable-rs
 
-## プロジェクト構造
+## Project Structure
 
-詳細は [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md) を参照してください。
+See [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md) for details.
 
-## ドキュメント
+## Documentation
 
-- [DESIGN.md](DESIGN.md) - 設計仕様書
-- [docs/FUNCTIONAL_SPEC.md](docs/FUNCTIONAL_SPEC.md) - 機能仕様書
-- [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md) - プロジェクト構造
+- [DESIGN.md](DESIGN.md) - Design specification
+- [docs/FUNCTIONAL_SPEC.md](docs/FUNCTIONAL_SPEC.md) - Functional specification
+- [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md) - Project structure
 
-## ライセンス
+## License
 
 MIT License
 
-## 開発
+## Development
 
 ```bash
-# 開発ビルド
+# Development build
 cargo build
 
-# テスト実行
+# Run tests
 cargo test
 
-# リリースビルド
+# Release build
 cargo build --release
 ```

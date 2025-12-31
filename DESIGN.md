@@ -1,120 +1,120 @@
-# WorkTracker CLI 設計仕様書
+# WorkTracker CLI Design Specification
 
-## 1. 概要
-WorkTracker は、開発者の作業ログを「コンテキスト（現在の作業状態）」に基づいて記録・管理するCLIツールです。
-ユーザーは現在取り組んでいるタスク（WorkTracker）をセットすることで、都度IDを指定することなくTODOの消化、メモの記録、関連リポジトリの管理を行えます。
+## 1. Overview
+WorkTracker is a CLI tool for recording and managing developer work logs based on "context" (current work state).
+Users can set the current task (WorkTracker) they are working on, allowing them to manage TODOs, record notes, and manage related repositories without specifying IDs each time.
 
-## 2. 技術スタック (Rust)
-シングルバイナリで高速に動作し、堅牢なエラーハンドリングを実現するためにRustを採用します。
+## 2. Technology Stack (Rust)
+Rust is adopted to achieve fast operation with a single binary and robust error handling.
 
-| カテゴリ | クレート | 用途 |
+| Category | Crate | Purpose |
 | :--- | :--- | :--- |
-| CLI引数解析 | clap (v4.4+) | サブコマンド、フラグ、ヘルプメッセージの自動生成 |
-| DB操作 | rusqlite (bundled) | SQLiteへの接続。システム依存を減らすため bundled featureを使用 |
-| パス管理 | directories | XDG Base Directory準拠 (~/.local/share/...) のパス解決 |
-| エラー処理 | anyhow, thiserror | エラー伝播の簡略化とコンテキスト付与 |
-| 日付時刻 | chrono | 作業ログのタイムスタンプ管理 |
-| 表示整形 | prettytable-rs | リスト表示時のテーブル整形 |
+| CLI argument parsing | clap (v4.4+) | Automatic generation of subcommands, flags, and help messages |
+| DB operations | rusqlite (bundled) | SQLite connection. Uses bundled feature to reduce system dependencies |
+| Path management | directories | XDG Base Directory compliant (~/.local/share/...) path resolution |
+| Error handling | anyhow, thiserror | Simplification of error propagation and context addition |
+| Date/time | chrono | Timestamp management for work logs |
+| Display formatting | prettytable-rs | Table formatting for list display |
 
-## 3. データベース設計 (SQLite)
-データは `$HOME/.local/share/track/track.db` に保存されます。
+## 3. Database Design (SQLite)
+Data is stored in `$HOME/.local/share/track/track.db`.
 
-### 3.1. スキーマ定義
+### 3.1. Schema Definition
 
 #### app_state
-アプリケーションの現在の状態を保持します。
-- `key`: TEXT PK (例: 'current_task_id')
+Holds the current state of the application.
+- `key`: TEXT PK (e.g., 'current_task_id')
 - `value`: TEXT
 
-#### tasks (作業コンテキスト)
+#### tasks (Work Context)
 - `id`: INTEGER PK
-- `name`: TEXT (作業名)
-- `status`: TEXT (例: 'active', 'archived')
+- `name`: TEXT (task name)
+- `status`: TEXT (e.g., 'active', 'archived')
 - `created_at`: DATETIME
 
-#### todos (タスク内TODO)
+#### todos (TODOs within a task)
 - `id`: INTEGER PK
 - `task_id`: INTEGER (FK -> tasks.id)
 - `content`: TEXT
-- `status`: TEXT (例: 'pending', 'done')
+- `status`: TEXT (e.g., 'pending', 'done')
 - `created_at`: DATETIME
 
-#### links (汎用的な関連URL)
+#### links (Generic related URLs)
 - `id`: INTEGER PK
 - `task_id`: INTEGER (FK -> tasks.id)
 - `url`: TEXT
 - `title`: TEXT
 - `created_at`: DATETIME
 
-#### logs (作業記録/Scrap)
+#### logs (Work records/Scraps)
 - `id`: INTEGER PK
 - `task_id`: INTEGER (FK -> tasks.id)
 - `content`: TEXT
 - `created_at`: DATETIME
 
-#### git_items (関連リポジトリ/Worktree)
+#### git_items (Related repositories/Worktrees)
 - `id`: INTEGER PK
 - `task_id`: INTEGER (FK -> tasks.id)
-- `path`: TEXT (リポジトリの絶対パス)
-- `branch`: TEXT (登録時のブランチ名)
-- `description`: TEXT (任意)
+- `path`: TEXT (absolute path of repository)
+- `branch`: TEXT (branch name at registration)
+- `description`: TEXT (optional)
 
-#### repo_links (リポジトリに関連するIssue/PR)
+#### repo_links (Issues/PRs related to repositories)
 - `id`: INTEGER PK
 - `git_item_id`: INTEGER (FK -> git_items.id)
 - `url`: TEXT
-- `kind`: TEXT (自動判定: 'PR', 'Issue', 'Discussion', 'Link')
+- `kind`: TEXT (auto-detected: 'PR', 'Issue', 'Discussion', 'Link')
 - `created_at`: DATETIME
 
-## 4. コマンドインターフェース設計
-コマンドは `track` をプレフィックスとして実行します。
+## 4. Command Interface Design
+Commands are executed with `track` as a prefix.
 
-### 4.1. コンテキスト管理 (Global Operations)
+### 4.1. Context Management (Global Operations)
 
-| コマンド | 引数 | 動作 |
+| Command | Arguments | Behavior |
 | :--- | :--- | :--- |
-| `track new` | `<name>` | 新規タスクを作成し、自動的にそのタスクにswitchする。 |
-| `track list` | `--all` | 最近のタスク一覧を表示。現在のタスクには `*` を表示。 |
-| `track switch` | `<task_id>` | 作業対象のタスクを切り替える。 |
-| `track info` | | 現在のタスクの全情報（TODO, Log, Repo, Link）をまとめて表示。 |
+| `track new` | `<name>` | Creates a new task and automatically switches to that task. |
+| `track list` | `--all` | Displays a list of recent tasks. Shows `*` for the current task. |
+| `track switch` | `<task_id>` | Switches the working task. |
+| `track info` | | Displays all information (TODO, Log, Repo, Link) for the current task. |
 
-### 4.2. タスクアイテム操作
-これらは現在switchされているタスクに対して実行されます。
+### 4.2. Task Item Operations
+These are executed on the currently switched task.
 
-| カテゴリ | コマンド | 引数 | 動作 |
+| Category | Command | Arguments | Behavior |
 | :--- | :--- | :--- | :--- |
-| **TODO** | `track todo add` | `<text>` | TODOを追加。 |
-| | `track todo list` | | TODO一覧を表示。 |
-| | `track todo update` | `<id> <status>` | ステータス更新（done等）。 |
-| | `track todo delete` | `<id>` | TODO削除。 |
-| **Link** | `track link add` | `<url> [title]` | 参考URLを追加。 |
-| | `track link list` | | リンク一覧を表示. |
-| **Log** | `track log add` | `<content>` | 作業ログ（Scrap）を追加。 |
-| | `track log list` | | 時系列順にログを表示。 |
+| **TODO** | `track todo add` | `<text>` | Adds a TODO. |
+| | `track todo list` | | Displays TODO list. |
+| | `track todo update` | `<id> <status>` | Updates status (e.g., done). |
+| | `track todo delete` | `<id>` | Deletes a TODO. |
+| **Link** | `track link add` | `<url> [title]` | Adds a reference URL. |
+| | `track link list` | | Displays link list. |
+| **Log** | `track log add` | `<content>` | Adds a work log (Scrap). |
+| | `track log list` | | Displays logs in chronological order. |
 
-### 4.3. Gitリポジトリ連携 (repo)
+### 4.3. Git Repository Integration (repo)
 
-| コマンド | 引数 | 動作 |
+| Command | Arguments | Behavior |
 | :--- | :--- | :--- |
-| `track repo add` | `[path]` | 指定パス（省略時はカレント）をGit項目として登録。内部で `git rev-parse` を呼び出しブランチ名を自動保存する。 |
-| `track repo list` | | 登録済みリポジトリと、それに紐づくIssue/PRを表示。 |
-| `track repo link` | `<repo_id> <url>` | 指定したリポジトリ項目にURLを紐付ける。URLパターンから PR, Issue 等を自動判定する。 |
-| `track repo delete` | `<repo_id>` | リポジトリ登録を解除する。 |
+| `track repo add` | `[path]` | Registers the specified path (current directory if omitted) as a Git item. Internally calls `git rev-parse` to automatically save the branch name. |
+| `track repo list` | | Displays registered repositories and their associated Issues/PRs. |
+| `track repo link` | `<repo_id> <url>` | Links a URL to the specified repository item. Automatically detects PR, Issue, etc. from URL pattern. |
+| `track repo delete` | `<repo_id>` | Unregisters a repository. |
 
-## 5. ロジック詳細
+## 5. Logic Details
 
-### 自動コンテキストスイッチ
-`track new` 実行時、DBへのINSERT後、即座に `app_state` テーブルの `current_task_id` を更新します。
-以降の `add` 系コマンドは、`app_state` からIDを取得して外部キーとして使用します。
+### Automatic Context Switch
+When `track new` is executed, after INSERT to the database, the `current_task_id` in the `app_state` table is immediately updated.
+Subsequent `add` commands retrieve the ID from `app_state` and use it as a foreign key.
 
-### Git情報の取得
-`track repo add` 実行時、Rustの `std::process::Command` を使用して git コマンドをサブプロセスとして実行します。
-取得コマンド: `git -C <path> rev-parse --abbrev-ref HEAD`
-これにより、Gitライブラリ(git2)への依存を排除し、ビルド時間とバイナリサイズを最適化します。
+### Git Information Retrieval
+When `track repo add` is executed, git commands are executed as subprocesses using Rust's `std::process::Command`.
+Retrieval command: `git -C <path> rev-parse --abbrev-ref HEAD`
+This eliminates dependency on Git libraries (git2), optimizing build time and binary size.
 
-### URL種別推論
-`track repo link` でURLが渡された際、以下の文字列マッチングで `kind` を決定します。
+### URL Type Inference
+When a URL is passed to `track repo link`, the `kind` is determined by the following string matching:
 - `/pull/` or `/merge_requests/` -> `PR`
 - `/issues/` -> `Issue`
 - `/discussions/` -> `Discussion`
-- その他 -> `Link`
+- Others -> `Link`
