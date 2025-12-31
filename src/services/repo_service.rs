@@ -126,7 +126,7 @@ mod tests {
         let repo_service = RepoService::new(&db);
 
         // Create a task
-        let task = task_service.create_task("Test Task", None, None).unwrap();
+        let task = task_service.create_task("Test Task", None, None, None).unwrap();
 
         // Create a temporary git repository
         let temp_dir = std::env::temp_dir().join(format!("test_repo_{}", std::process::id()));
@@ -148,7 +148,7 @@ mod tests {
         let task_service = TaskService::new(&db);
         let repo_service = RepoService::new(&db);
 
-        let task = task_service.create_task("Test Task", None, None).unwrap();
+        let task = task_service.create_task("Test Task", None, None, None).unwrap();
 
         // Create a temporary directory without .git
         let temp_dir = std::env::temp_dir().join(format!("test_not_git_{}", std::process::id()));
@@ -169,7 +169,7 @@ mod tests {
         let task_service = TaskService::new(&db);
         let repo_service = RepoService::new(&db);
 
-        let task = task_service.create_task("Test Task", None, None).unwrap();
+        let task = task_service.create_task("Test Task", None, None, None).unwrap();
 
         let temp_dir = std::env::temp_dir().join(format!("test_dup_repo_{}", std::process::id()));
         std::fs::create_dir_all(&temp_dir).unwrap();
@@ -192,7 +192,7 @@ mod tests {
         let task_service = TaskService::new(&db);
         let repo_service = RepoService::new(&db);
 
-        let task = task_service.create_task("Test Task", None, None).unwrap();
+        let task = task_service.create_task("Test Task", None, None, None).unwrap();
 
         // Create two temporary git repositories
         let temp_dir1 = std::env::temp_dir().join(format!("test_list_repo1_{}", std::process::id()));
@@ -221,7 +221,7 @@ mod tests {
         let task_service = TaskService::new(&db);
         let repo_service = RepoService::new(&db);
 
-        let task = task_service.create_task("Test Task", None, None).unwrap();
+        let task = task_service.create_task("Test Task", None, None, None).unwrap();
 
         let temp_dir = std::env::temp_dir().join(format!("test_remove_repo_{}", std::process::id()));
         std::fs::create_dir_all(&temp_dir).unwrap();

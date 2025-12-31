@@ -107,7 +107,7 @@ mod tests {
 
     fn create_test_task(db: &Database) -> i64 {
         let task_service = TaskService::new(db);
-        task_service.create_task("Test Task", None, None).unwrap().id
+        task_service.create_task("Test Task", None, None, None).unwrap().id
     }
 
     #[test]

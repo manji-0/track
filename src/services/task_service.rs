@@ -399,5 +399,52 @@ mod tests {
             Err(TrackError::InvalidTicketFormat(_))
         ));
     }
+
+    #[test]
+    fn test_create_task_with_description() {
+        let db = setup_db();
+        let service = TaskService::new(&db);
+
+        let task = service.create_task("Test Task", Some("This is a test description"), None, None).unwrap();
+        assert_eq!(task.description, Some("This is a test description".to_string()));
+    }
+
+    #[test]
+    fn test_set_description() {
+        let db = setup_db();
+        let service = TaskService::new(&db);
+
+        let task = service.create_task("Test Task", None, None, None).unwrap();
+        assert!(task.description.is_none());
+
+        service.set_description(task.id, "New description").unwrap();
+        let updated = service.get_task(task.id).unwrap();
+        assert_eq!(updated.description, Some("New description".to_string()));
+    }
+
+    #[test]
+    fn test_set_description_archived_task() {
+        let db = setup_db();
+        let service = TaskService::new(&db);
+
+        let task = service.create_task("Test Task", None, None, None).unwrap();
+        service.archive_task(task.id).unwrap();
+
+        let result = service.set_description(task.id, "New description");
+        assert!(matches!(result, Err(TrackError::TaskArchived(_))));
+    }
+
+    #[test]
+    fn test_description_persists() {
+        let db = setup_db();
+        let service = TaskService::new(&db);
+
+        let task = service.create_task("Test Task", Some("Original description"), None, None).unwrap();
+        let task_id = task.id;
+
+        // Retrieve again to ensure it persists
+        let retrieved = service.get_task(task_id).unwrap();
+        assert_eq!(retrieved.description, Some("Original description".to_string()));
+    }
 }
 
