@@ -1,0 +1,193 @@
+pub mod handler;
+
+use clap::{Parser, Subcommand};
+
+#[derive(Parser)]
+#[command(name = "track")]
+#[command(about = "WorkTracker CLI - Manage your development tasks and context", long_about = None)]
+pub struct Cli {
+    #[command(subcommand)]
+    pub command: Commands,
+}
+
+#[derive(Subcommand)]
+pub enum Commands {
+    /// Create a new task and switch to it
+    New {
+        /// Task name
+        name: String,
+        
+        /// Ticket ID (e.g., PROJ-123, owner/repo/456)
+        #[arg(short, long)]
+        ticket: Option<String>,
+        
+        /// Ticket URL
+        #[arg(long)]
+        ticket_url: Option<String>,
+    },
+
+    /// List tasks
+    List {
+        /// Include archived tasks
+        #[arg(short, long)]
+        all: bool,
+    },
+
+    /// Switch to a different task
+    Switch {
+        /// Task ID or ticket reference (e.g., 1 or t:PROJ-123)
+        task_ref: String,
+    },
+
+    /// Show detailed information about the current task
+    Info,
+
+    /// Link a ticket to a task
+    Ticket {
+        /// Ticket ID
+        ticket_id: String,
+        
+        /// Ticket URL
+        url: String,
+        
+        /// Target task ID (defaults to current task)
+        #[arg(long)]
+        task: Option<i64>,
+    },
+
+    /// Archive a task
+    Archive {
+        /// Task ID or ticket reference
+        task_ref: String,
+    },
+
+    /// TODO management
+    #[command(subcommand)]
+    Todo(TodoCommands),
+
+    /// Link management
+    #[command(subcommand)]
+    Link(LinkCommands),
+
+    /// Scrap (work notes) management
+    #[command(subcommand)]
+    Scrap(ScrapCommands),
+
+    /// Worktree management
+    #[command(subcommand)]
+    Worktree(WorktreeCommands),
+
+    /// Export task information
+    Export {
+        /// Task ID or ticket reference (defaults to current task)
+        task_ref: Option<String>,
+        
+        /// Output format
+        #[arg(short, long, default_value = "markdown")]
+        format: String,
+        
+        /// Output file (defaults to stdout)
+        #[arg(short, long)]
+        output: Option<String>,
+        
+        /// Custom template file
+        #[arg(short, long)]
+        template: Option<String>,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum TodoCommands {
+    /// Add a new TODO
+    Add {
+        /// TODO content
+        text: String,
+    },
+
+    /// List TODOs
+    List,
+
+    /// Update TODO status
+    Update {
+        /// TODO ID
+        id: i64,
+        
+        /// New status (pending, done, cancelled)
+        status: String,
+    },
+
+    /// Delete a TODO
+    Delete {
+        /// TODO ID
+        id: i64,
+        
+        /// Skip confirmation prompt
+        #[arg(short, long)]
+        force: bool,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum LinkCommands {
+    /// Add a new link
+    Add {
+        /// URL
+        url: String,
+        
+        /// Link title (defaults to URL)
+        title: Option<String>,
+    },
+
+    /// List links
+    List,
+}
+
+#[derive(Subcommand)]
+pub enum ScrapCommands {
+    /// Add a new scrap (work note)
+    Add {
+        /// Scrap content
+        content: String,
+    },
+
+    /// List scraps
+    List,
+}
+
+#[derive(Subcommand)]
+pub enum WorktreeCommands {
+    /// Create a new worktree
+    Add {
+        /// Repository path
+        repo_path: String,
+        
+        /// Branch name (optional, auto-generated if not provided)
+        branch: Option<String>,
+    },
+
+    /// List worktrees
+    List,
+
+    /// Link a URL to a worktree
+    Link {
+        /// Worktree ID
+        worktree_id: i64,
+        
+        /// URL (PR, Issue, etc.)
+        url: String,
+    },
+
+    /// Remove a worktree
+    Remove {
+        /// Worktree ID
+        worktree_id: i64,
+        
+        /// Skip confirmation prompt
+        #[arg(short, long)]
+        force: bool,
+        
+        /// Keep files on disk (only remove from database)
+        #[arg(long)]
+        keep_files: bool,
+    },
+}
