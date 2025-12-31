@@ -24,7 +24,10 @@ cargo install --path .
 
 ```bash
 # Create a new task
-track new "API Implementation" --ticket PROJ-123 --ticket-url https://jira.example.com/browse/PROJ-123
+track new "API Implementation" \
+  --description "Implement RESTful API with JWT authentication" \
+  --ticket PROJ-123 \
+  --ticket-url https://jira.example.com/browse/PROJ-123
 
 # List tasks
 track list
@@ -56,6 +59,7 @@ track info
 | `track list [--all]` | Display task list |
 | `track switch <task_id>` | Switch tasks |
 | `track info` | Display detailed information about the current task |
+| `track desc [description]` | View or set task description |
 | `track ticket <ticket_id> <url>` | Link a ticket to the task |
 | `track archive <task_id>` | Archive a task |
 

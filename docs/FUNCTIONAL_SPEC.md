@@ -14,6 +14,7 @@ This document defines the specific functional specifications for the WorkTracker
 | Argument/Flag | Type | Required | Description |
 |---|---|---|---|
 | `name` | String | ✓ | Task name (arbitrary length, cannot be empty) |
+| `--description` / `-d` | String | | Task description (detailed context about the task) |
 | `--ticket` / `-t` | String | | Ticket ID (see format below) |
 | `--ticket-url` | URL | | Ticket URL |
 
@@ -31,6 +32,7 @@ This document defines the specific functional specifications for the WorkTracker
    - If `--ticket-url` is unspecified, register as empty.
 3. INSERT a new record into the `tasks` table.
    - `status`: `'active'`
+   - `description`: Description (if specified)
    - `ticket_id`: Ticket ID (if specified)
    - `ticket_url`: Ticket URL (if specified)
    - `created_at`: Current time (UTC)
@@ -200,6 +202,10 @@ Switched to task #<id>: <name>
 Ticket: PROJ-123 (https://jira.example.com/browse/PROJ-123)
 Created: 2025-01-01 10:00:00
 
+Description:
+  Implement RESTful API with JWT authentication and user management.
+  This includes endpoint design, database schema, and integration tests.
+
 [ TODOs ]
   [ ] Endpoint design
   [x] Schema definition
@@ -214,6 +220,59 @@ Created: 2025-01-01 10:00:00
   #1 /home/user/api-worktrees/task/PROJ-123 (task/PROJ-123)
       └─ PR: https://github.com/.../pull/123
 ```
+
+---
+
+### 1.8. `track desc [description]` - View or Set Task Description
+
+**Overview**: Views or sets the description for the current task (or specified task).
+
+**Input**:
+| Argument/Flag | Type | Required | Description |
+|---|---|---|---|
+| `description` | String | | Description text (if omitted, displays current description) |
+| `--task` / `-t` | Integer | | Target Task ID (Default: Current task) |
+
+**Process Flow**:
+
+**View Mode** (no description argument):
+1. Get current Task ID (or use `--task` value).
+2. Retrieve task description from database.
+3. Display description or message if none set.
+
+**Set Mode** (description provided):
+1. Get current Task ID (or use `--task` value).
+2. Validate task exists and is active.
+3. UPDATE task description in database.
+4. Display confirmation message.
+
+**Output (View Mode)**:
+```
+=== Task #6: feat: add task description ===
+
+Description:
+  Add support for task descriptions to provide more context about tasks.
+  This includes schema changes, CLI commands, and documentation updates.
+```
+
+**Output (View Mode - No Description)**:
+```
+=== Task #6: feat: add task description ===
+
+No description set. Use 'track desc <text>' to add one.
+```
+
+**Output (Set Mode)**:
+```
+Updated description for task #6
+```
+
+**Error Cases**:
+| Condition | Error Message |
+|---|---|
+| No active task | `Error: No active task. Run 'track new' or 'track switch' first.` |
+| Task does not exist | `Error: Task #<id> not found` |
+| Task is archived | `Error: Cannot modify archived task #<id>` |
 
 ---
 
@@ -985,6 +1044,29 @@ CREATE TABLE task_repos (
 );
 
 CREATE INDEX idx_task_repos_task_id ON task_repos(task_id);
+```
+
+---
+
+### 8.8. Database Schema: `tasks`
+
+The `tasks` table schema with the description field:
+
+```sql
+CREATE TABLE tasks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    description TEXT,
+    status TEXT NOT NULL DEFAULT 'active',
+    ticket_id TEXT UNIQUE,
+    ticket_url TEXT,
+    created_at TEXT NOT NULL
+);
+```
+
+**Migration**: For existing databases, the `description` column is added via:
+```sql
+ALTER TABLE tasks ADD COLUMN description TEXT;
 ```
 
 ---
