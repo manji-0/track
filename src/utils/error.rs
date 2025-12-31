@@ -48,6 +48,7 @@ pub enum TrackError {
     Io(#[from] std::io::Error),
 
     #[error("Operation cancelled by user")]
+    #[allow(dead_code)]
     Cancelled,
 
     #[error("{0}")]
