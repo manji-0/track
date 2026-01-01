@@ -120,7 +120,7 @@ impl<'a> ScrapService<'a> {
     pub fn list_scraps(&self, task_id: i64) -> Result<Vec<Scrap>> {
         let conn = self.db.get_connection();
         let mut stmt = conn.prepare(
-            "SELECT id, task_id, content, created_at FROM scraps WHERE task_id = ?1 ORDER BY created_at DESC"
+            "SELECT id, task_id, content, created_at FROM scraps WHERE task_id = ?1 ORDER BY created_at ASC"
         )?;
 
         let scraps = stmt.query_map(params![task_id], |row| {
@@ -259,9 +259,9 @@ mod tests {
 
         let scraps = service.list_scraps(task_id).unwrap();
         assert_eq!(scraps.len(), 2);
-        // Should be in descending order (newest first)
-        assert_eq!(scraps[0].content, "Scrap 2");
-        assert_eq!(scraps[1].content, "Scrap 1");
+        // Should be in ascending order (oldest first)
+        assert_eq!(scraps[0].content, "Scrap 1");
+        assert_eq!(scraps[1].content, "Scrap 2");
     }
 }
 
