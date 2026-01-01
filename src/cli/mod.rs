@@ -16,15 +16,15 @@ pub enum Commands {
     New {
         /// Task name
         name: String,
-        
+
         /// Task description
         #[arg(short, long)]
         description: Option<String>,
-        
+
         /// Ticket ID (e.g., PROJ-123, owner/repo/456)
         #[arg(short, long)]
         ticket: Option<String>,
-        
+
         /// Ticket URL
         #[arg(long)]
         ticket_url: Option<String>,
@@ -54,7 +54,7 @@ pub enum Commands {
     Desc {
         /// Description text (if omitted, displays current description)
         description: Option<String>,
-        
+
         /// Target task ID (defaults to current task)
         #[arg(short, long)]
         task: Option<i64>,
@@ -64,10 +64,10 @@ pub enum Commands {
     Ticket {
         /// Ticket ID
         ticket_id: String,
-        
+
         /// Ticket URL
         url: String,
-        
+
         /// Target task ID (defaults to current task)
         #[arg(long)]
         task: Option<i64>,
@@ -121,7 +121,7 @@ pub enum TodoCommands {
     Update {
         /// TODO ID
         id: i64,
-        
+
         /// New status (pending, done, cancelled)
         status: String,
     },
@@ -136,7 +136,7 @@ pub enum TodoCommands {
     Delete {
         /// TODO ID
         id: i64,
-        
+
         /// Skip confirmation prompt
         #[arg(short, long)]
         force: bool,
@@ -149,7 +149,7 @@ pub enum LinkCommands {
     Add {
         /// URL
         url: String,
-        
+
         /// Link title (defaults to URL)
         title: Option<String>,
     },

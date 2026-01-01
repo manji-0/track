@@ -1,7 +1,7 @@
-use rusqlite::{Connection, params, OptionalExtension};
-use std::path::PathBuf;
-use directories::ProjectDirs;
 use crate::utils::Result;
+use directories::ProjectDirs;
+use rusqlite::{params, Connection, OptionalExtension};
+use std::path::PathBuf;
 
 pub struct Database {
     conn: Connection,
@@ -10,7 +10,7 @@ pub struct Database {
 impl Database {
     pub fn new() -> Result<Self> {
         let db_path = Self::get_db_path()?;
-        
+
         // Create parent directory if it doesn't exist
         if let Some(parent) = db_path.parent() {
             std::fs::create_dir_all(parent)?;
@@ -31,9 +31,10 @@ impl Database {
     }
 
     fn get_db_path() -> Result<PathBuf> {
-        let proj_dirs = ProjectDirs::from("", "", "track")
-            .ok_or_else(|| crate::utils::TrackError::Other("Failed to determine data directory".to_string()))?;
-        
+        let proj_dirs = ProjectDirs::from("", "", "track").ok_or_else(|| {
+            crate::utils::TrackError::Other("Failed to determine data directory".to_string())
+        })?;
+
         Ok(proj_dirs.data_dir().join("track.db"))
     }
 
@@ -119,7 +120,7 @@ impl Database {
             CREATE INDEX IF NOT EXISTS idx_git_items_task_id ON git_items(task_id);
             CREATE INDEX IF NOT EXISTS idx_repo_links_git_item_id ON repo_links(git_item_id);
             CREATE INDEX IF NOT EXISTS idx_task_repos_task_id ON task_repos(task_id);
-            "#
+            "#,
         )?;
 
         self.migrate_schema()?;
@@ -138,7 +139,10 @@ impl Database {
         if count == 0 {
             self.conn.execute("ALTER TABLE git_items ADD COLUMN todo_id INTEGER REFERENCES todos(id) ON DELETE SET NULL", [])?;
         }
-        self.conn.execute("CREATE INDEX IF NOT EXISTS idx_git_items_todo_id ON git_items(todo_id)", [])?;
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_git_items_todo_id ON git_items(todo_id)",
+            [],
+        )?;
 
         // Check for is_base column in git_items
         let count: i64 = self.conn.query_row(
@@ -148,7 +152,10 @@ impl Database {
         )?;
 
         if count == 0 {
-            self.conn.execute("ALTER TABLE git_items ADD COLUMN is_base INTEGER DEFAULT 0", [])?;
+            self.conn.execute(
+                "ALTER TABLE git_items ADD COLUMN is_base INTEGER DEFAULT 0",
+                [],
+            )?;
         }
 
         // Check for description column in tasks
@@ -159,7 +166,8 @@ impl Database {
         )?;
 
         if count == 0 {
-            self.conn.execute("ALTER TABLE tasks ADD COLUMN description TEXT", [])?;
+            self.conn
+                .execute("ALTER TABLE tasks ADD COLUMN description TEXT", [])?;
         }
 
         // Check for task_index column in todos
@@ -171,8 +179,9 @@ impl Database {
 
         if count == 0 {
             // Add task_index column
-            self.conn.execute("ALTER TABLE todos ADD COLUMN task_index INTEGER", [])?;
-            
+            self.conn
+                .execute("ALTER TABLE todos ADD COLUMN task_index INTEGER", [])?;
+
             // Populate task_index for existing TODOs based on creation order
             self.conn.execute_batch(
                 r#"
@@ -185,11 +194,14 @@ impl Database {
                 SET task_index = (
                     SELECT idx FROM numbered_todos WHERE numbered_todos.id = todos.id
                 )
-                "#
+                "#,
             )?;
-            
+
             // Create unique index on (task_id, task_index)
-            self.conn.execute("CREATE UNIQUE INDEX idx_todos_task_index ON todos(task_id, task_index)", [])?;
+            self.conn.execute(
+                "CREATE UNIQUE INDEX idx_todos_task_index ON todos(task_id, task_index)",
+                [],
+            )?;
         }
 
         // Check for worktree_requested column in todos
@@ -200,7 +212,10 @@ impl Database {
         )?;
 
         if count == 0 {
-            self.conn.execute("ALTER TABLE todos ADD COLUMN worktree_requested INTEGER NOT NULL DEFAULT 0", [])?;
+            self.conn.execute(
+                "ALTER TABLE todos ADD COLUMN worktree_requested INTEGER NOT NULL DEFAULT 0",
+                [],
+            )?;
         }
 
         Ok(())
@@ -211,9 +226,10 @@ impl Database {
     }
 
     pub fn get_app_state(&self, key: &str) -> Result<Option<String>> {
-        let mut stmt = self.conn.prepare("SELECT value FROM app_state WHERE key = ?1")?;
-        let result = stmt.query_row(params![key], |row| row.get(0))
-            .optional()?;
+        let mut stmt = self
+            .conn
+            .prepare("SELECT value FROM app_state WHERE key = ?1")?;
+        let result = stmt.query_row(params![key], |row| row.get(0)).optional()?;
         Ok(result)
     }
 
@@ -239,7 +255,8 @@ impl Database {
     }
 
     pub fn clear_current_task_id(&self) -> Result<()> {
-        self.conn.execute("DELETE FROM app_state WHERE key = 'current_task_id'", [])?;
+        self.conn
+            .execute("DELETE FROM app_state WHERE key = 'current_task_id'", [])?;
         Ok(())
     }
 }
@@ -252,7 +269,10 @@ mod tests {
     fn test_new_in_memory() {
         let db = Database::new_in_memory().unwrap();
         // Verify connection is valid by querying
-        let result: i64 = db.get_connection().query_row("SELECT 1", [], |row| row.get(0)).unwrap();
+        let result: i64 = db
+            .get_connection()
+            .query_row("SELECT 1", [], |row| row.get(0))
+            .unwrap();
         assert_eq!(result, 1);
     }
 
@@ -304,7 +324,15 @@ mod tests {
         let conn = db.get_connection();
 
         // Verify all tables exist
-        let tables = vec!["app_state", "tasks", "todos", "links", "scraps", "git_items", "repo_links"];
+        let tables = vec![
+            "app_state",
+            "tasks",
+            "todos",
+            "links",
+            "scraps",
+            "git_items",
+            "repo_links",
+        ];
         for table in tables {
             let result: i64 = conn
                 .query_row(
@@ -317,4 +345,3 @@ mod tests {
         }
     }
 }
-

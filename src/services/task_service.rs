@@ -1,8 +1,8 @@
-use rusqlite::{params, OptionalExtension};
-use chrono::Utc;
 use crate::db::Database;
 use crate::models::{Task, TaskStatus};
 use crate::utils::{Result, TrackError};
+use chrono::Utc;
+use rusqlite::{params, OptionalExtension};
 
 pub struct TaskService<'a> {
     db: &'a Database,
@@ -13,7 +13,13 @@ impl<'a> TaskService<'a> {
         Self { db }
     }
 
-    pub fn create_task(&self, name: &str, description: Option<&str>, ticket_id: Option<&str>, ticket_url: Option<&str>) -> Result<Task> {
+    pub fn create_task(
+        &self,
+        name: &str,
+        description: Option<&str>,
+        ticket_id: Option<&str>,
+        ticket_url: Option<&str>,
+    ) -> Result<Task> {
         if name.trim().is_empty() {
             return Err(TrackError::EmptyTaskName);
         }
@@ -21,7 +27,7 @@ impl<'a> TaskService<'a> {
         // Validate ticket ID format if provided
         if let Some(ticket) = ticket_id {
             self.validate_ticket_format(ticket)?;
-            
+
             // Check for duplicate ticket
             if let Some(existing_id) = self.find_task_by_ticket(ticket)? {
                 return Err(TrackError::DuplicateTicket(ticket.to_string(), existing_id));
@@ -30,14 +36,14 @@ impl<'a> TaskService<'a> {
 
         let now = Utc::now().to_rfc3339();
         let conn = self.db.get_connection();
-        
+
         conn.execute(
             "INSERT INTO tasks (name, description, status, ticket_id, ticket_url, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
             params![name, description, TaskStatus::Active.as_str(), ticket_id, ticket_url, now],
         )?;
 
         let task_id = conn.last_insert_rowid();
-        
+
         // Set as current task
         self.db.set_current_task_id(task_id)?;
 
@@ -50,17 +56,19 @@ impl<'a> TaskService<'a> {
             "SELECT id, name, description, status, ticket_id, ticket_url, created_at FROM tasks WHERE id = ?1"
         )?;
 
-        let task = stmt.query_row(params![task_id], |row| {
-            Ok(Task {
-                id: row.get(0)?,
-                name: row.get(1)?,
-                description: row.get(2)?,
-                status: row.get(3)?,
-                ticket_id: row.get(4)?,
-                ticket_url: row.get(5)?,
-                created_at: row.get::<_, String>(6)?.parse().unwrap(),
+        let task = stmt
+            .query_row(params![task_id], |row| {
+                Ok(Task {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                    description: row.get(2)?,
+                    status: row.get(3)?,
+                    ticket_id: row.get(4)?,
+                    ticket_url: row.get(5)?,
+                    created_at: row.get::<_, String>(6)?.parse().unwrap(),
+                })
             })
-        }).map_err(|_| TrackError::TaskNotFound(task_id))?;
+            .map_err(|_| TrackError::TaskNotFound(task_id))?;
 
         Ok(task)
     }
@@ -74,25 +82,26 @@ impl<'a> TaskService<'a> {
         };
 
         let mut stmt = conn.prepare(query)?;
-        let tasks = stmt.query_map([], |row| {
-            Ok(Task {
-                id: row.get(0)?,
-                name: row.get(1)?,
-                description: row.get(2)?,
-                status: row.get(3)?,
-                ticket_id: row.get(4)?,
-                ticket_url: row.get(5)?,
-                created_at: row.get::<_, String>(6)?.parse().unwrap(),
-            })
-        })?
-        .collect::<std::result::Result<Vec<_>, _>>()?;
+        let tasks = stmt
+            .query_map([], |row| {
+                Ok(Task {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                    description: row.get(2)?,
+                    status: row.get(3)?,
+                    ticket_id: row.get(4)?,
+                    ticket_url: row.get(5)?,
+                    created_at: row.get::<_, String>(6)?.parse().unwrap(),
+                })
+            })?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
 
         Ok(tasks)
     }
 
     pub fn switch_task(&self, task_id: i64) -> Result<Task> {
         let task = self.get_task(task_id)?;
-        
+
         if task.status == TaskStatus::Archived.as_str() {
             return Err(TrackError::TaskArchived(task_id));
         }
@@ -103,7 +112,7 @@ impl<'a> TaskService<'a> {
 
     pub fn archive_task(&self, task_id: i64) -> Result<()> {
         let conn = self.db.get_connection();
-        
+
         conn.execute(
             "UPDATE tasks SET status = ?1 WHERE id = ?2",
             params![TaskStatus::Archived.as_str(), task_id],
@@ -121,11 +130,14 @@ impl<'a> TaskService<'a> {
 
     pub fn link_ticket(&self, task_id: i64, ticket_id: &str, url: &str) -> Result<()> {
         self.validate_ticket_format(ticket_id)?;
-        
+
         // Check for duplicate ticket (excluding current task)
         if let Some(existing_id) = self.find_task_by_ticket(ticket_id)? {
             if existing_id != task_id {
-                return Err(TrackError::DuplicateTicket(ticket_id.to_string(), existing_id));
+                return Err(TrackError::DuplicateTicket(
+                    ticket_id.to_string(),
+                    existing_id,
+                ));
             }
         }
 
@@ -157,11 +169,13 @@ impl<'a> TaskService<'a> {
     pub fn resolve_task_id(&self, reference: &str) -> Result<i64> {
         // If it starts with "t:", it's a ticket reference
         if let Some(ticket_id) = reference.strip_prefix("t:") {
-            self.find_task_by_ticket(ticket_id)?
-                .ok_or_else(|| TrackError::Other(format!("No task found with ticket '{}'", ticket_id)))
+            self.find_task_by_ticket(ticket_id)?.ok_or_else(|| {
+                TrackError::Other(format!("No task found with ticket '{}'", ticket_id))
+            })
         } else {
             // Otherwise, parse as task ID
-            reference.parse::<i64>()
+            reference
+                .parse::<i64>()
                 .map_err(|_| TrackError::Other(format!("Invalid task reference: {}", reference)))
         }
     }
@@ -169,7 +183,8 @@ impl<'a> TaskService<'a> {
     fn find_task_by_ticket(&self, ticket_id: &str) -> Result<Option<i64>> {
         let conn = self.db.get_connection();
         let mut stmt = conn.prepare("SELECT id FROM tasks WHERE ticket_id = ?1")?;
-        let result = stmt.query_row(params![ticket_id], |row| row.get(0))
+        let result = stmt
+            .query_row(params![ticket_id], |row| row.get(0))
             .optional()?;
         Ok(result)
     }
@@ -215,7 +230,14 @@ mod tests {
         let db = setup_db();
         let service = TaskService::new(&db);
 
-        let task = service.create_task("Test Task", None, Some("PROJ-123"), Some("https://example.com")).unwrap();
+        let task = service
+            .create_task(
+                "Test Task",
+                None,
+                Some("PROJ-123"),
+                Some("https://example.com"),
+            )
+            .unwrap();
         assert_eq!(task.ticket_id, Some("PROJ-123".to_string()));
         assert_eq!(task.ticket_url, Some("https://example.com".to_string()));
     }
@@ -234,7 +256,9 @@ mod tests {
         let db = setup_db();
         let service = TaskService::new(&db);
 
-        service.create_task("Task 1", None, Some("PROJ-123"), None).unwrap();
+        service
+            .create_task("Task 1", None, Some("PROJ-123"), None)
+            .unwrap();
         let result = service.create_task("Task 2", None, Some("PROJ-123"), None);
         assert!(matches!(result, Err(TrackError::DuplicateTicket(_, _))));
     }
@@ -334,7 +358,9 @@ mod tests {
         let service = TaskService::new(&db);
 
         let task = service.create_task("Task 1", None, None, None).unwrap();
-        service.link_ticket(task.id, "PROJ-456", "https://example.com").unwrap();
+        service
+            .link_ticket(task.id, "PROJ-456", "https://example.com")
+            .unwrap();
 
         let retrieved = service.get_task(task.id).unwrap();
         assert_eq!(retrieved.ticket_id, Some("PROJ-456".to_string()));
@@ -345,7 +371,9 @@ mod tests {
         let db = setup_db();
         let service = TaskService::new(&db);
 
-        service.create_task("Task 1", None, Some("PROJ-123"), None).unwrap();
+        service
+            .create_task("Task 1", None, Some("PROJ-123"), None)
+            .unwrap();
         let task2 = service.create_task("Task 2", None, None, None).unwrap();
 
         let result = service.link_ticket(task2.id, "PROJ-123", "https://example.com");
@@ -367,7 +395,9 @@ mod tests {
         let db = setup_db();
         let service = TaskService::new(&db);
 
-        let task = service.create_task("Task 1", None, Some("PROJ-789"), None).unwrap();
+        let task = service
+            .create_task("Task 1", None, Some("PROJ-789"), None)
+            .unwrap();
         let resolved = service.resolve_task_id("t:PROJ-789").unwrap();
         assert_eq!(resolved, task.id);
     }
@@ -405,8 +435,13 @@ mod tests {
         let db = setup_db();
         let service = TaskService::new(&db);
 
-        let task = service.create_task("Test Task", Some("This is a test description"), None, None).unwrap();
-        assert_eq!(task.description, Some("This is a test description".to_string()));
+        let task = service
+            .create_task("Test Task", Some("This is a test description"), None, None)
+            .unwrap();
+        assert_eq!(
+            task.description,
+            Some("This is a test description".to_string())
+        );
     }
 
     #[test]
@@ -439,12 +474,16 @@ mod tests {
         let db = setup_db();
         let service = TaskService::new(&db);
 
-        let task = service.create_task("Test Task", Some("Original description"), None, None).unwrap();
+        let task = service
+            .create_task("Test Task", Some("Original description"), None, None)
+            .unwrap();
         let task_id = task.id;
 
         // Retrieve again to ensure it persists
         let retrieved = service.get_task(task_id).unwrap();
-        assert_eq!(retrieved.description, Some("Original description".to_string()));
+        assert_eq!(
+            retrieved.description,
+            Some("Original description".to_string())
+        );
     }
 }
-

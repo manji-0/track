@@ -1,8 +1,8 @@
-use rusqlite::params;
-use chrono::Utc;
 use crate::db::Database;
 use crate::models::{Todo, TodoStatus};
 use crate::utils::{Result, TrackError};
+use chrono::Utc;
+use rusqlite::params;
 
 pub struct TodoService<'a> {
     db: &'a Database,
@@ -39,17 +39,19 @@ impl<'a> TodoService<'a> {
             "SELECT id, task_id, task_index, content, status, worktree_requested, created_at FROM todos WHERE id = ?1"
         )?;
 
-        let todo = stmt.query_row(params![todo_id], |row| {
-            Ok(Todo {
-                id: row.get(0)?,
-                task_id: row.get(1)?,
-                task_index: row.get(2)?,
-                content: row.get(3)?,
-                status: row.get(4)?,
-                worktree_requested: row.get(5)?,
-                created_at: row.get::<_, String>(6)?.parse().unwrap(),
+        let todo = stmt
+            .query_row(params![todo_id], |row| {
+                Ok(Todo {
+                    id: row.get(0)?,
+                    task_id: row.get(1)?,
+                    task_index: row.get(2)?,
+                    content: row.get(3)?,
+                    status: row.get(4)?,
+                    worktree_requested: row.get(5)?,
+                    created_at: row.get::<_, String>(6)?.parse().unwrap(),
+                })
             })
-        }).map_err(|_| TrackError::TodoNotFound(todo_id))?;
+            .map_err(|_| TrackError::TodoNotFound(todo_id))?;
 
         Ok(todo)
     }
@@ -60,18 +62,19 @@ impl<'a> TodoService<'a> {
             "SELECT id, task_id, task_index, content, status, worktree_requested, created_at FROM todos WHERE task_id = ?1 ORDER BY task_index ASC"
         )?;
 
-        let todos = stmt.query_map(params![task_id], |row| {
-            Ok(Todo {
-                id: row.get(0)?,
-                task_id: row.get(1)?,
-                task_index: row.get(2)?,
-                content: row.get(3)?,
-                status: row.get(4)?,
-                worktree_requested: row.get(5)?,
-                created_at: row.get::<_, String>(6)?.parse().unwrap(),
-            })
-        })?
-        .collect::<std::result::Result<Vec<_>, _>>()?;
+        let todos = stmt
+            .query_map(params![task_id], |row| {
+                Ok(Todo {
+                    id: row.get(0)?,
+                    task_id: row.get(1)?,
+                    task_index: row.get(2)?,
+                    content: row.get(3)?,
+                    status: row.get(4)?,
+                    worktree_requested: row.get(5)?,
+                    created_at: row.get::<_, String>(6)?.parse().unwrap(),
+                })
+            })?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
 
         Ok(todos)
     }
@@ -82,17 +85,21 @@ impl<'a> TodoService<'a> {
             "SELECT id, task_id, task_index, content, status, worktree_requested, created_at FROM todos WHERE task_id = ?1 AND task_index = ?2"
         )?;
 
-        let todo = stmt.query_row(params![task_id, task_index], |row| {
-            Ok(Todo {
-                id: row.get(0)?,
-                task_id: row.get(1)?,
-                task_index: row.get(2)?,
-                content: row.get(3)?,
-                status: row.get(4)?,
-                worktree_requested: row.get(5)?,
-                created_at: row.get::<_, String>(6)?.parse().unwrap(),
+        let todo = stmt
+            .query_row(params![task_id, task_index], |row| {
+                Ok(Todo {
+                    id: row.get(0)?,
+                    task_id: row.get(1)?,
+                    task_index: row.get(2)?,
+                    content: row.get(3)?,
+                    status: row.get(4)?,
+                    worktree_requested: row.get(5)?,
+                    created_at: row.get::<_, String>(6)?.parse().unwrap(),
+                })
             })
-        }).map_err(|_| TrackError::Other(format!("TODO #{} not found in current task", task_index)))?;
+            .map_err(|_| {
+                TrackError::Other(format!("TODO #{} not found in current task", task_index))
+            })?;
 
         Ok(todo)
     }
@@ -139,7 +146,10 @@ mod tests {
 
     fn create_test_task(db: &Database) -> i64 {
         let task_service = TaskService::new(db);
-        task_service.create_task("Test Task", None, None, None).unwrap().id
+        task_service
+            .create_task("Test Task", None, None, None)
+            .unwrap()
+            .id
     }
 
     #[test]
@@ -276,8 +286,14 @@ mod tests {
     fn test_task_index_independence() {
         let db = setup_db();
         let task_service = TaskService::new(&db);
-        let task1_id = task_service.create_task("Task 1", None, None, None).unwrap().id;
-        let task2_id = task_service.create_task("Task 2", None, None, None).unwrap().id;
+        let task1_id = task_service
+            .create_task("Task 1", None, None, None)
+            .unwrap()
+            .id;
+        let task2_id = task_service
+            .create_task("Task 2", None, None, None)
+            .unwrap()
+            .id;
         let service = TodoService::new(&db);
 
         let task1_todo1 = service.add_todo(task1_id, "Task 1 TODO 1", false).unwrap();
@@ -337,4 +353,3 @@ mod tests {
         assert_eq!(todos[2].task_index, 3);
     }
 }
-

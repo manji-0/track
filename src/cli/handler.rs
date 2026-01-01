@@ -1,9 +1,11 @@
-use crate::cli::{Commands, TodoCommands, LinkCommands, ScrapCommands, RepoCommands};
+use crate::cli::{Commands, LinkCommands, RepoCommands, ScrapCommands, TodoCommands};
 use crate::db::Database;
-use crate::services::{TaskService, TodoService, LinkService, ScrapService, WorktreeService, RepoService};
+use crate::services::{
+    LinkService, RepoService, ScrapService, TaskService, TodoService, WorktreeService,
+};
 use crate::utils::{Result, TrackError};
 use chrono::Local;
-use prettytable::{Table, Row, Cell, format};
+use prettytable::{format, Cell, Row, Table};
 use std::io::{self, Write};
 
 pub struct CommandHandler {
@@ -23,18 +25,26 @@ impl CommandHandler {
 
     pub fn handle(&self, command: Commands) -> Result<()> {
         match command {
-            Commands::New { name, description, ticket, ticket_url } => {
-                self.handle_new(&name, description.as_deref(), ticket.as_deref(), ticket_url.as_deref())
-            }
+            Commands::New {
+                name,
+                description,
+                ticket,
+                ticket_url,
+            } => self.handle_new(
+                &name,
+                description.as_deref(),
+                ticket.as_deref(),
+                ticket_url.as_deref(),
+            ),
             Commands::List { all } => self.handle_list(all),
             Commands::Switch { task_ref } => self.handle_switch(&task_ref),
             Commands::Info { json } => self.handle_info(json),
-            Commands::Desc { description, task } => {
-                self.handle_desc(description.as_deref(), task)
-            }
-            Commands::Ticket { ticket_id, url, task } => {
-                self.handle_ticket(&ticket_id, &url, task)
-            }
+            Commands::Desc { description, task } => self.handle_desc(description.as_deref(), task),
+            Commands::Ticket {
+                ticket_id,
+                url,
+                task,
+            } => self.handle_ticket(&ticket_id, &url, task),
             Commands::Archive { task_ref } => self.handle_archive(&task_ref),
             Commands::Todo(cmd) => self.handle_todo(cmd),
             Commands::Link(cmd) => self.handle_link(cmd),
@@ -42,11 +52,16 @@ impl CommandHandler {
             Commands::Sync => self.handle_sync(),
             Commands::Repo(cmd) => self.handle_repo(cmd),
             Commands::LlmHelp => self.handle_llm_help(),
-
         }
     }
 
-    fn handle_new(&self, name: &str, description: Option<&str>, ticket: Option<&str>, ticket_url: Option<&str>) -> Result<()> {
+    fn handle_new(
+        &self,
+        name: &str,
+        description: Option<&str>,
+        ticket: Option<&str>,
+        ticket_url: Option<&str>,
+    ) -> Result<()> {
         let task_service = TaskService::new(&self.db);
         let task = task_service.create_task(name, description, ticket, ticket_url)?;
 
@@ -83,7 +98,10 @@ impl CommandHandler {
             let is_current = current_task_id.map_or(false, |id| id == task.id);
             let marker = if is_current { "*" } else { " " };
             let ticket = task.ticket_id.as_deref().unwrap_or("-");
-            let created = task.created_at.with_timezone(&Local).format("%Y-%m-%d %H:%M:%S");
+            let created = task
+                .created_at
+                .with_timezone(&Local)
+                .format("%Y-%m-%d %H:%M:%S");
 
             table.add_row(Row::new(vec![
                 Cell::new(marker),
@@ -109,35 +127,40 @@ impl CommandHandler {
     }
 
     fn handle_info(&self, json: bool) -> Result<()> {
-        let current_task_id = self.db.get_current_task_id()?
+        let current_task_id = self
+            .db
+            .get_current_task_id()?
             .ok_or(TrackError::NoActiveTask)?;
 
         let task_service = TaskService::new(&self.db);
         let task = task_service.get_task(current_task_id)?;
-        
+
         let todo_service = TodoService::new(&self.db);
         let todos = todo_service.list_todos(current_task_id)?;
-        
+
         let link_service = LinkService::new(&self.db);
         let links = link_service.list_links(current_task_id)?;
-        
+
         let scrap_service = ScrapService::new(&self.db);
         let scraps = scrap_service.list_scraps(current_task_id)?;
-        
+
         let worktree_service = WorktreeService::new(&self.db);
         let worktrees = worktree_service.list_worktrees(current_task_id)?;
-        
+
         if json {
             let mut worktrees_json = Vec::new();
             for wt in worktrees {
                 let repo_links = worktree_service.list_repo_links(wt.id)?;
                 let mut wt_val = serde_json::to_value(&wt).unwrap_or(serde_json::Value::Null);
                 if let Some(obj) = wt_val.as_object_mut() {
-                    obj.insert("repo_links".to_string(), serde_json::to_value(&repo_links).unwrap_or(serde_json::Value::Null));
+                    obj.insert(
+                        "repo_links".to_string(),
+                        serde_json::to_value(&repo_links).unwrap_or(serde_json::Value::Null),
+                    );
                 }
                 worktrees_json.push(wt_val);
             }
-            
+
             let output = serde_json::json!({
                 "task": task,
                 "todos": todos,
@@ -145,7 +168,7 @@ impl CommandHandler {
                 "scraps": scraps,
                 "worktrees": worktrees_json,
             });
-            
+
             println!("{}", serde_json::to_string_pretty(&output).unwrap());
             return Ok(());
         }
@@ -158,7 +181,10 @@ impl CommandHandler {
             }
             println!();
         }
-        let created = task.created_at.with_timezone(&Local).format("%Y-%m-%d %H:%M:%S");
+        let created = task
+            .created_at
+            .with_timezone(&Local)
+            .format("%Y-%m-%d %H:%M:%S");
         println!("Created: {}", created);
         println!();
 
@@ -220,11 +246,14 @@ impl CommandHandler {
     fn handle_desc(&self, description: Option<&str>, task: Option<i64>) -> Result<()> {
         let task_id = match task {
             Some(id) => id,
-            None => self.db.get_current_task_id()?.ok_or(TrackError::NoActiveTask)?,
+            None => self
+                .db
+                .get_current_task_id()?
+                .ok_or(TrackError::NoActiveTask)?,
         };
 
         let task_service = TaskService::new(&self.db);
-        
+
         match description {
             Some(desc) => {
                 // Set mode
@@ -236,7 +265,7 @@ impl CommandHandler {
                 let task = task_service.get_task(task_id)?;
                 println!("=== Task #{}: {} ===", task.id, task.name);
                 println!();
-                
+
                 if let Some(desc) = &task.description {
                     println!("Description:");
                     println!("  {}", desc);
@@ -252,7 +281,10 @@ impl CommandHandler {
     fn handle_ticket(&self, ticket_id: &str, url: &str, task: Option<i64>) -> Result<()> {
         let task_id = match task {
             Some(id) => id,
-            None => self.db.get_current_task_id()?.ok_or(TrackError::NoActiveTask)?,
+            None => self
+                .db
+                .get_current_task_id()?
+                .ok_or(TrackError::NoActiveTask)?,
         };
 
         let task_service = TaskService::new(&self.db);
@@ -267,53 +299,56 @@ impl CommandHandler {
     fn handle_archive(&self, task_ref: &str) -> Result<()> {
         let task_service = TaskService::new(&self.db);
         let worktree_service = WorktreeService::new(&self.db);
-        
+
         let task_id = task_service.resolve_task_id(task_ref)?;
         let task = task_service.get_task(task_id)?;
 
         // 1. Get all worktrees for this task
         let worktrees = worktree_service.list_worktrees(task_id)?;
-        
+
         // 2. Check for uncommitted changes in worktrees that exist on disk
         let mut dirty_worktrees = Vec::new();
         for worktree in &worktrees {
             if std::path::Path::new(&worktree.path).exists() {
-                if worktree_service.has_uncommitted_changes(&worktree.path).unwrap_or(false) {
+                if worktree_service
+                    .has_uncommitted_changes(&worktree.path)
+                    .unwrap_or(false)
+                {
                     dirty_worktrees.push(worktree);
                 }
             }
         }
-        
+
         if !dirty_worktrees.is_empty() {
-             println!("WARNING: The following worktrees have uncommitted changes:");
-             for wt in &dirty_worktrees {
-                 println!("  #{} {}", wt.id, wt.path);
-             }
-             println!();
-             print!("Archive and remove worktrees anyway? [y/N]: ");
-             io::stdout().flush()?;
-             let mut input = String::new();
-             io::stdin().read_line(&mut input)?;
-             
-             if !matches!(input.trim().to_lowercase().as_str(), "y" | "yes") {
-                 println!("Cancelled.");
-                 return Ok(());
-             }
+            println!("WARNING: The following worktrees have uncommitted changes:");
+            for wt in &dirty_worktrees {
+                println!("  #{} {}", wt.id, wt.path);
+            }
+            println!();
+            print!("Archive and remove worktrees anyway? [y/N]: ");
+            io::stdout().flush()?;
+            let mut input = String::new();
+            io::stdin().read_line(&mut input)?;
+
+            if !matches!(input.trim().to_lowercase().as_str(), "y" | "yes") {
+                println!("Cancelled.");
+                return Ok(());
+            }
         }
-        
+
         // 3. Remove worktrees
         if !worktrees.is_empty() {
             println!("Cleaning up worktrees...");
             for worktree in worktrees {
-                 match worktree_service.remove_worktree(worktree.id, false) {
-                     Ok(_) => {
-                         println!("  Removed worktree #{}: {}", worktree.id, worktree.path);
-                     },
-                     Err(e) => {
-                         eprintln!("  Error removing worktree #{}: {}", worktree.id, e);
-                         // We continue even if one fails
-                     }
-                 }
+                match worktree_service.remove_worktree(worktree.id, false) {
+                    Ok(_) => {
+                        println!("  Removed worktree #{}: {}", worktree.id, worktree.path);
+                    }
+                    Err(e) => {
+                        eprintln!("  Error removing worktree #{}: {}", worktree.id, e);
+                        // We continue even if one fails
+                    }
+                }
             }
         }
 
@@ -324,7 +359,9 @@ impl CommandHandler {
     }
 
     fn handle_todo(&self, command: TodoCommands) -> Result<()> {
-        let current_task_id = self.db.get_current_task_id()?
+        let current_task_id = self
+            .db
+            .get_current_task_id()?
             .ok_or(TrackError::NoActiveTask)?;
         let todo_service = TodoService::new(&self.db);
 
@@ -332,7 +369,7 @@ impl CommandHandler {
             TodoCommands::Add { text, worktree } => {
                 let todo = todo_service.add_todo(current_task_id, &text, worktree)?;
                 println!("Added TODO #{}: {}", todo.task_index, todo.content);
-                
+
                 if worktree {
                     println!("Worktree creation scheduled for 'track sync'");
                 }
@@ -366,26 +403,29 @@ impl CommandHandler {
             TodoCommands::Done { id } => {
                 // Resolve task_index to internal ID
                 let todo = todo_service.get_todo_by_index(current_task_id, id)?;
-                
+
                 let worktree_service = WorktreeService::new(&self.db);
                 if let Some(branch) = worktree_service.complete_worktree_for_todo(todo.id)? {
-                     println!("Merged and removed worktree for TODO #{} (branch: {}).", id, branch);
+                    println!(
+                        "Merged and removed worktree for TODO #{} (branch: {}).",
+                        id, branch
+                    );
                 }
-                
+
                 todo_service.update_status(todo.id, "done")?;
                 println!("Marked TODO #{} as done.", id);
             }
             TodoCommands::Delete { id, force } => {
                 // Resolve task_index to internal ID
                 let todo = todo_service.get_todo_by_index(current_task_id, id)?;
-                
+
                 if !force {
                     print!("Delete TODO #{}: \"{}\"? [y/N]: ", id, todo.content);
                     io::stdout().flush()?;
-                    
+
                     let mut input = String::new();
                     io::stdin().read_line(&mut input)?;
-                    
+
                     if !matches!(input.trim().to_lowercase().as_str(), "y" | "yes") {
                         println!("Cancelled.");
                         return Ok(());
@@ -401,7 +441,9 @@ impl CommandHandler {
     }
 
     fn handle_link(&self, command: LinkCommands) -> Result<()> {
-        let current_task_id = self.db.get_current_task_id()?
+        let current_task_id = self
+            .db
+            .get_current_task_id()?
             .ok_or(TrackError::NoActiveTask)?;
         let link_service = LinkService::new(&self.db);
 
@@ -436,20 +478,28 @@ impl CommandHandler {
     }
 
     fn handle_scrap(&self, command: ScrapCommands) -> Result<()> {
-        let current_task_id = self.db.get_current_task_id()?
+        let current_task_id = self
+            .db
+            .get_current_task_id()?
             .ok_or(TrackError::NoActiveTask)?;
         let scrap_service = ScrapService::new(&self.db);
 
         match command {
             ScrapCommands::Add { content } => {
                 let scrap = scrap_service.add_scrap(current_task_id, &content)?;
-                let timestamp = scrap.created_at.with_timezone(&Local).format("%Y-%m-%d %H:%M:%S");
+                let timestamp = scrap
+                    .created_at
+                    .with_timezone(&Local)
+                    .format("%Y-%m-%d %H:%M:%S");
                 println!("Added scrap at {}", timestamp);
             }
             ScrapCommands::List => {
                 let scraps = scrap_service.list_scraps(current_task_id)?;
                 for scrap in scraps {
-                    let timestamp = scrap.created_at.with_timezone(&Local).format("%Y-%m-%d %H:%M:%S");
+                    let timestamp = scrap
+                        .created_at
+                        .with_timezone(&Local)
+                        .format("%Y-%m-%d %H:%M:%S");
                     println!("[{}]", timestamp);
                     println!("  {}", scrap.content);
                     println!();
@@ -461,55 +511,61 @@ impl CommandHandler {
     }
 
     fn handle_sync(&self) -> Result<()> {
-        let current_task_id = self.db.get_current_task_id()?
+        let current_task_id = self
+            .db
+            .get_current_task_id()?
             .ok_or(TrackError::NoActiveTask)?;
-            
+
         let task_service = TaskService::new(&self.db);
         let task = task_service.get_task(current_task_id)?;
         let repo_service = RepoService::new(&self.db);
         let repos = repo_service.list_repos(current_task_id)?;
-        
+
         if repos.is_empty() {
-            return Err(TrackError::Other("No repositories registered for this task".to_string()));
+            return Err(TrackError::Other(
+                "No repositories registered for this task".to_string(),
+            ));
         }
-        
+
         // Determine task branch name
         let task_branch = if let Some(ticket_id) = &task.ticket_id {
             format!("task/{}", ticket_id)
         } else {
             format!("task/task-{}", task.id)
         };
-        
+
         println!("Syncing task branch: {}\n", task_branch);
-        
+
         for repo in &repos {
             println!("Repository: {}", repo.repo_path);
-            
+
             // Check if repository exists
             if !std::path::Path::new(&repo.repo_path).exists() {
                 println!("  ⚠ Repository not found, skipping\n");
                 continue;
             }
-            
+
             // Check if branch exists
             let branch_check = std::process::Command::new("git")
                 .args(&["-C", &repo.repo_path, "rev-parse", "--verify", &task_branch])
                 .output();
-            
+
             let branch_exists = branch_check.map(|o| o.status.success()).unwrap_or(false);
-            
+
             if !branch_exists {
                 // Get current branch
                 let current_branch_output = std::process::Command::new("git")
                     .args(&["-C", &repo.repo_path, "rev-parse", "--abbrev-ref", "HEAD"])
                     .output()?;
-                let current_branch = String::from_utf8_lossy(&current_branch_output.stdout).trim().to_string();
-                
+                let current_branch = String::from_utf8_lossy(&current_branch_output.stdout)
+                    .trim()
+                    .to_string();
+
                 // Create task branch
                 let create_result = std::process::Command::new("git")
                     .args(&["-C", &repo.repo_path, "branch", &task_branch])
                     .status();
-                
+
                 if create_result.is_ok() && create_result.unwrap().success() {
                     println!("  ✓ Branch {} created from {}", task_branch, current_branch);
                 } else {
@@ -519,19 +575,19 @@ impl CommandHandler {
             } else {
                 println!("  ✓ Branch {} already exists", task_branch);
             }
-            
+
             // Checkout task branch
             let checkout_result = std::process::Command::new("git")
                 .args(&["-C", &repo.repo_path, "checkout", &task_branch])
                 .status();
-            
+
             if checkout_result.is_ok() && checkout_result.unwrap().success() {
                 println!("  ✓ Checked out {}\n", task_branch);
             } else {
                 println!("  ✗ Failed to checkout {}\n", task_branch);
             }
         }
-        
+
         // Check for pending worktrees
         println!("Checking for pending worktrees...");
         let todo_service = TodoService::new(&self.db);
@@ -554,7 +610,10 @@ impl CommandHandler {
                 }
 
                 if !exists {
-                    println!("Creating worktree for TODO #{}: {}", todo.task_index, todo.content);
+                    println!(
+                        "Creating worktree for TODO #{}: {}",
+                        todo.task_index, todo.content
+                    );
                     for repo in &repos {
                         match worktree_service.add_worktree(
                             current_task_id,
@@ -565,19 +624,23 @@ impl CommandHandler {
                             false,
                         ) {
                             Ok(wt) => println!("  Created {} ({})", wt.path, wt.branch),
-                            Err(e) => eprintln!("  Error creating worktree for {}: {}", repo.repo_path, e),
+                            Err(e) => {
+                                eprintln!("  Error creating worktree for {}: {}", repo.repo_path, e)
+                            }
                         }
                     }
                 }
             }
         }
-        
+
         println!("Sync complete.");
         Ok(())
     }
 
     fn handle_repo(&self, command: RepoCommands) -> Result<()> {
-        let current_task_id = self.db.get_current_task_id()?
+        let current_task_id = self
+            .db
+            .get_current_task_id()?
             .ok_or(TrackError::NoActiveTask)?;
         let repo_service = RepoService::new(&self.db);
 
@@ -614,9 +677,10 @@ impl CommandHandler {
         Ok(())
     }
 
-
     fn handle_llm_help(&self) -> Result<()> {
-        println!("{}", r#"# WorkTracker CLI Help for LLM Agents
+        println!(
+            "{}",
+            r#"# WorkTracker CLI Help for LLM Agents
 
 ## Overview
 
@@ -713,7 +777,8 @@ Executing `track todo done <index>` performs the following:
 2. **Merges** the TODO branch into the Task Base branch (in the base worktree).
 3. **Removes** the TODO worktree directory and DB record.
 4. **Updates** TODO status to 'done'.
-"#);
+"#
+        );
         Ok(())
     }
 }
@@ -727,7 +792,7 @@ mod tests {
     fn test_llm_help() {
         let db = Database::new_in_memory().unwrap();
         let handler = CommandHandler::from_db(db);
-        
+
         let result = handler.handle_llm_help();
         assert!(result.is_ok());
     }

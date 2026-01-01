@@ -5,7 +5,7 @@ mod services;
 mod utils;
 
 use clap::Parser;
-use cli::{Cli, handler::CommandHandler};
+use cli::{handler::CommandHandler, Cli};
 use std::process;
 
 fn main() {

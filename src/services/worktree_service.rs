@@ -1,10 +1,10 @@
-use rusqlite::{params, OptionalExtension};
-use chrono::Utc;
-use std::path::Path;
-use std::process::Command;
 use crate::db::Database;
 use crate::models::{GitItem, RepoLink};
 use crate::utils::{Result, TrackError};
+use chrono::Utc;
+use rusqlite::{params, OptionalExtension};
+use std::path::Path;
+use std::process::Command;
 
 pub struct WorktreeService<'a> {
     db: &'a Database,
@@ -32,14 +32,16 @@ impl<'a> WorktreeService<'a> {
         // Fetch todo_index if todo_id is present
         let todo_index = if let Some(t_id) = todo_id {
             let conn = self.db.get_connection();
-            let idx: i64 = conn.query_row(
-                "SELECT task_index FROM todos WHERE id = ?1",
-                params![t_id],
-                |row| row.get(0)
-            ).map_err(|e| match e {
-                rusqlite::Error::QueryReturnedNoRows => TrackError::TodoNotFound(t_id),
-                _ => TrackError::Database(e),
-            })?;
+            let idx: i64 = conn
+                .query_row(
+                    "SELECT task_index FROM todos WHERE id = ?1",
+                    params![t_id],
+                    |row| row.get(0),
+                )
+                .map_err(|e| match e {
+                    rusqlite::Error::QueryReturnedNoRows => TrackError::TodoNotFound(t_id),
+                    _ => TrackError::Database(e),
+                })?;
             Some(idx)
         } else {
             None
@@ -78,20 +80,22 @@ impl<'a> WorktreeService<'a> {
             "SELECT id, task_id, path, branch, base_repo, status, created_at, todo_id, is_base FROM git_items WHERE id = ?1"
         )?;
 
-        let git_item = stmt.query_row(params![git_item_id], |row| {
-            let is_base: i32 = row.get(8).unwrap_or(0);
-            Ok(GitItem {
-                id: row.get(0)?,
-                task_id: row.get(1)?,
-                path: row.get(2)?,
-                branch: row.get(3)?,
-                base_repo: row.get(4)?,
-                status: row.get(5)?,
-                created_at: row.get::<_, String>(6)?.parse().unwrap(),
-                todo_id: row.get(7)?,
-                is_base: is_base != 0,
+        let git_item = stmt
+            .query_row(params![git_item_id], |row| {
+                let is_base: i32 = row.get(8).unwrap_or(0);
+                Ok(GitItem {
+                    id: row.get(0)?,
+                    task_id: row.get(1)?,
+                    path: row.get(2)?,
+                    branch: row.get(3)?,
+                    base_repo: row.get(4)?,
+                    status: row.get(5)?,
+                    created_at: row.get::<_, String>(6)?.parse().unwrap(),
+                    todo_id: row.get(7)?,
+                    is_base: is_base != 0,
+                })
             })
-        }).map_err(|_| TrackError::WorktreeNotFound(git_item_id))?;
+            .map_err(|_| TrackError::WorktreeNotFound(git_item_id))?;
 
         Ok(git_item)
     }
@@ -102,25 +106,25 @@ impl<'a> WorktreeService<'a> {
             "SELECT id, task_id, path, branch, base_repo, status, created_at, todo_id, is_base FROM git_items WHERE task_id = ?1 ORDER BY created_at ASC"
         )?;
 
-        let git_items = stmt.query_map(params![task_id], |row| {
-            let is_base: i32 = row.get(8).unwrap_or(0);
-            Ok(GitItem {
-                id: row.get(0)?,
-                task_id: row.get(1)?,
-                path: row.get(2)?,
-                branch: row.get(3)?,
-                base_repo: row.get(4)?,
-                status: row.get(5)?,
-                created_at: row.get::<_, String>(6)?.parse().unwrap(),
-                todo_id: row.get(7)?,
-                is_base: is_base != 0,
-            })
-        })?
-        .collect::<std::result::Result<Vec<_>, _>>()?;
+        let git_items = stmt
+            .query_map(params![task_id], |row| {
+                let is_base: i32 = row.get(8).unwrap_or(0);
+                Ok(GitItem {
+                    id: row.get(0)?,
+                    task_id: row.get(1)?,
+                    path: row.get(2)?,
+                    branch: row.get(3)?,
+                    base_repo: row.get(4)?,
+                    status: row.get(5)?,
+                    created_at: row.get::<_, String>(6)?.parse().unwrap(),
+                    todo_id: row.get(7)?,
+                    is_base: is_base != 0,
+                })
+            })?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
 
         Ok(git_items)
     }
-
 
     pub fn list_repo_links(&self, git_item_id: i64) -> Result<Vec<RepoLink>> {
         let conn = self.db.get_connection();
@@ -128,16 +132,17 @@ impl<'a> WorktreeService<'a> {
             "SELECT id, git_item_id, url, kind, created_at FROM repo_links WHERE git_item_id = ?1 ORDER BY created_at ASC"
         )?;
 
-        let repo_links = stmt.query_map(params![git_item_id], |row| {
-            Ok(RepoLink {
-                id: row.get(0)?,
-                git_item_id: row.get(1)?,
-                url: row.get(2)?,
-                kind: row.get(3)?,
-                created_at: row.get::<_, String>(4)?.parse().unwrap(),
-            })
-        })?
-        .collect::<std::result::Result<Vec<_>, _>>()?;
+        let repo_links = stmt
+            .query_map(params![git_item_id], |row| {
+                Ok(RepoLink {
+                    id: row.get(0)?,
+                    git_item_id: row.get(1)?,
+                    url: row.get(2)?,
+                    kind: row.get(3)?,
+                    created_at: row.get::<_, String>(4)?.parse().unwrap(),
+                })
+            })?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
 
         Ok(repo_links)
     }
@@ -207,9 +212,22 @@ impl<'a> WorktreeService<'a> {
         Ok(worktree_path.to_string_lossy().to_string())
     }
 
-    fn create_git_worktree(&self, repo_path: &str, worktree_path: &str, branch: &str) -> Result<()> {
+    fn create_git_worktree(
+        &self,
+        repo_path: &str,
+        worktree_path: &str,
+        branch: &str,
+    ) -> Result<()> {
         let output = Command::new("git")
-            .args(&["-C", repo_path, "worktree", "add", "-b", branch, worktree_path])
+            .args(&[
+                "-C",
+                repo_path,
+                "worktree",
+                "add",
+                "-b",
+                branch,
+                worktree_path,
+            ])
             .output()?;
 
         if !output.status.success() {
@@ -233,18 +251,23 @@ impl<'a> WorktreeService<'a> {
         Ok(())
     }
 
-
     pub fn complete_worktree_for_todo(&self, todo_id: i64) -> Result<Option<String>> {
         let wt = match self.get_worktree_by_todo(todo_id)? {
             Some(wt) => wt,
             None => return Ok(None),
         };
 
-        let base_wt = self.get_base_worktree(wt.task_id)?
-            .ok_or_else(|| TrackError::Other("Base worktree not found. Please init a base worktree first.".to_string()))?;
+        let base_wt = self.get_base_worktree(wt.task_id)?.ok_or_else(|| {
+            TrackError::Other(
+                "Base worktree not found. Please init a base worktree first.".to_string(),
+            )
+        })?;
 
         if self.has_uncommitted_changes(&wt.path)? {
-            return Err(TrackError::Other(format!("Worktree {} has uncommitted changes. Please commit or stash them.", wt.path)));
+            return Err(TrackError::Other(format!(
+                "Worktree {} has uncommitted changes. Please commit or stash them.",
+                wt.path
+            )));
         }
 
         self.merge_branch(&base_wt.path, &wt.branch)?;
@@ -259,20 +282,22 @@ impl<'a> WorktreeService<'a> {
             "SELECT id, task_id, path, branch, base_repo, status, created_at, todo_id, is_base FROM git_items WHERE todo_id = ?1"
         )?;
 
-        let result = stmt.query_row(params![todo_id], |row| {
-            let is_base: i32 = row.get(8).unwrap_or(0);
-            Ok(GitItem {
-                id: row.get(0)?,
-                task_id: row.get(1)?,
-                path: row.get(2)?,
-                branch: row.get(3)?,
-                base_repo: row.get(4)?,
-                status: row.get(5)?,
-                created_at: row.get::<_, String>(6)?.parse().unwrap(),
-                todo_id: row.get(7)?,
-                is_base: is_base != 0,
+        let result = stmt
+            .query_row(params![todo_id], |row| {
+                let is_base: i32 = row.get(8).unwrap_or(0);
+                Ok(GitItem {
+                    id: row.get(0)?,
+                    task_id: row.get(1)?,
+                    path: row.get(2)?,
+                    branch: row.get(3)?,
+                    base_repo: row.get(4)?,
+                    status: row.get(5)?,
+                    created_at: row.get::<_, String>(6)?.parse().unwrap(),
+                    todo_id: row.get(7)?,
+                    is_base: is_base != 0,
+                })
             })
-        }).optional()?;
+            .optional()?;
 
         Ok(result)
     }
@@ -283,20 +308,22 @@ impl<'a> WorktreeService<'a> {
             "SELECT id, task_id, path, branch, base_repo, status, created_at, todo_id, is_base FROM git_items WHERE task_id = ?1 AND is_base = 1"
         )?;
 
-        let result = stmt.query_row(params![task_id], |row| {
-            let is_base: i32 = row.get(8).unwrap_or(0);
-            Ok(GitItem {
-                id: row.get(0)?,
-                task_id: row.get(1)?,
-                path: row.get(2)?,
-                branch: row.get(3)?,
-                base_repo: row.get(4)?,
-                status: row.get(5)?,
-                created_at: row.get::<_, String>(6)?.parse().unwrap(),
-                todo_id: row.get(7)?,
-                is_base: is_base != 0,
+        let result = stmt
+            .query_row(params![task_id], |row| {
+                let is_base: i32 = row.get(8).unwrap_or(0);
+                Ok(GitItem {
+                    id: row.get(0)?,
+                    task_id: row.get(1)?,
+                    path: row.get(2)?,
+                    branch: row.get(3)?,
+                    base_repo: row.get(4)?,
+                    status: row.get(5)?,
+                    created_at: row.get::<_, String>(6)?.parse().unwrap(),
+                    todo_id: row.get(7)?,
+                    is_base: is_base != 0,
+                })
             })
-        }).optional()?;
+            .optional()?;
 
         Ok(result)
     }
@@ -305,7 +332,7 @@ impl<'a> WorktreeService<'a> {
         let output = Command::new("git")
             .args(&["-C", path, "status", "--porcelain"])
             .output()?;
-        
+
         Ok(!output.stdout.is_empty())
     }
 
@@ -331,13 +358,14 @@ mod tests {
         Database::new_in_memory().unwrap()
     }
 
-
     #[test]
     fn test_determine_branch_name_with_explicit_branch_and_ticket() {
         let db = setup_db();
         let service = WorktreeService::new(&db);
 
-        let result = service.determine_branch_name(Some("feature-x"), Some("PROJ-123"), 1, None).unwrap();
+        let result = service
+            .determine_branch_name(Some("feature-x"), Some("PROJ-123"), 1, None)
+            .unwrap();
         assert_eq!(result, "PROJ-123/feature-x");
     }
 
@@ -346,7 +374,9 @@ mod tests {
         let db = setup_db();
         let service = WorktreeService::new(&db);
 
-        let result = service.determine_branch_name(Some("feature-y"), None, 1, None).unwrap();
+        let result = service
+            .determine_branch_name(Some("feature-y"), None, 1, None)
+            .unwrap();
         assert_eq!(result, "feature-y");
     }
 
@@ -355,7 +385,9 @@ mod tests {
         let db = setup_db();
         let service = WorktreeService::new(&db);
 
-        let result = service.determine_branch_name(None, Some("PROJ-456"), 1, Some(5)).unwrap();
+        let result = service
+            .determine_branch_name(None, Some("PROJ-456"), 1, Some(5))
+            .unwrap();
         assert_eq!(result, "PROJ-456-todo-5");
     }
 
@@ -364,7 +396,9 @@ mod tests {
         let db = setup_db();
         let service = WorktreeService::new(&db);
 
-        let result = service.determine_branch_name(None, None, 2, Some(7)).unwrap();
+        let result = service
+            .determine_branch_name(None, None, 2, Some(7))
+            .unwrap();
         assert_eq!(result, "task-2-todo-7");
     }
 
@@ -373,7 +407,9 @@ mod tests {
         let db = setup_db();
         let service = WorktreeService::new(&db);
 
-        let result = service.determine_branch_name(None, Some("PROJ-789"), 3, None).unwrap();
+        let result = service
+            .determine_branch_name(None, Some("PROJ-789"), 3, None)
+            .unwrap();
         assert_eq!(result, "task/PROJ-789");
     }
 
@@ -389,17 +425,23 @@ mod tests {
 
     #[test]
     fn test_has_uncommitted_changes() {
-        use std::process::Command;
         use std::fs::File;
+        use std::process::Command;
         // Setup temp git repo
         let temp_dir = tempfile::tempdir().unwrap();
         let path = temp_dir.path().to_str().unwrap();
 
         Command::new("git").args(&["init", path]).output().unwrap();
-        
+
         // Configure user for commit
-        Command::new("git").args(&["-C", path, "config", "user.email", "test@example.com"]).output().unwrap();
-        Command::new("git").args(&["-C", path, "config", "user.name", "Test User"]).output().unwrap();
+        Command::new("git")
+            .args(&["-C", path, "config", "user.email", "test@example.com"])
+            .output()
+            .unwrap();
+        Command::new("git")
+            .args(&["-C", path, "config", "user.name", "Test User"])
+            .output()
+            .unwrap();
 
         let db = setup_db();
         let service = WorktreeService::new(&db);
@@ -413,14 +455,20 @@ mod tests {
         assert!(service.has_uncommitted_changes(path).unwrap());
 
         // Commit it
-        Command::new("git").args(&["-C", path, "add", "."]).output().unwrap();
+        Command::new("git")
+            .args(&["-C", path, "add", "."])
+            .output()
+            .unwrap();
         // Staged changes
         assert!(service.has_uncommitted_changes(path).unwrap());
 
-        Command::new("git").args(&["-C", path, "commit", "-m", "init"]).output().unwrap();
+        Command::new("git")
+            .args(&["-C", path, "commit", "-m", "init"])
+            .output()
+            .unwrap();
         // Clean
         assert!(!service.has_uncommitted_changes(path).unwrap());
-        
+
         // Modify
         std::fs::write(temp_dir.path().join("test.txt"), "mod").unwrap();
         assert!(service.has_uncommitted_changes(path).unwrap());
@@ -430,15 +478,21 @@ mod tests {
     fn test_determine_worktree_path() {
         let db = setup_db();
         let service = WorktreeService::new(&db);
-        
+
         // Test with simple path
-        let repo_path = if cfg!(windows) { "C:\\path\\to\\repo" } else { "/path/to/repo" };
+        let repo_path = if cfg!(windows) {
+            "C:\\path\\to\\repo"
+        } else {
+            "/path/to/repo"
+        };
         let branch = "feature/test";
-        
+
         let result = service.determine_worktree_path(repo_path, branch).unwrap();
-        
-        let expected = Path::new(repo_path).join(branch).to_string_lossy().to_string();
+
+        let expected = Path::new(repo_path)
+            .join(branch)
+            .to_string_lossy()
+            .to_string();
         assert_eq!(result, expected);
     }
 }
-

@@ -1,8 +1,8 @@
-use rusqlite::params;
-use chrono::Utc;
 use crate::db::Database;
 use crate::models::{Link, Scrap};
 use crate::utils::{Result, TrackError};
+use chrono::Utc;
+use rusqlite::params;
 
 pub struct LinkService<'a> {
     db: &'a Database,
@@ -15,7 +15,7 @@ impl<'a> LinkService<'a> {
 
     pub fn add_link(&self, task_id: i64, url: &str, title: Option<&str>) -> Result<Link> {
         self.validate_url(url)?;
-        
+
         let title = title.unwrap_or(url);
         let now = Utc::now().to_rfc3339();
         let conn = self.db.get_connection();
@@ -31,9 +31,8 @@ impl<'a> LinkService<'a> {
 
     pub fn get_link(&self, link_id: i64) -> Result<Link> {
         let conn = self.db.get_connection();
-        let mut stmt = conn.prepare(
-            "SELECT id, task_id, url, title, created_at FROM links WHERE id = ?1"
-        )?;
+        let mut stmt =
+            conn.prepare("SELECT id, task_id, url, title, created_at FROM links WHERE id = ?1")?;
 
         let link = stmt.query_row(params![link_id], |row| {
             Ok(Link {
@@ -54,16 +53,17 @@ impl<'a> LinkService<'a> {
             "SELECT id, task_id, url, title, created_at FROM links WHERE task_id = ?1 ORDER BY created_at ASC"
         )?;
 
-        let links = stmt.query_map(params![task_id], |row| {
-            Ok(Link {
-                id: row.get(0)?,
-                task_id: row.get(1)?,
-                url: row.get(2)?,
-                title: row.get(3)?,
-                created_at: row.get::<_, String>(4)?.parse().unwrap(),
-            })
-        })?
-        .collect::<std::result::Result<Vec<_>, _>>()?;
+        let links = stmt
+            .query_map(params![task_id], |row| {
+                Ok(Link {
+                    id: row.get(0)?,
+                    task_id: row.get(1)?,
+                    url: row.get(2)?,
+                    title: row.get(3)?,
+                    created_at: row.get::<_, String>(4)?.parse().unwrap(),
+                })
+            })?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
 
         Ok(links)
     }
@@ -101,9 +101,8 @@ impl<'a> ScrapService<'a> {
 
     pub fn get_scrap(&self, scrap_id: i64) -> Result<Scrap> {
         let conn = self.db.get_connection();
-        let mut stmt = conn.prepare(
-            "SELECT id, task_id, content, created_at FROM scraps WHERE id = ?1"
-        )?;
+        let mut stmt =
+            conn.prepare("SELECT id, task_id, content, created_at FROM scraps WHERE id = ?1")?;
 
         let scrap = stmt.query_row(params![scrap_id], |row| {
             Ok(Scrap {
@@ -123,15 +122,16 @@ impl<'a> ScrapService<'a> {
             "SELECT id, task_id, content, created_at FROM scraps WHERE task_id = ?1 ORDER BY created_at ASC"
         )?;
 
-        let scraps = stmt.query_map(params![task_id], |row| {
-            Ok(Scrap {
-                id: row.get(0)?,
-                task_id: row.get(1)?,
-                content: row.get(2)?,
-                created_at: row.get::<_, String>(3)?.parse().unwrap(),
-            })
-        })?
-        .collect::<std::result::Result<Vec<_>, _>>()?;
+        let scraps = stmt
+            .query_map(params![task_id], |row| {
+                Ok(Scrap {
+                    id: row.get(0)?,
+                    task_id: row.get(1)?,
+                    content: row.get(2)?,
+                    created_at: row.get::<_, String>(3)?.parse().unwrap(),
+                })
+            })?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
 
         Ok(scraps)
     }
@@ -149,7 +149,10 @@ mod tests {
 
     fn create_test_task(db: &Database) -> i64 {
         let task_service = TaskService::new(db);
-        task_service.create_task("Test Task", None, None, None).unwrap().id
+        task_service
+            .create_task("Test Task", None, None, None)
+            .unwrap()
+            .id
     }
 
     // LinkService tests
@@ -159,7 +162,9 @@ mod tests {
         let task_id = create_test_task(&db);
         let service = LinkService::new(&db);
 
-        let link = service.add_link(task_id, "https://example.com", Some("Example")).unwrap();
+        let link = service
+            .add_link(task_id, "https://example.com", Some("Example"))
+            .unwrap();
         assert_eq!(link.url, "https://example.com");
         assert_eq!(link.title, "Example");
     }
@@ -170,7 +175,9 @@ mod tests {
         let task_id = create_test_task(&db);
         let service = LinkService::new(&db);
 
-        let link = service.add_link(task_id, "https://example.com", None).unwrap();
+        let link = service
+            .add_link(task_id, "https://example.com", None)
+            .unwrap();
         assert_eq!(link.title, "https://example.com");
     }
 
@@ -190,8 +197,12 @@ mod tests {
         let task_id = create_test_task(&db);
         let service = LinkService::new(&db);
 
-        service.add_link(task_id, "https://example1.com", None).unwrap();
-        service.add_link(task_id, "https://example2.com", None).unwrap();
+        service
+            .add_link(task_id, "https://example1.com", None)
+            .unwrap();
+        service
+            .add_link(task_id, "https://example2.com", None)
+            .unwrap();
 
         let links = service.list_links(task_id).unwrap();
         assert_eq!(links.len(), 2);
@@ -264,4 +275,3 @@ mod tests {
         assert_eq!(scraps[1].content, "Scrap 2");
     }
 }
-

@@ -149,8 +149,14 @@ mod tests {
 
     #[test]
     fn test_task_status_from_str() {
-        assert!(matches!(TaskStatus::from_str("active"), Some(TaskStatus::Active)));
-        assert!(matches!(TaskStatus::from_str("archived"), Some(TaskStatus::Archived)));
+        assert!(matches!(
+            TaskStatus::from_str("active"),
+            Some(TaskStatus::Active)
+        ));
+        assert!(matches!(
+            TaskStatus::from_str("archived"),
+            Some(TaskStatus::Archived)
+        ));
         assert!(TaskStatus::from_str("invalid").is_none());
     }
 
@@ -163,10 +169,18 @@ mod tests {
 
     #[test]
     fn test_todo_status_from_str() {
-        assert!(matches!(TodoStatus::from_str("pending"), Some(TodoStatus::Pending)));
-        assert!(matches!(TodoStatus::from_str("done"), Some(TodoStatus::Done)));
-        assert!(matches!(TodoStatus::from_str("cancelled"), Some(TodoStatus::Cancelled)));
+        assert!(matches!(
+            TodoStatus::from_str("pending"),
+            Some(TodoStatus::Pending)
+        ));
+        assert!(matches!(
+            TodoStatus::from_str("done"),
+            Some(TodoStatus::Done)
+        ));
+        assert!(matches!(
+            TodoStatus::from_str("cancelled"),
+            Some(TodoStatus::Cancelled)
+        ));
         assert!(TodoStatus::from_str("invalid").is_none());
     }
 }
-
