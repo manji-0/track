@@ -5,10 +5,10 @@ edition = "2021"
 
 [dependencies]
 clap = { version = "4.4", features = ["derive"] }
-rusqlite = { version = "0.32", features = ["bundled"] }
-directories = "5.0"
+rusqlite = { version = "0.38", features = ["bundled"] }
+directories = "6.0"
 anyhow = "1.0"
-thiserror = "1.0"
+thiserror = "2.0"
 chrono = { version = "0.4", features = ["serde"] }
 prettytable-rs = "0.10"
 serde = { version = "1.0.228", features = ["derive"] }
