@@ -29,8 +29,24 @@ impl<'a> WorktreeService<'a> {
             return Err(TrackError::NotGitRepository(repo_path.to_string()));
         }
 
+        // Fetch todo_index if todo_id is present
+        let todo_index = if let Some(t_id) = todo_id {
+            let conn = self.db.get_connection();
+            let idx: i64 = conn.query_row(
+                "SELECT task_index FROM todos WHERE id = ?1",
+                params![t_id],
+                |row| row.get(0)
+            ).map_err(|e| match e {
+                rusqlite::Error::QueryReturnedNoRows => TrackError::TodoNotFound(t_id),
+                _ => TrackError::Database(e),
+            })?;
+            Some(idx)
+        } else {
+            None
+        };
+
         // Determine branch name
-        let branch_name = self.determine_branch_name(branch, ticket_id, task_id, todo_id)?;
+        let branch_name = self.determine_branch_name(branch, ticket_id, task_id, todo_index)?;
 
         // Check if branch already exists
         if self.branch_exists(repo_path, &branch_name)? {
@@ -196,18 +212,18 @@ impl<'a> WorktreeService<'a> {
         branch: Option<&str>,
         ticket_id: Option<&str>,
         task_id: i64,
-        todo_id: Option<i64>,
+        todo_index: Option<i64>,
     ) -> Result<String> {
-        match (branch, ticket_id, todo_id) {
+        match (branch, ticket_id, todo_index) {
             // If branch is explicitly specified, use it (with ticket prefix if available)
             (Some(b), Some(t), _) => Ok(format!("{}/{}", t, b)),
             (Some(b), None, _) => Ok(b.to_string()),
 
-            // If todo_id is present
+            // If todo_index is present
             (None, Some(t), Some(todo)) => Ok(format!("{}-todo-{}", t, todo)),
             (None, None, Some(todo)) => Ok(format!("task-{}-todo-{}", task_id, todo)),
 
-            // Base worktree (no todo_id)
+            // Base worktree (no todo_index)
             (None, Some(t), None) => Ok(format!("task/{}", t)),
             (None, None, None) => {
                 let timestamp = Utc::now().timestamp();
