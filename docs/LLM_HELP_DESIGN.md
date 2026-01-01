@@ -77,7 +77,7 @@ When starting work on a task, follow this pattern:
 #### Worktree Location
 Worktrees are created as subdirectories within the registered repository root.
 - **Path Structure**: `<repo_root>/<branch_name>`
-- **Example**: If repo is `/src/app` and branch is `PROJ-123/todo-5`, worktree is at `/src/app/PROJ-123/todo-5`.
+- **Example**: If repo is `/src/app` and branch is `PROJ-123-todo-1`, worktree is at `/src/app/PROJ-123-todo-1`.
 
 #### TODO Completion Behavior (`track todo done <id>`)
 When you run `track todo done`, the following atomic steps occur:

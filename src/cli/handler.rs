@@ -769,7 +769,7 @@ When you start working on a task:
 ### Worktree Location
 Worktrees are created as subdirectories inside the registered repository:
 - **Path**: `<repo_root>/<branch_name>`
-- **Example**: `/src/my-app/PROJ-123/todo-5`
+- **Example**: `/src/my-app/PROJ-123-todo-1`
 
 ### TODO Completion Process
 Executing `track todo done <index>` performs the following:

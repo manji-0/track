@@ -15,7 +15,7 @@ Tasks can have multiple associated repositories. Each repository is registered w
 - `track repo list` - List all repositories registered to the current task
 - `track repo remove <id>` - Remove a repository registration
 
-### 2. Worktree Sync (`track worktree sync`)
+### 2. Worktree Sync (`track sync`)
 
 Synchronizes the task's registered repositories with the task branch.
 
@@ -29,7 +29,7 @@ Synchronizes the task's registered repositories with the task branch.
 
 **Command:**
 ```bash
-track worktree sync
+track sync
 ```
 
 ### 3. TODO-Worktree Integration
@@ -117,8 +117,8 @@ No changes needed to existing tables. The `git_items` table already has:
 
 | Condition | Branch Name | Example |
 |-----------|-------------|---------|
-| Ticket registered | `<ticket_id>/todo-<todo_id>` | `PROJ-123/todo-15` |
-| No ticket | `task-<task_id>/todo-<todo_id>` | `task-5/todo-15` |
+| Ticket registered | `<ticket_id>-todo-<task_index>` | `PROJ-123-todo-1` |
+| No ticket | `task-<task_id>-todo-<task_index>` | `task-5-todo-1` |
 
 ## Workflow Example
 
@@ -134,26 +134,26 @@ cd /path/to/frontend-repo
 track repo add .
 
 # 3. Sync repositories (creates task branches)
-track worktree sync
+track sync
 # → Creates branch task/PROJ-123 in both repos
 
 # 4. Add TODO with worktree
 track todo add "Add login endpoint" --worktree
-# → Creates TODO #15
+# → Creates TODO #1 (task-scoped index)
 # → Schedules worktree creation
 
 # 5. Create the worktrees
 track sync
-# → Creates worktree at: api-repo/PROJ-123/todo-15
-# → Creates worktree at: frontend-repo/PROJ-123/todo-15
+# → Creates worktree at: api-repo/PROJ-123-todo-1
+# → Creates worktree at: frontend-repo/PROJ-123-todo-1
 
 # 6. Work in the worktree
-cd /path/to/api-repo/PROJ-123/todo-15
+cd /path/to/api-repo/PROJ-123-todo-1
 # ... make changes, commit ...
 
 # 7. Complete the TODO
-track todo done 15
-# → Merges PROJ-123/todo-15 into task/PROJ-123
+track todo done 1
+# → Merges PROJ-123-todo-1 into task/PROJ-123
 # → Removes worktree directories
 # → Marks TODO as done
 ```

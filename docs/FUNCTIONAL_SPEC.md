@@ -108,24 +108,26 @@ URL: <url>
 
 ### 1.4. Branch Naming Convention
 
-For tasks with registered Ticket IDs, the worktree branch name automatically uses the Ticket ID.
+For tasks with registered Ticket IDs, branch names automatically use the Ticket ID.
 
 **Naming Patterns**:
 | Condition | Branch Name |
 |---|---|
-| Ticket exists + Branch name omitted | `task/<ticket_id>` (e.g., `task/PROJ-123`) |
-| Ticket exists + Branch name specified | `<ticket_id>/<branch>` (e.g., `PROJ-123/feat-auth`) |
-| No Ticket + Branch name omitted | `task-<task_id>-<timestamp>` |
-| No Ticket + Branch name specified | Use specified branch name as is |
+| Task branch (Ticket exists) | `task/<ticket_id>` (e.g., `task/PROJ-123`) |
+| Task branch (No Ticket) | `task/task-<task_id>` (e.g., `task/task-5`) |
+| TODO branch (Ticket exists) | `<ticket_id>-todo-<task_index>` (e.g., `PROJ-123-todo-1`) |
+| TODO branch (No Ticket) | `task-<task_id>-todo-<task_index>` (e.g., `task-5-todo-1`) |
 
-**Behavior in `worktree add`**:
+**Behavior in `track sync`**:
 ```bash
 # When ticket PROJ-123 is registered
-track worktree add /path/to/repo
-# -> Branch: task/PROJ-123
+track sync
+# -> Creates task branch: task/PROJ-123
 
-track worktree add /path/to/repo feat-auth
-# -> Branch: PROJ-123/feat-auth
+# With TODO that has --worktree flag
+track todo add "Implement feature" --worktree
+track sync
+# -> Creates TODO branch: PROJ-123-todo-1
 ```
 
 ---
@@ -547,125 +549,18 @@ Added scrap at <timestamp>
 ## 5. Worktree Integration Functions
 
 Leverages Git worktree to manage independent working directories for each task.
-Automates creation and deletion of worktrees linked to the task lifecycle.
+Worktrees are automatically created via `track sync` for TODOs with `--worktree` flag and cleaned up via `track todo done`.
 
-### 5.1. `track worktree add <repo_path> [branch]` - Create & Register Worktree
+> **Note**: The explicit `track worktree add/list/link/remove` commands have been deprecated. Worktree lifecycle is now fully integrated with repository and TODO management via `track repo`, `track sync`, and `track todo done`.
 
-**Overview**: Creates a new worktree in the specified repository and links it to the current task.
-
-**Input**:
-| Argument | Type | Required | Description |
-|---|---|---|---|
-| `repo_path` | Path | ✓ | Path to base Git repository |
-| `branch` | String | | Branch name to create (Default: `task-<task_id>-<timestamp>`) |
-
-**Process Flow**:
-1. Validate that `repo_path` is a Git repository.
-2. Determine branch name (specified or auto-generated).
-3. Determine directory path for worktree.
-   - Default: `<repo_path>/../<repo_name>-worktrees/<branch>`
-4. Create git worktree.
-   - Command: `git -C <repo_path> worktree add -b <branch> <worktree_path>`
-5. INSERT record into `git_items` table.
-   - `path`: Worktree path
-   - `branch`: Branch name
-   - `base_repo`: Base repository path
-   - `status`: `'active'`
-
-**Output**:
-```
-Created worktree: <worktree_path>
-Branch: <branch>
-Linked to task #<task_id>
-```
-
-**Error Cases**:
-| Condition | Error Message |
-|---|---|
-| Not a repository | `Error: <repo_path> is not a Git repository` |
-| Branch exists | `Error: Branch '<branch>' already exists` |
-| Worktree creation failed | `Error: Failed to create worktree: <detail>` |
-
----
-
-### 5.2. `track worktree list` - Display Worktree List
-
-**Overview**: Displays a list of worktrees linked to the current task.
-
-**Output Example**:
-```
-  ID | Path                              | Branch      | Status | Links
------+-----------------------------------+-------------+--------+------------------
-   1 | /home/user/api-worktrees/feat-x  | feat-x      | active | PR: #123
-   2 | /home/user/web-worktrees/task-1  | task-1      | active | Issue: #45
-```
-
----
-
-### 5.3. `track worktree link <worktree_id> <url>` - Link URL to Worktree
-
-**Overview**: Links an Issue/PR URL to a registered worktree.
-
-**Input**:
-| Argument | Type | Required | Description |
-|---|---|---|---|
-| `worktree_id` | Integer | ✓ | Worktree ID |
-| `url` | String | ✓ | URL to link |
-
-**Automatic URL Type Detection**:
-| Pattern | Detection Result |
-|---|---|
-| `/pull/` or `/merge_requests/` | `PR` |
-| `/issues/` | `Issue` |
-| `/discussions/` | `Discussion` |
-| Other | `Link` |
-
-**Output**:
-```
-Added <kind> link to worktree #<worktree_id>: <url>
-```
-
----
-
-### 5.4. `track worktree remove <worktree_id>` - Remove Worktree
-
-**Overview**: Unregisters the worktree and deletes the worktree from disk.
-
-**Input**:
-| Argument/Flag | Type | Required | Description |
-|---|---|---|---|
-| `worktree_id` | Integer | ✓ | Worktree ID to remove |
-| `--force` / `-f` | Flag | | Skip confirmation prompt |
-| `--keep-files` | Flag | | Keep files on disk (unregister only) |
-
-**Process Flow**:
-1. Validate that the worktree with the specified ID exists.
-2. If `--force` is not specified, display confirmation prompt.
-3. If user approves:
-   - If `--keep-files` is absent: Execute `git worktree remove <path>`.
-   - Delete record from DB (Cascade delete related `repo_links`).
-
-**Confirmation Prompt**:
-```
-Remove worktree #<id>: "<path>" (branch: <branch>)?
-This will delete the worktree directory. [y/N]: 
-```
-
-**Output**:
-```
-Removed worktree #<worktree_id>: <path>
-```
-
----
-
-### 5.5. Task Lifecycle Integration
+### 5.1. Task Lifecycle Integration
 
 Automatically manages relevant worktrees according to task state changes.
 
 #### `track archive <task_id>` - On Task Archive
 
 **Process Flow**:
-1. Check for uncommitted changes in all unrelated worktrees.
+1. Check for uncommitted changes in all related worktrees.
    - If changes exist, display warning and ask for confirmation.
 2. For all related worktrees:
    - Execute `git worktree remove <path>`.
@@ -687,40 +582,6 @@ WARNING: Worktree #<id> has uncommitted changes:
   ?? new_file.txt
 
 Archive and remove worktrees anyway? [y/N]: 
-```
-
----
-
-#### `track cleanup [--dry-run]` - Clean Legacy/Orphaned Worktrees
-
-**Overview**: Deletes `archived` worktrees from disk (if they exist) and cleans up DB records. Primarily used for migrating old tasks or cleaning up failed removals.
-
-**Input**:
-| Flag | Description |
-|---|---|
-| `--dry-run` | Only display what would be deleted (no actual deletion) |
-| `--force` / `-f` | Skip confirmation prompt |
-
-**Process Flow**:
-1. Collect worktrees with `status = 'archived'` from all tasks.
-2. For each worktree:
-   - Execute `git worktree remove <path>` (if path exists).
-   - Delete record from DB.
-
-**Output (dry-run)**:
-```
-Would remove:
-  Task #1 (API Implementation):
-    └─ /home/user/api-worktrees/feat-auth
-  Task #3 (Bug Fix):
-    └─ /home/user/web-worktrees/fix-123
-
-Total: 2 worktrees
-```
-
-**Output (execution)**:
-```
-Removed 2 archived worktrees.
 ```
 
 ---
@@ -822,7 +683,7 @@ Removed repository #<id>
 
 ---
 
-### 8.4. `track worktree sync` - Sync Repositories
+### 8.4. `track sync` - Sync Repositories
 
 **Overview**: Synchronizes all registered repositories with the task branch.
 

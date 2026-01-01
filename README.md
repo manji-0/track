@@ -32,8 +32,8 @@ track new "API Implementation" \
 # List tasks
 track list
 
-# Add TODOs
-track todo add "Design endpoints"
+# Add TODOs (use --worktree to schedule worktree creation)
+track todo add "Design endpoints" --worktree
 track todo add "Implement authentication"
 
 # Add links
@@ -42,8 +42,9 @@ track link add https://figma.com/design/... "Figma Design Document"
 # Add work notes
 track scrap add "Completed DB design. See DESIGN.md for table structure"
 
-# Create a worktree
-track worktree add /path/to/repo
+# Register repository and sync (creates task branches and worktrees)
+track repo add /path/to/repo
+track sync
 
 # Display current task information
 track info
@@ -97,15 +98,13 @@ TODOs are numbered sequentially within each task (1, 2, 3...). All TODO commands
 | `track repo list` | Display registered repositories |
 | `track repo remove <id>` | Remove a repository registration |
 
-### Worktree Management
+### Sync
 
 | Command | Description |
 |---------|-------------|
-| `track worktree sync` | Sync repositories and setup task branches |
-| `track worktree add <repo_path> [branch]` | Create a worktree |
-| `track worktree list` | Display worktree list |
-| `track worktree link <worktree_id> <url>` | Link a URL to a worktree |
-| `track worktree remove <worktree_id>` | Remove a worktree |
+| `track sync` | Sync repositories and setup task branches |
+
+**Note**: The `track sync` command creates task branches in all registered repositories and sets up worktrees for TODOs that have `--worktree` flag.
 
 ## Ticket Reference
 
@@ -121,15 +120,17 @@ track archive t:PROJ-123
 
 ## Branch Naming Convention
 
-For tasks with registered tickets, the ticket ID is automatically used when creating worktrees:
+For tasks with registered tickets, the ticket ID is automatically used in branch names:
 
 ```bash
-# When ticket PROJ-123 is registered
-track worktree add /path/to/repo
-# → Branch: task/PROJ-123
+# When ticket PROJ-123 is registered and sync is run:
+track sync
+# → Creates branch: task/PROJ-123 (base task branch)
 
-track worktree add /path/to/repo feat-auth
-# → Branch: PROJ-123/feat-auth
+# When TODO #1 has --worktree flag:
+track todo add "Implement login" --worktree
+track sync
+# → Creates branch: PROJ-123-todo-1 (TODO work branch)
 ```
 
 ## Database

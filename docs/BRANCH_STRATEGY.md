@@ -33,12 +33,12 @@ The workflow consists of three layers:
 2.  **Feature Base Branch (`task/{ticket_id}` or `task-{task_id}`)**:
     -   Corresponds to a `track` Task.
     -   Acts as the integration branch for a specific feature or ticket.
-    -   Created via `track worktree init`.
+    -   Created via `track sync` after registering repositories.
 
-3.  **Unit Work Branch (`{ticket_id}-todo-{todo_id}`)**:
+3.  **Unit Work Branch (`{ticket_id}-todo-{task_index}` or `task-{task_id}-todo-{task_index}`):**
     -   Corresponds to a `track` TODO.
     -   Used for implementing a specific, small unit of work.
-    -   Created via `track worktree add --todo <id>`.
+    -   Created via `track todo add --worktree` followed by `track sync`.
     -   Automatically merged back to the Feature Base Branch and deleted upon completion (`track todo done`).
 
 ## Workflow
@@ -51,30 +51,31 @@ Create a new task in `track` linked to an issue tracker ticket.
 track new "Implement Auth" --ticket PROJ-123
 ```
 
-### 2. Initialize Base Worktree
+### 2. Register Repositories
 
-Create the Feature Base Branch and its corresponding worktree. This will be the parent for all TODO branches.
+Register the repositories you want to work with for this task.
 
 ```bash
-# Creates branch 'task/PROJ-123' at ../<repo>-worktrees/task/PROJ-123
-track worktree init ~/src/my-repo
+cd ~/src/my-repo
+track repo add
 ```
 
 ### 3. Break Down into TODOs
 
-Define granular steps for the task.
+Define granular steps for the task. Use `--worktree` flag to schedule worktree creation.
 
 ```bash
-track todo add "Setup JWT middleware"
+track todo add "Setup JWT middleware" --worktree
 ```
 
-### 4. Start a Unit of Work
+### 4. Sync Repositories
 
-Create a worktree specifically for a TODO. This isolates your workspace for that specific subtask.
+Run `track sync` to create the task branch and worktrees for TODOs with `--worktree` flag.
 
 ```bash
-# Creates branch 'PROJ-123-todo-1' from 'task/PROJ-123'
-track worktree add ~/src/my-repo --todo 1
+# Creates branch 'task/PROJ-123' in registered repos
+# Creates worktrees for pending TODOs at <repo_root>/PROJ-123-todo-1
+track sync
 ```
 
 ### 5. Develop and Complete
@@ -84,7 +85,7 @@ Work in the generated worktree. When finished, use `track todo done` to automate
 ```bash
 # 1. Checks for uncommitted changes
 # 2. Merges 'PROJ-123-todo-1' into 'task/PROJ-123'
-# 3. Removes the worktree and deletes the branch
+# 3. Removes the worktree
 track todo done 1
 ```
 
@@ -93,5 +94,5 @@ track todo done 1
 Once all TODOs are done and merged into the base branch, you can create a PR from the base branch to main.
 
 ```bash
-track archive
+track archive t:PROJ-123
 ```
