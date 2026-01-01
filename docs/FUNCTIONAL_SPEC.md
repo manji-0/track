@@ -74,8 +74,7 @@ track switch t:PROJ-123
 # Switch by GitHub Issue format ticket
 track switch t:myorg/api/456
 
-# Export by Ticket ID
-track export t:PROJ-123
+
 
 # Archive by Ticket ID
 track archive t:PROJ-123
@@ -187,6 +186,11 @@ Switched to task #<id>: <name>
 
 **Overview**: Displays all information related to the current task.
 
+**Input**:
+| Flag | Description |
+|---|---|
+| `--json` / `-j` | Output in JSON format |
+
 **Process Flow**:
 1. Get current `task_id` from `app_state`.
 2. Retrieve and format the following related data:
@@ -196,7 +200,7 @@ Switched to task #<id>: <name>
    - Scrap list (Last 5 entries)
    - Related Worktree list
 
-**Output Example**:
+**Output Example (Standard)**:
 ```
 === Task #1: API Implementation ===
 Ticket: PROJ-123 (https://jira.example.com/browse/PROJ-123)
@@ -219,6 +223,39 @@ Description:
 [ Worktrees ]
   #1 /home/user/api-worktrees/task/PROJ-123 (task/PROJ-123)
       └─ PR: https://github.com/.../pull/123
+```
+
+**Output Example (JSON)**:
+```json
+{
+  "task": {
+    "id": 1,
+    "name": "API Implementation",
+    "description": "Implement RESTful API...",
+    "status": "active",
+    "ticket_id": "PROJ-123",
+    "ticket_url": "https://jira.example.com/browse/PROJ-123",
+    "created_at": "2025-01-01T10:00:00Z"
+  },
+  "todos": [
+    {
+      "id": 1,
+      "task_index": 1,
+      "content": "Endpoint design",
+      "status": "pending",
+      "created_at": "..."
+    }
+  ],
+  "links": [...],
+  "scraps": [...],
+  "worktrees": [
+    {
+      "id": 1,
+      "path": "...",
+      "repo_links": [...]
+    }
+  ]
+}
 ```
 
 ---
@@ -721,178 +758,7 @@ db.execute(...)
 
 ---
 
-## 7. Export Functionality (LLM Integration)
 
-Exports full task information in a structured format.
-Intended for use by LLM agents to generate task reports or for task handovers.
-
-### 7.1. `track export [task_id]` - Export Task Info
-
-**Overview**: Outputs full information for the specified task (Default: current task) in a structured format.
-
-**Input**:
-| Argument/Flag | Type | Required | Description |
-|---|---|---|---|
-| `task_id` | Integer | | Task ID to export (Default: current task) |
-| `--format` / `-f` | String | | Output format: `markdown` (default), `json`, `yaml` |
-| `--output` / `-o` | Path | | Output to file (Default: stdout) |
-| `--template` / `-t` | Path | | Custom template file |
-
----
-
-### 7.2. Output Formats
-
-#### Markdown Format (Default)
-
-Structured Markdown easy for LLMs to process directly.
-
-```markdown
-# Task Report: API Implementation
-
-## Metadata
-- **Task ID**: 1
-- **Status**: active
-- **Created**: 2025-01-01 10:00:00
-- **Last Activity**: 2025-01-05 15:30:00
-
-## Summary
-<!-- Placeholder for LLM generated summary -->
-
-## TODOs
-
-### Pending
-- [ ] Endpoint design
-- [ ] Implement authentication logic
-
-### Completed
-- [x] Schema definition
-- [x] DB connection setup
-
-## Scraps (Work Log)
-
-### 2025-01-01 10:30
-DB design completed. see DESIGN.md for table structure.
-
-### 2025-01-02 14:15
-Started API implementation. Starting with authentication.
-
-## Links
-- [Figma Design](https://figma.com/file/...)
-- [API Spec](https://docs.example.com/...)
-
-## Worktrees
-
-### #1: /home/user/api-worktrees/feat-auth
-- **Branch**: feat-auth
-- **Status**: active
-- **Related**:
-  - PR: https://github.com/org/repo/pull/123
-  - Issue: https://github.com/org/repo/issues/45
-```
-
----
-
-#### JSON Format
-
-Structured data suitable for programmatic or LLM API processing.
-
-```json
-{
-  "task": {
-    "id": 1,
-    "name": "API Implementation",
-    "status": "active",
-    "created_at": "2025-01-01T10:00:00Z",
-    "last_activity": "2025-01-05T15:30:00Z"
-  },
-  "todos": [
-    {"id": 1, "content": "Endpoint design", "status": "pending"},
-    {"id": 2, "content": "Schema definition", "status": "done"}
-  ],
-  "scraps": [
-    {"timestamp": "2025-01-01T10:30:00Z", "content": "DB design completed..."}
-  ],
-  "links": [
-    {"id": 1, "title": "Figma Design", "url": "https://..."}
-  ],
-  "worktrees": [
-    {
-      "id": 1,
-      "path": "/home/user/api-worktrees/feat-auth",
-      "branch": "feat-auth",
-      "status": "active",
-      "repo_links": [
-        {"kind": "PR", "url": "https://github.com/.../pull/123"}
-      ]
-    }
-  ]
-}
-```
-
----
-
-### 7.3. LLM Prompt Template
-
-With the `--template` option, you can use a custom template that includes instructions for the LLM.
-
-**Template Example** (`report_template.md`):
-```markdown
-You are a Project Manager. Based on the following task information,
-please create a progress report in English.
-
----
-
-{{task_export}}
-
----
-
-## Output Requirements
-1. Summary of completed work (bullet points)
-2. Remaining work and estimated time
-3. Blockers or concerns
-4. Next action items
-```
-
-**Process Flow**:
-1. Load template file.
-2. Replace `{{task_export}}` with actual task information.
-3. Output result.
-
-**Output**:
-```
-You are a Project Manager. Based on the following task information,
-please create a progress report in English.
-
----
-
-# Task Report: API Implementation
-... (Actual task info) ...
-
----
-
-## Output Requirements
-...
-```
-
----
-
-### 7.4. Pipeline Integration Examples
-
-```bash
-# Request LLM to generate task report
-track export | llm "Summarize the progress of this task"
-
-# Pass to script in JSON format
-track export --format json | jq '.todos[] | select(.status == "pending")'
-
-# Save to file
-track export --output ~/reports/task-1-report.md
-
-# Generate report with custom template
-track export --template ~/.config/track/report_template.md | llm
-```
-
----
 
 ## 8. Repository Management and Worktree Sync
 

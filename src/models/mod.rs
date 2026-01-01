@@ -1,6 +1,7 @@
 use chrono::{DateTime, Utc};
+use serde::Serialize;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct Task {
     pub id: i64,
     pub name: String,
@@ -11,7 +12,7 @@ pub struct Task {
     pub created_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct Todo {
     pub id: i64,
     #[allow(dead_code)]
@@ -23,7 +24,7 @@ pub struct Todo {
     pub created_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct Link {
     #[allow(dead_code)]
     pub id: i64,
@@ -35,7 +36,7 @@ pub struct Link {
     pub created_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct Scrap {
     #[allow(dead_code)]
     pub id: i64,
@@ -45,13 +46,14 @@ pub struct Scrap {
     pub created_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct GitItem {
     pub id: i64,
     pub task_id: i64,
     pub path: String,
     pub branch: String,
     pub base_repo: Option<String>,
+    #[allow(dead_code)]
     pub status: String,
     #[allow(dead_code)]
     pub created_at: DateTime<Utc>,
@@ -61,7 +63,7 @@ pub struct GitItem {
     pub is_base: bool,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct RepoLink {
     #[allow(dead_code)]
     pub id: i64,
@@ -73,7 +75,7 @@ pub struct RepoLink {
     pub created_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct TaskRepo {
     pub id: i64,
     #[allow(dead_code)]

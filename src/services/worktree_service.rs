@@ -121,38 +121,6 @@ impl<'a> WorktreeService<'a> {
         Ok(git_items)
     }
 
-    pub fn add_repo_link(&self, git_item_id: i64, url: &str) -> Result<RepoLink> {
-        let kind = self.determine_link_kind(url);
-        let now = Utc::now().to_rfc3339();
-        let conn = self.db.get_connection();
-
-        conn.execute(
-            "INSERT INTO repo_links (git_item_id, url, kind, created_at) VALUES (?1, ?2, ?3, ?4)",
-            params![git_item_id, url, kind, now],
-        )?;
-
-        let link_id = conn.last_insert_rowid();
-        self.get_repo_link(link_id)
-    }
-
-    pub fn get_repo_link(&self, link_id: i64) -> Result<RepoLink> {
-        let conn = self.db.get_connection();
-        let mut stmt = conn.prepare(
-            "SELECT id, git_item_id, url, kind, created_at FROM repo_links WHERE id = ?1"
-        )?;
-
-        let repo_link = stmt.query_row(params![link_id], |row| {
-            Ok(RepoLink {
-                id: row.get(0)?,
-                git_item_id: row.get(1)?,
-                url: row.get(2)?,
-                kind: row.get(3)?,
-                created_at: row.get::<_, String>(4)?.parse().unwrap(),
-            })
-        })?;
-
-        Ok(repo_link)
-    }
 
     pub fn list_repo_links(&self, git_item_id: i64) -> Result<Vec<RepoLink>> {
         let conn = self.db.get_connection();
@@ -265,17 +233,6 @@ impl<'a> WorktreeService<'a> {
         Ok(())
     }
 
-    fn determine_link_kind(&self, url: &str) -> String {
-        if url.contains("/pull/") || url.contains("/merge_requests/") {
-            "PR".to_string()
-        } else if url.contains("/issues/") {
-            "Issue".to_string()
-        } else if url.contains("/discussions/") {
-            "Discussion".to_string()
-        } else {
-            "Link".to_string()
-        }
-    }
 
     pub fn complete_worktree_for_todo(&self, todo_id: i64) -> Result<Option<String>> {
         let wt = match self.get_worktree_by_todo(todo_id)? {
@@ -374,38 +331,6 @@ mod tests {
         Database::new_in_memory().unwrap()
     }
 
-    #[test]
-    fn test_determine_link_kind_pr() {
-        let db = setup_db();
-        let service = WorktreeService::new(&db);
-
-        assert_eq!(service.determine_link_kind("https://github.com/owner/repo/pull/123"), "PR");
-        assert_eq!(service.determine_link_kind("https://gitlab.com/owner/repo/merge_requests/456"), "PR");
-    }
-
-    #[test]
-    fn test_determine_link_kind_issue() {
-        let db = setup_db();
-        let service = WorktreeService::new(&db);
-
-        assert_eq!(service.determine_link_kind("https://github.com/owner/repo/issues/789"), "Issue");
-    }
-
-    #[test]
-    fn test_determine_link_kind_discussion() {
-        let db = setup_db();
-        let service = WorktreeService::new(&db);
-
-        assert_eq!(service.determine_link_kind("https://github.com/owner/repo/discussions/42"), "Discussion");
-    }
-
-    #[test]
-    fn test_determine_link_kind_generic() {
-        let db = setup_db();
-        let service = WorktreeService::new(&db);
-
-        assert_eq!(service.determine_link_kind("https://example.com/some/page"), "Link");
-    }
 
     #[test]
     fn test_determine_branch_name_with_explicit_branch_and_ticket() {

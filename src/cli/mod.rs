@@ -44,7 +44,11 @@ pub enum Commands {
     },
 
     /// Show detailed information about the current task
-    Info,
+    Info {
+        /// Output in JSON format
+        #[arg(short, long)]
+        json: bool,
+    },
 
     /// View or set task description
     Desc {
@@ -87,31 +91,12 @@ pub enum Commands {
     #[command(subcommand)]
     Scrap(ScrapCommands),
 
-    /// Worktree management
-    #[command(subcommand)]
-    Worktree(WorktreeCommands),
+    /// Sync repositories and setup task branches
+    Sync,
 
     /// Repository management
     #[command(subcommand)]
     Repo(RepoCommands),
-
-    /// Export task information
-    Export {
-        /// Task ID or ticket reference (defaults to current task)
-        task_ref: Option<String>,
-        
-        /// Output format
-        #[arg(short, long, default_value = "markdown")]
-        format: String,
-        
-        /// Output file (defaults to stdout)
-        #[arg(short, long)]
-        output: Option<String>,
-        
-        /// Custom template file
-        #[arg(short, long)]
-        template: Option<String>,
-    },
 }
 
 #[derive(Subcommand)]
@@ -180,57 +165,6 @@ pub enum ScrapCommands {
 
     /// List scraps
     List,
-}
-
-#[derive(Subcommand)]
-pub enum WorktreeCommands {
-    /// Initialize a base worktree for the current task
-    Init {
-        /// Repository path
-        repo_path: String,
-    },
-
-    /// Sync repositories and setup task branches
-    Sync,
-
-    /// Create a new worktree
-    Add {
-        /// Repository path
-        repo_path: String,
-        
-        /// Branch name (optional, auto-generated if not provided)
-        branch: Option<String>,
-
-        /// Associate with a TODO ID
-        #[arg(long)]
-        todo: Option<i64>,
-    },
-
-    /// List worktrees
-    List,
-
-    /// Link a URL to a worktree
-    Link {
-        /// Worktree ID
-        worktree_id: i64,
-        
-        /// URL (PR, Issue, etc.)
-        url: String,
-    },
-
-    /// Remove a worktree
-    Remove {
-        /// Worktree ID
-        worktree_id: i64,
-        
-        /// Skip confirmation prompt
-        #[arg(short, long)]
-        force: bool,
-        
-        /// Keep files on disk (only remove from database)
-        #[arg(long)]
-        keep_files: bool,
-    },
 }
 
 #[derive(Subcommand)]

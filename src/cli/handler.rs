@@ -1,4 +1,4 @@
-use crate::cli::{Commands, TodoCommands, LinkCommands, ScrapCommands, WorktreeCommands, RepoCommands};
+use crate::cli::{Commands, TodoCommands, LinkCommands, ScrapCommands, RepoCommands};
 use crate::db::Database;
 use crate::services::{TaskService, TodoService, LinkService, ScrapService, WorktreeService, RepoService};
 use crate::utils::{Result, TrackError};
@@ -23,7 +23,7 @@ impl CommandHandler {
             }
             Commands::List { all } => self.handle_list(all),
             Commands::Switch { task_ref } => self.handle_switch(&task_ref),
-            Commands::Info => self.handle_info(),
+            Commands::Info { json } => self.handle_info(json),
             Commands::Desc { description, task } => {
                 self.handle_desc(description.as_deref(), task)
             }
@@ -34,11 +34,9 @@ impl CommandHandler {
             Commands::Todo(cmd) => self.handle_todo(cmd),
             Commands::Link(cmd) => self.handle_link(cmd),
             Commands::Scrap(cmd) => self.handle_scrap(cmd),
-            Commands::Worktree(cmd) => self.handle_worktree(cmd),
+            Commands::Sync => self.handle_sync(),
             Commands::Repo(cmd) => self.handle_repo(cmd),
-            Commands::Export { task_ref, format, output, template } => {
-                self.handle_export(task_ref.as_deref(), &format, output.as_deref(), template.as_deref())
-            }
+
         }
     }
 
@@ -104,12 +102,47 @@ impl CommandHandler {
         Ok(())
     }
 
-    fn handle_info(&self) -> Result<()> {
+    fn handle_info(&self, json: bool) -> Result<()> {
         let current_task_id = self.db.get_current_task_id()?
             .ok_or(TrackError::NoActiveTask)?;
 
         let task_service = TaskService::new(&self.db);
         let task = task_service.get_task(current_task_id)?;
+        
+        let todo_service = TodoService::new(&self.db);
+        let todos = todo_service.list_todos(current_task_id)?;
+        
+        let link_service = LinkService::new(&self.db);
+        let links = link_service.list_links(current_task_id)?;
+        
+        let scrap_service = ScrapService::new(&self.db);
+        let scraps = scrap_service.list_scraps(current_task_id)?;
+        
+        let worktree_service = WorktreeService::new(&self.db);
+        let worktrees = worktree_service.list_worktrees(current_task_id)?;
+        
+        if json {
+            let mut worktrees_json = Vec::new();
+            for wt in worktrees {
+                let repo_links = worktree_service.list_repo_links(wt.id)?;
+                let mut wt_val = serde_json::to_value(&wt).unwrap_or(serde_json::Value::Null);
+                if let Some(obj) = wt_val.as_object_mut() {
+                    obj.insert("repo_links".to_string(), serde_json::to_value(&repo_links).unwrap_or(serde_json::Value::Null));
+                }
+                worktrees_json.push(wt_val);
+            }
+            
+            let output = serde_json::json!({
+                "task": task,
+                "todos": todos,
+                "links": links,
+                "scraps": scraps,
+                "worktrees": worktrees_json,
+            });
+            
+            println!("{}", serde_json::to_string_pretty(&output).unwrap());
+            return Ok(());
+        }
 
         println!("=== Task #{}: {} ===", task.id, task.name);
         if let Some(ticket_id) = &task.ticket_id {
@@ -131,8 +164,6 @@ impl CommandHandler {
         }
 
         // TODOs
-        let todo_service = TodoService::new(&self.db);
-        let todos = todo_service.list_todos(current_task_id)?;
         if !todos.is_empty() {
             println!("[ TODOs ]");
             for todo in todos {
@@ -147,8 +178,6 @@ impl CommandHandler {
         }
 
         // Links
-        let link_service = LinkService::new(&self.db);
-        let links = link_service.list_links(current_task_id)?;
         if !links.is_empty() {
             println!("[ Links ]");
             for link in links {
@@ -158,8 +187,6 @@ impl CommandHandler {
         }
 
         // Scraps
-        let scrap_service = ScrapService::new(&self.db);
-        let scraps = scrap_service.list_scraps(current_task_id)?;
         if !scraps.is_empty() {
             println!("[ Recent Scraps ]");
             for scrap in scraps.iter().take(5) {
@@ -170,8 +197,6 @@ impl CommandHandler {
         }
 
         // Worktrees
-        let worktree_service = WorktreeService::new(&self.db);
-        let worktrees = worktree_service.list_worktrees(current_task_id)?;
         if !worktrees.is_empty() {
             println!("[ Worktrees ]");
             for worktree in worktrees {
@@ -454,175 +479,79 @@ impl CommandHandler {
         Ok(())
     }
 
-    fn handle_worktree(&self, command: WorktreeCommands) -> Result<()> {
+    fn handle_sync(&self) -> Result<()> {
         let current_task_id = self.db.get_current_task_id()?
             .ok_or(TrackError::NoActiveTask)?;
-        let worktree_service = WorktreeService::new(&self.db);
-
-        match command {
-            WorktreeCommands::Sync => {
-                let task_service = TaskService::new(&self.db);
-                let task = task_service.get_task(current_task_id)?;
-                let repo_service = RepoService::new(&self.db);
-                let repos = repo_service.list_repos(current_task_id)?;
+            
+        let task_service = TaskService::new(&self.db);
+        let task = task_service.get_task(current_task_id)?;
+        let repo_service = RepoService::new(&self.db);
+        let repos = repo_service.list_repos(current_task_id)?;
+        
+        if repos.is_empty() {
+            return Err(TrackError::Other("No repositories registered for this task".to_string()));
+        }
+        
+        // Determine task branch name
+        let task_branch = if let Some(ticket_id) = &task.ticket_id {
+            format!("task/{}", ticket_id)
+        } else {
+            format!("task/task-{}", task.id)
+        };
+        
+        println!("Syncing task branch: {}\n", task_branch);
+        
+        for repo in repos {
+            println!("Repository: {}", repo.repo_path);
+            
+            // Check if repository exists
+            if !std::path::Path::new(&repo.repo_path).exists() {
+                println!("  ⚠ Repository not found, skipping\n");
+                continue;
+            }
+            
+            // Check if branch exists
+            let branch_check = std::process::Command::new("git")
+                .args(&["-C", &repo.repo_path, "rev-parse", "--verify", &task_branch])
+                .output();
+            
+            let branch_exists = branch_check.map(|o| o.status.success()).unwrap_or(false);
+            
+            if !branch_exists {
+                // Get current branch
+                let current_branch_output = std::process::Command::new("git")
+                    .args(&["-C", &repo.repo_path, "rev-parse", "--abbrev-ref", "HEAD"])
+                    .output()?;
+                let current_branch = String::from_utf8_lossy(&current_branch_output.stdout).trim().to_string();
                 
-                if repos.is_empty() {
-                    return Err(TrackError::Other("No repositories registered for this task".to_string()));
-                }
+                // Create task branch
+                let create_result = std::process::Command::new("git")
+                    .args(&["-C", &repo.repo_path, "branch", &task_branch])
+                    .status();
                 
-                // Determine task branch name
-                let task_branch = if let Some(ticket_id) = &task.ticket_id {
-                    format!("task/{}", ticket_id)
+                if create_result.is_ok() && create_result.unwrap().success() {
+                    println!("  ✓ Branch {} created from {}", task_branch, current_branch);
                 } else {
-                    format!("task/task-{}", task.id)
-                };
-                
-                println!("Syncing task branch: {}\n", task_branch);
-                
-                for repo in repos {
-                    println!("Repository: {}", repo.repo_path);
-                    
-                    // Check if repository exists
-                    if !std::path::Path::new(&repo.repo_path).exists() {
-                        println!("  ⚠ Repository not found, skipping\n");
-                        continue;
-                    }
-                    
-                    // Check if branch exists
-                    let branch_check = std::process::Command::new("git")
-                        .args(&["-C", &repo.repo_path, "rev-parse", "--verify", &task_branch])
-                        .output();
-                    
-                    let branch_exists = branch_check.map(|o| o.status.success()).unwrap_or(false);
-                    
-                    if !branch_exists {
-                        // Get current branch
-                        let current_branch_output = std::process::Command::new("git")
-                            .args(&["-C", &repo.repo_path, "rev-parse", "--abbrev-ref", "HEAD"])
-                            .output()?;
-                        let current_branch = String::from_utf8_lossy(&current_branch_output.stdout).trim().to_string();
-                        
-                        // Create task branch
-                        let create_result = std::process::Command::new("git")
-                            .args(&["-C", &repo.repo_path, "branch", &task_branch])
-                            .status();
-                        
-                        if create_result.is_ok() && create_result.unwrap().success() {
-                            println!("  ✓ Branch {} created from {}", task_branch, current_branch);
-                        } else {
-                            println!("  ✗ Failed to create branch {}", task_branch);
-                            continue;
-                        }
-                    } else {
-                        println!("  ✓ Branch {} already exists", task_branch);
-                    }
-                    
-                    // Checkout task branch
-                    let checkout_result = std::process::Command::new("git")
-                        .args(&["-C", &repo.repo_path, "checkout", &task_branch])
-                        .status();
-                    
-                    if checkout_result.is_ok() && checkout_result.unwrap().success() {
-                        println!("  ✓ Checked out {}\n", task_branch);
-                    } else {
-                        println!("  ✗ Failed to checkout {}\n", task_branch);
-                    }
+                    println!("  ✗ Failed to create branch {}", task_branch);
+                    continue;
                 }
-                
-                println!("Sync complete.");
+            } else {
+                println!("  ✓ Branch {} already exists", task_branch);
             }
-            WorktreeCommands::Init { repo_path } => {
-                // Get ticket ID from current task
-                let task_service = TaskService::new(&self.db);
-                let task = task_service.get_task(current_task_id)?;
-                
-                let worktree = worktree_service.add_worktree(
-                    current_task_id,
-                    &repo_path,
-                    None,
-                    task.ticket_id.as_deref(),
-                    None,
-                    true, // is_base
-                )?;
-
-                println!("Initialized base worktree: {}", worktree.path);
-                println!("Branch: {}", worktree.branch);
-                println!("Linked to task #{}", current_task_id);
-            }
-            WorktreeCommands::Add { repo_path, branch, todo } => {
-                // Get ticket ID from current task
-                let task_service = TaskService::new(&self.db);
-                let task = task_service.get_task(current_task_id)?;
-                
-                let worktree = worktree_service.add_worktree(
-                    current_task_id,
-                    &repo_path,
-                    branch.as_deref(),
-                    task.ticket_id.as_deref(),
-                    todo,
-                    false, // is_base
-                )?;
-
-                println!("Created worktree: {}", worktree.path);
-                println!("Branch: {}", worktree.branch);
-                if let Some(todo_id) = todo {
-                    println!("Linked to TODO #{}", todo_id);
-                } else {
-                    println!("Linked to task #{}", current_task_id);
-                }
-            }
-            WorktreeCommands::List => {
-                let worktrees = worktree_service.list_worktrees(current_task_id)?;
-                let mut table = Table::new();
-                table.set_format(*format::consts::FORMAT_NO_LINESEP_WITH_TITLE);
-                table.set_titles(Row::new(vec![
-                    Cell::new("ID"),
-                    Cell::new("Path"),
-                    Cell::new("Branch"),
-                    Cell::new("Status"),
-                ]));
-
-                for worktree in worktrees {
-                    table.add_row(Row::new(vec![
-                        Cell::new(&worktree.id.to_string()),
-                        Cell::new(&worktree.path),
-                        Cell::new(&worktree.branch),
-                        Cell::new(&worktree.status),
-                    ]));
-                }
-
-                table.printstd();
-            }
-            WorktreeCommands::Link { worktree_id, url } => {
-                let repo_link = worktree_service.add_repo_link(worktree_id, &url)?;
-                println!("Added {} link to worktree #{}: {}", repo_link.kind, worktree_id, url);
-            }
-            WorktreeCommands::Remove { worktree_id, force, keep_files } => {
-                if !force {
-                    let worktree = worktree_service.get_git_item(worktree_id)?;
-                    print!("Remove worktree #{}: \"{}\" (branch: {})?\n", 
-                           worktree_id, worktree.path, worktree.branch);
-                    if !keep_files {
-                        print!("This will delete the worktree directory. ");
-                    }
-                    print!("[y/N]: ");
-                    io::stdout().flush()?;
-                    
-                    let mut input = String::new();
-                    io::stdin().read_line(&mut input)?;
-                    
-                    if !matches!(input.trim().to_lowercase().as_str(), "y" | "yes") {
-                        println!("Cancelled.");
-                        return Ok(());
-                    }
-                }
-
-                let worktree = worktree_service.get_git_item(worktree_id)?;
-                worktree_service.remove_worktree(worktree_id, keep_files)?;
-                println!("Removed worktree #{}: {}", worktree_id, worktree.path);
+            
+            // Checkout task branch
+            let checkout_result = std::process::Command::new("git")
+                .args(&["-C", &repo.repo_path, "checkout", &task_branch])
+                .status();
+            
+            if checkout_result.is_ok() && checkout_result.unwrap().success() {
+                println!("  ✓ Checked out {}\n", task_branch);
+            } else {
+                println!("  ✗ Failed to checkout {}\n", task_branch);
             }
         }
-
+        
+        println!("Sync complete.");
         Ok(())
     }
 
@@ -664,24 +593,5 @@ impl CommandHandler {
         Ok(())
     }
 
-    fn handle_export(
-        &self,
-        task_ref: Option<&str>,
-        _format: &str,
-        _output: Option<&str>,
-        _template: Option<&str>,
-    ) -> Result<()> {
-        let task_id = match task_ref {
-            Some(ref_str) => {
-                let task_service = TaskService::new(&self.db);
-                task_service.resolve_task_id(ref_str)?
-            }
-            None => self.db.get_current_task_id()?.ok_or(TrackError::NoActiveTask)?,
-        };
 
-        // TODO: Implement export functionality
-        println!("Export functionality for task #{} - Coming soon!", task_id);
-        
-        Ok(())
-    }
 }
