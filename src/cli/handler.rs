@@ -309,13 +309,12 @@ impl CommandHandler {
         // 2. Check for uncommitted changes in worktrees that exist on disk
         let mut dirty_worktrees = Vec::new();
         for worktree in &worktrees {
-            if std::path::Path::new(&worktree.path).exists() {
-                if worktree_service
+            if std::path::Path::new(&worktree.path).exists()
+                && worktree_service
                     .has_uncommitted_changes(&worktree.path)
                     .unwrap_or(false)
-                {
-                    dirty_worktrees.push(worktree);
-                }
+            {
+                dirty_worktrees.push(worktree);
             }
         }
 
@@ -547,7 +546,7 @@ impl CommandHandler {
 
             // Check if branch exists
             let branch_check = std::process::Command::new("git")
-                .args(&["-C", &repo.repo_path, "rev-parse", "--verify", &task_branch])
+                .args(["-C", &repo.repo_path, "rev-parse", "--verify", &task_branch])
                 .output();
 
             let branch_exists = branch_check.map(|o| o.status.success()).unwrap_or(false);
@@ -555,7 +554,7 @@ impl CommandHandler {
             if !branch_exists {
                 // Get current branch
                 let current_branch_output = std::process::Command::new("git")
-                    .args(&["-C", &repo.repo_path, "rev-parse", "--abbrev-ref", "HEAD"])
+                    .args(["-C", &repo.repo_path, "rev-parse", "--abbrev-ref", "HEAD"])
                     .output()?;
                 let current_branch = String::from_utf8_lossy(&current_branch_output.stdout)
                     .trim()
@@ -563,7 +562,7 @@ impl CommandHandler {
 
                 // Create task branch
                 let create_result = std::process::Command::new("git")
-                    .args(&["-C", &repo.repo_path, "branch", &task_branch])
+                    .args(["-C", &repo.repo_path, "branch", &task_branch])
                     .status();
 
                 if create_result.is_ok() && create_result.unwrap().success() {
@@ -578,7 +577,7 @@ impl CommandHandler {
 
             // Checkout task branch
             let checkout_result = std::process::Command::new("git")
-                .args(&["-C", &repo.repo_path, "checkout", &task_branch])
+                .args(["-C", &repo.repo_path, "checkout", &task_branch])
                 .status();
 
             if checkout_result.is_ok() && checkout_result.unwrap().success() {
@@ -679,7 +678,6 @@ impl CommandHandler {
 
     fn handle_llm_help(&self) -> Result<()> {
         println!(
-            "{}",
             r#"# WorkTracker CLI Help for LLM Agents
 
 ## Overview

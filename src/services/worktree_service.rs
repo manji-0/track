@@ -166,7 +166,7 @@ impl<'a> WorktreeService<'a> {
 
     fn is_git_repository(&self, path: &str) -> Result<bool> {
         let output = Command::new("git")
-            .args(&["-C", path, "rev-parse", "--git-dir"])
+            .args(["-C", path, "rev-parse", "--git-dir"])
             .output()?;
 
         Ok(output.status.success())
@@ -174,7 +174,7 @@ impl<'a> WorktreeService<'a> {
 
     fn branch_exists(&self, repo_path: &str, branch: &str) -> Result<bool> {
         let output = Command::new("git")
-            .args(&["-C", repo_path, "rev-parse", "--verify", branch])
+            .args(["-C", repo_path, "rev-parse", "--verify", branch])
             .output()?;
 
         Ok(output.status.success())
@@ -219,7 +219,7 @@ impl<'a> WorktreeService<'a> {
         branch: &str,
     ) -> Result<()> {
         let output = Command::new("git")
-            .args(&[
+            .args([
                 "-C",
                 repo_path,
                 "worktree",
@@ -240,7 +240,7 @@ impl<'a> WorktreeService<'a> {
 
     fn remove_git_worktree(&self, repo_path: &str, worktree_path: &str) -> Result<()> {
         let output = Command::new("git")
-            .args(&["-C", repo_path, "worktree", "remove", worktree_path])
+            .args(["-C", repo_path, "worktree", "remove", worktree_path])
             .output()?;
 
         if !output.status.success() {
@@ -330,7 +330,7 @@ impl<'a> WorktreeService<'a> {
 
     pub fn has_uncommitted_changes(&self, path: &str) -> Result<bool> {
         let output = Command::new("git")
-            .args(&["-C", path, "status", "--porcelain"])
+            .args(["-C", path, "status", "--porcelain"])
             .output()?;
 
         Ok(!output.stdout.is_empty())
@@ -338,7 +338,7 @@ impl<'a> WorktreeService<'a> {
 
     fn merge_branch(&self, target_path: &str, branch: &str) -> Result<()> {
         let output = Command::new("git")
-            .args(&["-C", target_path, "merge", "--no-ff", branch])
+            .args(["-C", target_path, "merge", "--no-ff", branch])
             .output()?;
 
         if !output.status.success() {
