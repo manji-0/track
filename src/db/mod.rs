@@ -22,7 +22,8 @@ impl Database {
         Ok(db)
     }
 
-    #[cfg(test)]
+    /// Create a new in-memory database (primarily for testing)
+    #[allow(dead_code)]
     pub fn new_in_memory() -> Result<Self> {
         let conn = Connection::open_in_memory()?;
         let db = Database { conn };

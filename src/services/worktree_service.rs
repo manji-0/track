@@ -495,4 +495,336 @@ mod tests {
             .to_string();
         assert_eq!(result, expected);
     }
+
+    #[test]
+    fn test_add_worktree_and_get() {
+        use crate::services::TaskService;
+        use std::fs;
+        use std::process::Command;
+
+        let db = setup_db();
+        let task_service = TaskService::new(&db);
+        let service = WorktreeService::new(&db);
+
+        // Create a task
+        let task = task_service
+            .create_task("Test Task", None, Some("PROJ-100"), None)
+            .unwrap();
+
+        // Create a temporary git repository
+        let temp_dir = tempfile::tempdir().unwrap();
+        let repo_path = temp_dir.path().to_str().unwrap();
+
+        Command::new("git")
+            .args(&["init", repo_path])
+            .output()
+            .unwrap();
+
+        // Configure git user
+        Command::new("git")
+            .args(&["-C", repo_path, "config", "user.email", "test@example.com"])
+            .output()
+            .unwrap();
+        Command::new("git")
+            .args(&["-C", repo_path, "config", "user.name", "Test User"])
+            .output()
+            .unwrap();
+
+        // Create initial commit
+        fs::write(temp_dir.path().join("README.md"), "# Test").unwrap();
+        Command::new("git")
+            .args(&["-C", repo_path, "add", "."])
+            .output()
+            .unwrap();
+        Command::new("git")
+            .args(&["-C", repo_path, "commit", "-m", "Initial commit"])
+            .output()
+            .unwrap();
+
+        // Add base worktree
+        let worktree = service
+            .add_worktree(task.id, repo_path, None, Some("PROJ-100"), None, true)
+            .unwrap();
+
+        assert_eq!(worktree.task_id, task.id);
+        assert_eq!(worktree.branch, "task/PROJ-100");
+        assert!(worktree.is_base);
+
+        // Get worktree by ID
+        let retrieved = service.get_git_item(worktree.id).unwrap();
+        assert_eq!(retrieved.id, worktree.id);
+        assert_eq!(retrieved.branch, "task/PROJ-100");
+    }
+
+    #[test]
+    fn test_list_worktrees() {
+        use crate::services::{TaskService, TodoService};
+        use std::fs;
+        use std::process::Command;
+
+        let db = setup_db();
+        let task_service = TaskService::new(&db);
+        let todo_service = TodoService::new(&db);
+        let service = WorktreeService::new(&db);
+
+        // Create a task
+        let task = task_service
+            .create_task("Test Task", None, Some("PROJ-200"), None)
+            .unwrap();
+
+        // Create a TODO
+        let todo = todo_service.add_todo(task.id, "Test TODO", true).unwrap();
+
+        // Create a temporary git repository
+        let temp_dir = tempfile::tempdir().unwrap();
+        let repo_path = temp_dir.path().to_str().unwrap();
+
+        Command::new("git")
+            .args(&["init", repo_path])
+            .output()
+            .unwrap();
+
+        Command::new("git")
+            .args(&["-C", repo_path, "config", "user.email", "test@example.com"])
+            .output()
+            .unwrap();
+        Command::new("git")
+            .args(&["-C", repo_path, "config", "user.name", "Test User"])
+            .output()
+            .unwrap();
+
+        fs::write(temp_dir.path().join("README.md"), "# Test").unwrap();
+        Command::new("git")
+            .args(&["-C", repo_path, "add", "."])
+            .output()
+            .unwrap();
+        Command::new("git")
+            .args(&["-C", repo_path, "commit", "-m", "Initial commit"])
+            .output()
+            .unwrap();
+
+        // Add base worktree
+        service
+            .add_worktree(task.id, repo_path, None, Some("PROJ-200"), None, true)
+            .unwrap();
+
+        // Add TODO worktree
+        service
+            .add_worktree(
+                task.id,
+                repo_path,
+                None,
+                Some("PROJ-200"),
+                Some(todo.id),
+                false,
+            )
+            .unwrap();
+
+        // List worktrees
+        let worktrees = service.list_worktrees(task.id).unwrap();
+        assert_eq!(worktrees.len(), 2);
+
+        // Verify base worktree
+        let base = worktrees.iter().find(|w| w.is_base).unwrap();
+        assert_eq!(base.branch, "task/PROJ-200");
+
+        // Verify TODO worktree
+        let todo_wt = worktrees.iter().find(|w| !w.is_base).unwrap();
+        assert_eq!(todo_wt.branch, "PROJ-200-todo-1");
+        assert_eq!(todo_wt.todo_id, Some(todo.id));
+    }
+
+    #[test]
+    fn test_remove_worktree() {
+        use crate::services::TaskService;
+        use std::fs;
+        use std::process::Command;
+
+        let db = setup_db();
+        let task_service = TaskService::new(&db);
+        let service = WorktreeService::new(&db);
+
+        let task = task_service
+            .create_task("Test Task", None, Some("PROJ-300"), None)
+            .unwrap();
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        let repo_path = temp_dir.path().to_str().unwrap();
+
+        Command::new("git")
+            .args(&["init", repo_path])
+            .output()
+            .unwrap();
+
+        Command::new("git")
+            .args(&["-C", repo_path, "config", "user.email", "test@example.com"])
+            .output()
+            .unwrap();
+        Command::new("git")
+            .args(&["-C", repo_path, "config", "user.name", "Test User"])
+            .output()
+            .unwrap();
+
+        fs::write(temp_dir.path().join("README.md"), "# Test").unwrap();
+        Command::new("git")
+            .args(&["-C", repo_path, "add", "."])
+            .output()
+            .unwrap();
+        Command::new("git")
+            .args(&["-C", repo_path, "commit", "-m", "Initial commit"])
+            .output()
+            .unwrap();
+
+        let worktree = service
+            .add_worktree(task.id, repo_path, None, Some("PROJ-300"), None, true)
+            .unwrap();
+
+        // Verify worktree exists
+        let worktrees_before = service.list_worktrees(task.id).unwrap();
+        assert_eq!(worktrees_before.len(), 1);
+
+        // Remove worktree
+        service.remove_worktree(worktree.id, false).unwrap();
+
+        // Verify worktree is removed from DB
+        let worktrees_after = service.list_worktrees(task.id).unwrap();
+        assert_eq!(worktrees_after.len(), 0);
+
+        // Verify get_git_item returns error
+        let result = service.get_git_item(worktree.id);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_get_base_worktree() {
+        use crate::services::{TaskService, TodoService};
+        use std::fs;
+        use std::process::Command;
+
+        let db = setup_db();
+        let task_service = TaskService::new(&db);
+        let todo_service = TodoService::new(&db);
+        let service = WorktreeService::new(&db);
+
+        let task = task_service
+            .create_task("Test Task", None, Some("PROJ-400"), None)
+            .unwrap();
+
+        let todo = todo_service.add_todo(task.id, "Test TODO", true).unwrap();
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        let repo_path = temp_dir.path().to_str().unwrap();
+
+        Command::new("git")
+            .args(&["init", repo_path])
+            .output()
+            .unwrap();
+
+        Command::new("git")
+            .args(&["-C", repo_path, "config", "user.email", "test@example.com"])
+            .output()
+            .unwrap();
+        Command::new("git")
+            .args(&["-C", repo_path, "config", "user.name", "Test User"])
+            .output()
+            .unwrap();
+
+        fs::write(temp_dir.path().join("README.md"), "# Test").unwrap();
+        Command::new("git")
+            .args(&["-C", repo_path, "add", "."])
+            .output()
+            .unwrap();
+        Command::new("git")
+            .args(&["-C", repo_path, "commit", "-m", "Initial commit"])
+            .output()
+            .unwrap();
+
+        // Add base worktree
+        let base_wt = service
+            .add_worktree(task.id, repo_path, None, Some("PROJ-400"), None, true)
+            .unwrap();
+
+        // Add TODO worktree
+        service
+            .add_worktree(
+                task.id,
+                repo_path,
+                None,
+                Some("PROJ-400"),
+                Some(todo.id),
+                false,
+            )
+            .unwrap();
+
+        // Get base worktree
+        let retrieved_base = service.get_base_worktree(task.id).unwrap();
+        assert!(retrieved_base.is_some());
+        let base = retrieved_base.unwrap();
+        assert_eq!(base.id, base_wt.id);
+        assert!(base.is_base);
+    }
+
+    #[test]
+    fn test_get_worktree_by_todo() {
+        use crate::services::{TaskService, TodoService};
+        use std::fs;
+        use std::process::Command;
+
+        let db = setup_db();
+        let task_service = TaskService::new(&db);
+        let todo_service = TodoService::new(&db);
+        let service = WorktreeService::new(&db);
+
+        let task = task_service
+            .create_task("Test Task", None, Some("PROJ-500"), None)
+            .unwrap();
+
+        let todo = todo_service.add_todo(task.id, "Test TODO", true).unwrap();
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        let repo_path = temp_dir.path().to_str().unwrap();
+
+        Command::new("git")
+            .args(&["init", repo_path])
+            .output()
+            .unwrap();
+
+        Command::new("git")
+            .args(&["-C", repo_path, "config", "user.email", "test@example.com"])
+            .output()
+            .unwrap();
+        Command::new("git")
+            .args(&["-C", repo_path, "config", "user.name", "Test User"])
+            .output()
+            .unwrap();
+
+        fs::write(temp_dir.path().join("README.md"), "# Test").unwrap();
+        Command::new("git")
+            .args(&["-C", repo_path, "add", "."])
+            .output()
+            .unwrap();
+        Command::new("git")
+            .args(&["-C", repo_path, "commit", "-m", "Initial commit"])
+            .output()
+            .unwrap();
+
+        // Add TODO worktree
+        let todo_wt = service
+            .add_worktree(
+                task.id,
+                repo_path,
+                None,
+                Some("PROJ-500"),
+                Some(todo.id),
+                false,
+            )
+            .unwrap();
+
+        // Get worktree by TODO
+        let retrieved = service.get_worktree_by_todo(todo.id).unwrap();
+        assert!(retrieved.is_some());
+        let wt = retrieved.unwrap();
+        assert_eq!(wt.id, todo_wt.id);
+        assert_eq!(wt.todo_id, Some(todo.id));
+    }
 }

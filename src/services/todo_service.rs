@@ -3,6 +3,7 @@ use crate::models::{Todo, TodoStatus};
 use crate::utils::{Result, TrackError};
 use chrono::Utc;
 use rusqlite::params;
+use std::str::FromStr;
 
 pub struct TodoService<'a> {
     db: &'a Database,
@@ -106,8 +107,7 @@ impl<'a> TodoService<'a> {
 
     pub fn update_status(&self, todo_id: i64, status: &str) -> Result<()> {
         // Validate status
-        TodoStatus::from_str(status)
-            .ok_or_else(|| TrackError::InvalidStatus(status.to_string()))?;
+        TodoStatus::from_str(status).map_err(|_| TrackError::InvalidStatus(status.to_string()))?;
 
         let conn = self.db.get_connection();
         let affected = conn.execute(

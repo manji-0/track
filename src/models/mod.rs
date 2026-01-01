@@ -1,5 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde::Serialize;
+use std::str::FromStr;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct Task {
@@ -100,13 +101,16 @@ impl TaskStatus {
             TaskStatus::Archived => "archived",
         }
     }
+}
 
-    #[allow(dead_code)]
-    pub fn from_str(s: &str) -> Option<Self> {
+impl FromStr for TaskStatus {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "active" => Some(TaskStatus::Active),
-            "archived" => Some(TaskStatus::Archived),
-            _ => None,
+            "active" => Ok(TaskStatus::Active),
+            "archived" => Ok(TaskStatus::Archived),
+            _ => Err(format!("Invalid TaskStatus: {}", s)),
         }
     }
 }
@@ -126,13 +130,17 @@ impl TodoStatus {
             TodoStatus::Cancelled => "cancelled",
         }
     }
+}
 
-    pub fn from_str(s: &str) -> Option<Self> {
+impl FromStr for TodoStatus {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "pending" => Some(TodoStatus::Pending),
-            "done" => Some(TodoStatus::Done),
-            "cancelled" => Some(TodoStatus::Cancelled),
-            _ => None,
+            "pending" => Ok(TodoStatus::Pending),
+            "done" => Ok(TodoStatus::Done),
+            "cancelled" => Ok(TodoStatus::Cancelled),
+            _ => Err(format!("Invalid TodoStatus: {}", s)),
         }
     }
 }
@@ -150,14 +158,14 @@ mod tests {
     #[test]
     fn test_task_status_from_str() {
         assert!(matches!(
-            TaskStatus::from_str("active"),
-            Some(TaskStatus::Active)
+            "active".parse::<TaskStatus>(),
+            Ok(TaskStatus::Active)
         ));
         assert!(matches!(
-            TaskStatus::from_str("archived"),
-            Some(TaskStatus::Archived)
+            "archived".parse::<TaskStatus>(),
+            Ok(TaskStatus::Archived)
         ));
-        assert!(TaskStatus::from_str("invalid").is_none());
+        assert!("invalid".parse::<TaskStatus>().is_err());
     }
 
     #[test]
@@ -170,17 +178,14 @@ mod tests {
     #[test]
     fn test_todo_status_from_str() {
         assert!(matches!(
-            TodoStatus::from_str("pending"),
-            Some(TodoStatus::Pending)
+            "pending".parse::<TodoStatus>(),
+            Ok(TodoStatus::Pending)
         ));
+        assert!(matches!("done".parse::<TodoStatus>(), Ok(TodoStatus::Done)));
         assert!(matches!(
-            TodoStatus::from_str("done"),
-            Some(TodoStatus::Done)
+            "cancelled".parse::<TodoStatus>(),
+            Ok(TodoStatus::Cancelled)
         ));
-        assert!(matches!(
-            TodoStatus::from_str("cancelled"),
-            Some(TodoStatus::Cancelled)
-        ));
-        assert!(TodoStatus::from_str("invalid").is_none());
+        assert!("invalid".parse::<TodoStatus>().is_err());
     }
 }
