@@ -699,6 +699,20 @@ When you start working on a task:
 - `track todo done` automatically merges and removes associated worktrees.
 - Always register repos with `track repo add` before running `track sync`.
 - Use `track scrap add` to document decisions and findings during work.
+
+## Detailed Specifications
+
+### Worktree Location
+Worktrees are created as subdirectories inside the registered repository:
+- **Path**: `<repo_root>/<branch_name>`
+- **Example**: `/src/my-app/PROJ-123/todo-5`
+
+### TODO Completion Process
+Executing `track todo done <index>` performs the following:
+1. **Checks** for uncommitted changes in the TODO worktree (must be clean).
+2. **Merges** the TODO branch into the Task Base branch (in the base worktree).
+3. **Removes** the TODO worktree directory and DB record.
+4. **Updates** TODO status to 'done'.
 "#);
         Ok(())
     }

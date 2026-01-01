@@ -72,4 +72,19 @@ When starting work on a task, follow this pattern:
 
 ### 6. Implementation Details
 - The command is implemented as a subcommand in `src/cli/mod.rs` and handled by `handle_llm_help()` in `src/cli/handler.rs`.
-- The content is stored as a formatted string constant within the handler function.
+### 7. Detailed Specifications
+
+#### Worktree Location
+Worktrees are created as subdirectories within the registered repository root.
+- **Path Structure**: `<repo_root>/<branch_name>`
+- **Example**: If repo is `/src/app` and branch is `PROJ-123/todo-5`, worktree is at `/src/app/PROJ-123/todo-5`.
+
+#### TODO Completion Behavior (`track todo done <id>`)
+When you run `track todo done`, the following atomic steps occur:
+1. **Uncommitted Changes Check**: Scans the TODO's worktree. If changes exist, operation aborts (you must commit or stash first).
+2. **Retrieve Base Worktree**: Locates the main task worktree (checked out to the task branch).
+3. **Merge**: Merges the TODO worktree's branch **into** the Base worktree's branch (Task Branch).
+4. **Cleanup**: 
+   - Deletes the TODO worktree directory.
+   - Deletes the worktree record from the database.
+5. **Update Status**: Marks the TODO as `done` in the database.
