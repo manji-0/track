@@ -13,7 +13,7 @@ impl<'a> TodoService<'a> {
         Self { db }
     }
 
-    pub fn add_todo(&self, task_id: i64, content: &str) -> Result<Todo> {
+    pub fn add_todo(&self, task_id: i64, content: &str, worktree_requested: bool) -> Result<Todo> {
         let now = Utc::now().to_rfc3339();
         let conn = self.db.get_connection();
 
@@ -25,8 +25,8 @@ impl<'a> TodoService<'a> {
         )?;
 
         conn.execute(
-            "INSERT INTO todos (task_id, task_index, content, status, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
-            params![task_id, next_index, content, TodoStatus::Pending.as_str(), now],
+            "INSERT INTO todos (task_id, task_index, content, status, worktree_requested, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![task_id, next_index, content, TodoStatus::Pending.as_str(), worktree_requested, now],
         )?;
 
         let todo_id = conn.last_insert_rowid();
@@ -36,7 +36,7 @@ impl<'a> TodoService<'a> {
     pub fn get_todo(&self, todo_id: i64) -> Result<Todo> {
         let conn = self.db.get_connection();
         let mut stmt = conn.prepare(
-            "SELECT id, task_id, task_index, content, status, created_at FROM todos WHERE id = ?1"
+            "SELECT id, task_id, task_index, content, status, worktree_requested, created_at FROM todos WHERE id = ?1"
         )?;
 
         let todo = stmt.query_row(params![todo_id], |row| {
@@ -46,7 +46,8 @@ impl<'a> TodoService<'a> {
                 task_index: row.get(2)?,
                 content: row.get(3)?,
                 status: row.get(4)?,
-                created_at: row.get::<_, String>(5)?.parse().unwrap(),
+                worktree_requested: row.get(5)?,
+                created_at: row.get::<_, String>(6)?.parse().unwrap(),
             })
         }).map_err(|_| TrackError::TodoNotFound(todo_id))?;
 
@@ -56,7 +57,7 @@ impl<'a> TodoService<'a> {
     pub fn list_todos(&self, task_id: i64) -> Result<Vec<Todo>> {
         let conn = self.db.get_connection();
         let mut stmt = conn.prepare(
-            "SELECT id, task_id, task_index, content, status, created_at FROM todos WHERE task_id = ?1 ORDER BY task_index ASC"
+            "SELECT id, task_id, task_index, content, status, worktree_requested, created_at FROM todos WHERE task_id = ?1 ORDER BY task_index ASC"
         )?;
 
         let todos = stmt.query_map(params![task_id], |row| {
@@ -66,7 +67,8 @@ impl<'a> TodoService<'a> {
                 task_index: row.get(2)?,
                 content: row.get(3)?,
                 status: row.get(4)?,
-                created_at: row.get::<_, String>(5)?.parse().unwrap(),
+                worktree_requested: row.get(5)?,
+                created_at: row.get::<_, String>(6)?.parse().unwrap(),
             })
         })?
         .collect::<std::result::Result<Vec<_>, _>>()?;
@@ -77,7 +79,7 @@ impl<'a> TodoService<'a> {
     pub fn get_todo_by_index(&self, task_id: i64, task_index: i64) -> Result<Todo> {
         let conn = self.db.get_connection();
         let mut stmt = conn.prepare(
-            "SELECT id, task_id, task_index, content, status, created_at FROM todos WHERE task_id = ?1 AND task_index = ?2"
+            "SELECT id, task_id, task_index, content, status, worktree_requested, created_at FROM todos WHERE task_id = ?1 AND task_index = ?2"
         )?;
 
         let todo = stmt.query_row(params![task_id, task_index], |row| {
@@ -87,7 +89,8 @@ impl<'a> TodoService<'a> {
                 task_index: row.get(2)?,
                 content: row.get(3)?,
                 status: row.get(4)?,
-                created_at: row.get::<_, String>(5)?.parse().unwrap(),
+                worktree_requested: row.get(5)?,
+                created_at: row.get::<_, String>(6)?.parse().unwrap(),
             })
         }).map_err(|_| TrackError::Other(format!("TODO #{} not found in current task", task_index)))?;
 
@@ -145,9 +148,22 @@ mod tests {
         let task_id = create_test_task(&db);
         let service = TodoService::new(&db);
 
-        let todo = service.add_todo(task_id, "Test TODO").unwrap();
+        let todo = service.add_todo(task_id, "Test TODO", false).unwrap();
         assert_eq!(todo.content, "Test TODO");
         assert_eq!(todo.status, "pending");
+        assert_eq!(todo.worktree_requested, false);
+    }
+
+    #[test]
+    fn test_add_todo_with_worktree_success() {
+        let db = setup_db();
+        let task_id = create_test_task(&db);
+        let service = TodoService::new(&db);
+
+        let todo = service.add_todo(task_id, "Test TODO", true).unwrap();
+        assert_eq!(todo.content, "Test TODO");
+        assert_eq!(todo.status, "pending");
+        assert_eq!(todo.worktree_requested, true);
     }
 
     #[test]
@@ -156,7 +172,7 @@ mod tests {
         let task_id = create_test_task(&db);
         let service = TodoService::new(&db);
 
-        let created = service.add_todo(task_id, "Test TODO").unwrap();
+        let created = service.add_todo(task_id, "Test TODO", false).unwrap();
         let retrieved = service.get_todo(created.id).unwrap();
         assert_eq!(retrieved.id, created.id);
         assert_eq!(retrieved.content, "Test TODO");
@@ -177,8 +193,8 @@ mod tests {
         let task_id = create_test_task(&db);
         let service = TodoService::new(&db);
 
-        service.add_todo(task_id, "TODO 1").unwrap();
-        service.add_todo(task_id, "TODO 2").unwrap();
+        service.add_todo(task_id, "TODO 1", false).unwrap();
+        service.add_todo(task_id, "TODO 2", false).unwrap();
 
         let todos = service.list_todos(task_id).unwrap();
         assert_eq!(todos.len(), 2);
@@ -192,7 +208,7 @@ mod tests {
         let task_id = create_test_task(&db);
         let service = TodoService::new(&db);
 
-        let todo = service.add_todo(task_id, "Test TODO").unwrap();
+        let todo = service.add_todo(task_id, "Test TODO", false).unwrap();
         service.update_status(todo.id, "done").unwrap();
 
         let updated = service.get_todo(todo.id).unwrap();
@@ -205,7 +221,7 @@ mod tests {
         let task_id = create_test_task(&db);
         let service = TodoService::new(&db);
 
-        let todo = service.add_todo(task_id, "Test TODO").unwrap();
+        let todo = service.add_todo(task_id, "Test TODO", false).unwrap();
         let result = service.update_status(todo.id, "invalid_status");
         assert!(matches!(result, Err(TrackError::InvalidStatus(_))));
     }
@@ -225,7 +241,7 @@ mod tests {
         let task_id = create_test_task(&db);
         let service = TodoService::new(&db);
 
-        let todo = service.add_todo(task_id, "Test TODO").unwrap();
+        let todo = service.add_todo(task_id, "Test TODO", false).unwrap();
         service.delete_todo(todo.id).unwrap();
 
         let result = service.get_todo(todo.id);
@@ -247,9 +263,9 @@ mod tests {
         let task_id = create_test_task(&db);
         let service = TodoService::new(&db);
 
-        let todo1 = service.add_todo(task_id, "TODO 1").unwrap();
-        let todo2 = service.add_todo(task_id, "TODO 2").unwrap();
-        let todo3 = service.add_todo(task_id, "TODO 3").unwrap();
+        let todo1 = service.add_todo(task_id, "TODO 1", false).unwrap();
+        let todo2 = service.add_todo(task_id, "TODO 2", false).unwrap();
+        let todo3 = service.add_todo(task_id, "TODO 3", false).unwrap();
 
         assert_eq!(todo1.task_index, 1);
         assert_eq!(todo2.task_index, 2);
@@ -264,10 +280,10 @@ mod tests {
         let task2_id = task_service.create_task("Task 2", None, None, None).unwrap().id;
         let service = TodoService::new(&db);
 
-        let task1_todo1 = service.add_todo(task1_id, "Task 1 TODO 1").unwrap();
-        let task2_todo1 = service.add_todo(task2_id, "Task 2 TODO 1").unwrap();
-        let task1_todo2 = service.add_todo(task1_id, "Task 1 TODO 2").unwrap();
-        let task2_todo2 = service.add_todo(task2_id, "Task 2 TODO 2").unwrap();
+        let task1_todo1 = service.add_todo(task1_id, "Task 1 TODO 1", false).unwrap();
+        let task2_todo1 = service.add_todo(task2_id, "Task 2 TODO 1", false).unwrap();
+        let task1_todo2 = service.add_todo(task1_id, "Task 1 TODO 2", false).unwrap();
+        let task2_todo2 = service.add_todo(task2_id, "Task 2 TODO 2", false).unwrap();
 
         // Each task should have independent indexing starting from 1
         assert_eq!(task1_todo1.task_index, 1);
@@ -282,9 +298,9 @@ mod tests {
         let task_id = create_test_task(&db);
         let service = TodoService::new(&db);
 
-        service.add_todo(task_id, "TODO 1").unwrap();
-        let created = service.add_todo(task_id, "TODO 2").unwrap();
-        service.add_todo(task_id, "TODO 3").unwrap();
+        service.add_todo(task_id, "TODO 1", false).unwrap();
+        let created = service.add_todo(task_id, "TODO 2", false).unwrap();
+        service.add_todo(task_id, "TODO 3", false).unwrap();
 
         let retrieved = service.get_todo_by_index(task_id, 2).unwrap();
         assert_eq!(retrieved.id, created.id);
@@ -298,7 +314,7 @@ mod tests {
         let task_id = create_test_task(&db);
         let service = TodoService::new(&db);
 
-        service.add_todo(task_id, "TODO 1").unwrap();
+        service.add_todo(task_id, "TODO 1", false).unwrap();
 
         let result = service.get_todo_by_index(task_id, 5);
         assert!(result.is_err());
@@ -310,9 +326,9 @@ mod tests {
         let task_id = create_test_task(&db);
         let service = TodoService::new(&db);
 
-        service.add_todo(task_id, "TODO 1").unwrap();
-        service.add_todo(task_id, "TODO 2").unwrap();
-        service.add_todo(task_id, "TODO 3").unwrap();
+        service.add_todo(task_id, "TODO 1", false).unwrap();
+        service.add_todo(task_id, "TODO 2", false).unwrap();
+        service.add_todo(task_id, "TODO 3", false).unwrap();
 
         let todos = service.list_todos(task_id).unwrap();
         assert_eq!(todos.len(), 3);

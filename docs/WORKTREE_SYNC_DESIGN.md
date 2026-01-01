@@ -39,11 +39,17 @@ track worktree sync
 `track todo add <text> --worktree`
 
 **Behavior:**
-1. Create the TODO
+1. Create the TODO with `worktree_requested` flag set to true
+2. Helper message prompts user to run `track sync`
+3. Worktree is **not** created immediately
+
+To create the worktrees, run:
+```bash
+track sync
+```
+This will:
+1. Iterate through pending TODOs
 2. For each registered repository:
-   - Determine worktree branch name:
-     - If ticket exists: `<ticket_id>/todo-<todo_id>` (e.g., `PROJ-123/todo-15`)
-     - If no ticket: `task-<task_id>/todo-<todo_id>` (e.g., `task-5/todo-15`)
    - Create worktree at: `<repo_path>/<branch_name>`
    - Create git_item record linked to the TODO
 
@@ -133,14 +139,19 @@ track worktree sync
 
 # 4. Add TODO with worktree
 track todo add "Add login endpoint" --worktree
+# → Creates TODO #15
+# → Schedules worktree creation
+
+# 5. Create the worktrees
+track sync
 # → Creates worktree at: api-repo/PROJ-123/todo-15
 # → Creates worktree at: frontend-repo/PROJ-123/todo-15
 
-# 5. Work in the worktree
+# 6. Work in the worktree
 cd /path/to/api-repo/PROJ-123/todo-15
 # ... make changes, commit ...
 
-# 6. Complete the TODO
+# 7. Complete the TODO
 track todo done 15
 # → Merges PROJ-123/todo-15 into task/PROJ-123
 # → Removes worktree directories

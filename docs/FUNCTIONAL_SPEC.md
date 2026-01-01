@@ -839,6 +839,11 @@ Removed repository #<id>
      - Create task branch from current HEAD.
    - Checkout task branch.
    - Display sync status.
+4. Iterate through registered TODOs for the current task.
+5. If a TODO has `worktree_requested = true` and no existing worktree:
+   - Create worktree for the TODO.
+   - Link git_item to the TODO.
+   - Display creation status.
 
 **Output Example**:
 ```
@@ -851,6 +856,10 @@ Repository: /home/user/projects/api
 Repository: /home/user/projects/frontend
   ✓ Branch task/PROJ-123 already exists
   ✓ Checked out task/PROJ-123
+
+Checking for pending worktrees...
+Creating worktree for TODO #15: Implement login endpoint
+  Created /home/user/projects/api-worktrees/PROJ-123/todo-15 (PROJ-123/todo-15)
 
 Sync complete.
 ```
@@ -867,7 +876,7 @@ Sync complete.
 
 ### 8.5. `track todo add <text> --worktree` - Add TODO with Worktree
 
-**Overview**: Adds a TODO and automatically creates worktrees in all registered repositories.
+**Overview**: Adds a TODO and requests worktree creation (actual creation happens during `track sync`).
 
 **Input**:
 | Argument/Flag | Type | Required | Description |
@@ -876,23 +885,16 @@ Sync complete.
 | `--worktree` / `-w` | Flag | | Create worktrees for this TODO |
 
 **Process Flow** (when `--worktree` is specified):
-1. Create TODO record.
-2. Get all registered repositories for the current task.
-3. For each repository:
-   - Determine worktree branch name:
-     - If `ticket_id` exists: `<ticket_id>/todo-<todo_id>` (e.g., `PROJ-123/todo-15`)
-     - Otherwise: `task-<task_id>/todo-<todo_id>` (e.g., `task-5/todo-15`)
-   - Determine worktree path: `<repo_path>/../<repo_name>-worktrees/<branch_name>`
-   - Create worktree: `git worktree add -b <branch> <path>`
-   - INSERT `git_items` record with `todo_id` set.
+1. Create TODO record with `worktree_requested` = true.
+2. Output confirmation message indicating worktree creation is scheduled.
+3. (Worktree is NOT created immediately).
+
+**Note**: To create the actual worktrees, the user must run `track sync`.
 
 **Output Example**:
 ```
 Added TODO #15: Implement login endpoint
-
-Created worktrees:
-  /home/user/projects/api-worktrees/PROJ-123/todo-15 (PROJ-123/todo-15)
-  /home/user/projects/frontend-worktrees/PROJ-123/todo-15 (PROJ-123/todo-15)
+Worktree creation scheduled for 'track sync'
 ```
 
 **Error Cases**:

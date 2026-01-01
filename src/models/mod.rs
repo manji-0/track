@@ -20,6 +20,8 @@ pub struct Todo {
     pub task_index: i64,
     pub content: String,
     pub status: String,
+    #[serde(default)]
+    pub worktree_requested: bool,
     #[allow(dead_code)]
     pub created_at: DateTime<Utc>,
 }

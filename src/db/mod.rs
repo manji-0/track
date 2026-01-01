@@ -59,6 +59,7 @@ impl Database {
                 task_id INTEGER NOT NULL,
                 content TEXT NOT NULL,
                 status TEXT NOT NULL DEFAULT 'pending',
+                worktree_requested INTEGER NOT NULL DEFAULT 0,
                 created_at TEXT NOT NULL,
                 FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
             );
@@ -189,6 +190,17 @@ impl Database {
             
             // Create unique index on (task_id, task_index)
             self.conn.execute("CREATE UNIQUE INDEX idx_todos_task_index ON todos(task_id, task_index)", [])?;
+        }
+
+        // Check for worktree_requested column in todos
+        let count: i64 = self.conn.query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('todos') WHERE name='worktree_requested'",
+            [],
+            |row| row.get(0),
+        )?;
+
+        if count == 0 {
+            self.conn.execute("ALTER TABLE todos ADD COLUMN worktree_requested INTEGER NOT NULL DEFAULT 0", [])?;
         }
 
         Ok(())

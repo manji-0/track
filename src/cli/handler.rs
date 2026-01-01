@@ -16,6 +16,7 @@ impl CommandHandler {
         Ok(Self { db })
     }
 
+    #[allow(dead_code)]
     pub fn from_db(db: Database) -> Self {
         Self { db }
     }
@@ -329,36 +330,11 @@ impl CommandHandler {
 
         match command {
             TodoCommands::Add { text, worktree } => {
-                let todo = todo_service.add_todo(current_task_id, &text)?;
+                let todo = todo_service.add_todo(current_task_id, &text, worktree)?;
                 println!("Added TODO #{}: {}", todo.task_index, todo.content);
                 
                 if worktree {
-                    let repo_service = RepoService::new(&self.db);
-                    let repos = repo_service.list_repos(current_task_id)?;
-                    
-                    if repos.is_empty() {
-                        println!("Warning: No repositories registered, worktree creation skipped");
-                    } else {
-                        let task_service = TaskService::new(&self.db);
-                        let task = task_service.get_task(current_task_id)?;
-                        let worktree_service = WorktreeService::new(&self.db);
-                        
-                        println!();
-                        println!("Created worktrees:");
-                        for repo in repos {
-                            match worktree_service.add_worktree(
-                                current_task_id,
-                                &repo.repo_path,
-                                None,
-                                task.ticket_id.as_deref(),
-                                Some(todo.id),
-                                false,
-                            ) {
-                                Ok(wt) => println!("  {} ({})", wt.path, wt.branch),
-                                Err(e) => eprintln!("  Error creating worktree for {}: {}", repo.repo_path, e),
-                            }
-                        }
-                    }
+                    println!("Worktree creation scheduled for 'track sync'");
                 }
             }
             TodoCommands::List => {
@@ -506,7 +482,7 @@ impl CommandHandler {
         
         println!("Syncing task branch: {}\n", task_branch);
         
-        for repo in repos {
+        for repo in &repos {
             println!("Repository: {}", repo.repo_path);
             
             // Check if repository exists
@@ -553,6 +529,46 @@ impl CommandHandler {
                 println!("  ✓ Checked out {}\n", task_branch);
             } else {
                 println!("  ✗ Failed to checkout {}\n", task_branch);
+            }
+        }
+        
+        // Check for pending worktrees
+        println!("Checking for pending worktrees...");
+        let todo_service = TodoService::new(&self.db);
+        let worktree_service = WorktreeService::new(&self.db);
+        let todos = todo_service.list_todos(current_task_id)?;
+
+        for todo in todos {
+            if todo.worktree_requested && todo.status != "done" {
+                // Check if worktree already exists for this TODO
+                let worktrees = worktree_service.list_worktrees(current_task_id)?;
+                let mut exists = false;
+                for wt in worktrees {
+                    // Check if this worktree is linked to our todo
+                    // Since list_worktrees returns GitItems which have todo_id, I need to check if that field is accessible
+                    // Looking at models, GitItem has todo_id: Option<i64>
+                    if wt.todo_id == Some(todo.id) {
+                        exists = true;
+                        break;
+                    }
+                }
+
+                if !exists {
+                    println!("Creating worktree for TODO #{}: {}", todo.task_index, todo.content);
+                    for repo in &repos {
+                        match worktree_service.add_worktree(
+                            current_task_id,
+                            &repo.repo_path,
+                            None,
+                            task.ticket_id.as_deref(),
+                            Some(todo.id),
+                            false,
+                        ) {
+                            Ok(wt) => println!("  Created {} ({})", wt.path, wt.branch),
+                            Err(e) => eprintln!("  Error creating worktree for {}: {}", repo.repo_path, e),
+                        }
+                    }
+                }
             }
         }
         
@@ -603,44 +619,86 @@ impl CommandHandler {
         println!("{}", r#"# WorkTracker CLI Help for LLM Agents
 
 ## Overview
-`track` is a CLI tool designed to help manage development tasks, TODOs, and context (worktrees).
-As an LLM Agent, you should follow the workflow below to ensure tasks are tracked correctly.
 
-## Standard Workflow
+`track` is a CLI tool for managing development tasks, TODOs, and git worktrees.
+This guide explains the standard workflow for completing tasks.
 
-1.  **Check Status**: `track info`
-    - Start every session with this.
-    - It shows the current Task, TODOs, and active Worktrees.
+## Complete Task Workflow
 
-2.  **Select TODO**:
-    - Identify the next pending TODO from the list.
-    - If no TODOs exist, read the `[ Task ]` description or `DESIGN.md` to plan next steps and add TODOs using `track todo add`.
+### Phase 1: Task Setup (typically done by human)
 
-3.  **Worktree Management**:
-    - If a worktree is listed for your TODO, check if you need to work in it.
-    - `track info` shows worktree paths. Navigate to the path if needed.
+1. **Create Task**: `track new "<task_name>"`
+   - Creates a new task and switches to it.
 
-4.  **Implementation**:
-    - Modify files in the active worktree (or current directory if no worktree).
-    - Run `cargo test` to verify changes.
+2. **Add Description**: `track desc "<description>"`
+   - Provides detailed context about what needs to be done.
 
-5.  **Completion**:
-    - Once the TODO is complete and tests pass:
-    - `track todo done <id>`
-    - This will update the status and handle worktree cleanup if applicable.
+3. **Register Repositories**: `track repo add [path]`
+   - Register working repositories (default: current directory).
+   - Run this for each repository involved in the task.
 
-## Key Commands
+4. **Add TODOs**: `track todo add "<content>" [--worktree]`
+   - Add actionable items. Use `--worktree` flag to schedule worktree creation.
 
-- `track info`: Show current task context.
-- `track todo list`: List all TODOs.
-- `track todo add "<content>"`: Add a new TODO.
-- `track todo done <id>`: Mark a TODO as done.
-- `track new <name>`: Create a new task.
-- `track switch <id>`: Switch context to another task.
+### Phase 2: Task Execution (LLM or Human)
 
-## Tips
-- Always read `CONTRIBUTING.md` or `DESIGN.md` if available for specific rules.
-- Use `track scrap add "<note>"` to save intermediate thoughts or findings.
+5. **Sync Repositories**: `track sync`
+   - Creates task branch on all registered repos.
+   - Creates worktrees for TODOs that requested them.
+   - Run this from any registered repository.
+
+6. **Check Current State**: `track info`
+   - Shows current task, TODOs, worktrees, and recent scraps.
+   - Use `track info --json` for structured output.
+
+7. **Execute TODOs**:
+   - Navigate to worktree path if applicable (shown in `track info`).
+   - Implement the required changes.
+   - Run tests to verify.
+   - Use `track scrap add "<note>"` to record findings, decisions, or progress.
+
+8. **Complete TODO**: `track todo done <index>`
+   - Marks the TODO as done.
+   - If worktree exists: merges changes to task branch and removes worktree.
+
+9. **Repeat** until all TODOs are complete.
+
+## Key Commands Reference
+
+| Command | Description |
+|---------|-------------|
+| `track info` | Show current task, TODOs, worktrees |
+| `track info --json` | JSON output for programmatic access |
+| `track new "<name>"` | Create new task |
+| `track desc [text]` | View or set task description |
+| `track switch <id>` | Switch to another task |
+| `track repo add [path]` | Register repository |
+| `track repo list` | List registered repositories |
+| `track todo add "<text>"` | Add TODO |
+| `track todo add "<text>" --worktree` | Add TODO with worktree |
+| `track todo list` | List TODOs |
+| `track todo done <index>` | Complete TODO |
+| `track sync` | Sync branches and create worktrees |
+| `track scrap add "<note>"` | Record work note |
+| `track scrap list` | List all scraps |
+
+## LLM Agent Quick Start
+
+When you start working on a task:
+
+1. Run `track info` to understand the current state.
+2. Identify the next pending TODO.
+3. If worktree paths are shown, navigate to the appropriate one.
+4. Implement changes and run tests.
+5. Record progress with `track scrap add`.
+6. Complete with `track todo done <index>`.
+
+## Important Notes
+
+- TODO indices (1, 2, 3...) are **task-scoped**, not global.
+- `track todo done` automatically merges and removes associated worktrees.
+- Always register repos with `track repo add` before running `track sync`.
+- Use `track scrap add` to document decisions and findings during work.
 "#);
         Ok(())
     }
