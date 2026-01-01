@@ -1,7 +1,16 @@
+//! Data models for the track CLI application.
+//!
+//! This module defines the core data structures used throughout the application,
+//! including tasks, TODOs, links, scraps, and Git-related items.
+
 use chrono::{DateTime, Utc};
 use serde::Serialize;
 use std::str::FromStr;
 
+/// Represents a development task.
+///
+/// A task is the primary organizational unit in track. Each task can have multiple TODOs,
+/// links, scraps, and associated Git repositories.
 #[derive(Debug, Clone, Serialize)]
 pub struct Task {
     pub id: i64,
@@ -13,6 +22,10 @@ pub struct Task {
     pub created_at: DateTime<Utc>,
 }
 
+/// Represents a TODO item within a task.
+///
+/// TODOs are task-scoped action items. Each TODO has a task-specific index
+/// and can optionally request a Git worktree for isolated development.
 #[derive(Debug, Clone, Serialize)]
 pub struct Todo {
     pub id: i64,
@@ -27,6 +40,9 @@ pub struct Todo {
     pub created_at: DateTime<Utc>,
 }
 
+/// Represents a link associated with a task.
+///
+/// Links are URLs with titles that provide context or reference material for a task.
 #[derive(Debug, Clone, Serialize)]
 pub struct Link {
     #[allow(dead_code)]
@@ -39,6 +55,10 @@ pub struct Link {
     pub created_at: DateTime<Utc>,
 }
 
+/// Represents a scrap (work note) for a task.
+///
+/// Scraps are chronological notes that capture progress, decisions, and findings
+/// during task execution. They help maintain context and flow of work.
 #[derive(Debug, Clone, Serialize)]
 pub struct Scrap {
     #[allow(dead_code)]
@@ -49,6 +69,10 @@ pub struct Scrap {
     pub created_at: DateTime<Utc>,
 }
 
+/// Represents a Git worktree or repository associated with a task.
+///
+/// GitItems track both base repositories and TODO-specific worktrees,
+/// including their paths, branches, and relationships.
 #[derive(Debug, Clone, Serialize)]
 pub struct GitItem {
     pub id: i64,
@@ -66,6 +90,10 @@ pub struct GitItem {
     pub is_base: bool,
 }
 
+/// Represents a remote repository link for a Git item.
+///
+/// RepoLinks store URLs to remote repositories (e.g., GitHub, GitLab)
+/// and their types (e.g., "origin", "upstream").
 #[derive(Debug, Clone, Serialize)]
 pub struct RepoLink {
     #[allow(dead_code)]
@@ -78,6 +106,10 @@ pub struct RepoLink {
     pub created_at: DateTime<Utc>,
 }
 
+/// Represents a repository associated with a task.
+///
+/// TaskRepos link Git repositories to tasks, allowing multiple repositories
+/// to be managed within a single task context.
 #[derive(Debug, Clone, Serialize)]
 pub struct TaskRepo {
     pub id: i64,
@@ -88,13 +120,19 @@ pub struct TaskRepo {
     pub created_at: DateTime<Utc>,
 }
 
+/// Status of a task.
+///
+/// Tasks can be either active (currently being worked on) or archived (completed or abandoned).
 #[derive(Debug, Clone)]
 pub enum TaskStatus {
+    /// Task is currently active and can be worked on
     Active,
+    /// Task has been archived and is no longer active
     Archived,
 }
 
 impl TaskStatus {
+    /// Converts the status to its string representation.
     pub fn as_str(&self) -> &str {
         match self {
             TaskStatus::Active => "active",
@@ -115,14 +153,21 @@ impl FromStr for TaskStatus {
     }
 }
 
+/// Status of a TODO item.
+///
+/// TODOs progress through different states during their lifecycle.
 #[derive(Debug, Clone)]
 pub enum TodoStatus {
+    /// TODO is pending and needs to be completed
     Pending,
+    /// TODO has been completed
     Done,
+    /// TODO has been cancelled and will not be completed
     Cancelled,
 }
 
 impl TodoStatus {
+    /// Converts the status to its string representation.
     pub fn as_str(&self) -> &str {
         match self {
             TodoStatus::Pending => "pending",

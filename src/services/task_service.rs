@@ -4,15 +4,40 @@ use crate::utils::{Result, TrackError};
 use chrono::Utc;
 use rusqlite::{params, OptionalExtension};
 
+/// Service for managing development tasks.
+///
+/// TaskService provides operations for creating, retrieving, updating, and archiving tasks.
+/// It handles task lifecycle management, ticket linking, and task switching.
 pub struct TaskService<'a> {
     db: &'a Database,
 }
 
 impl<'a> TaskService<'a> {
+    /// Creates a new TaskService instance.
+    ///
+    /// # Arguments
+    ///
+    /// * `db` - Reference to the database connection
     pub fn new(db: &'a Database) -> Self {
         Self { db }
     }
 
+
+    /// Creates a new task and sets it as the current task.
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - Name of the task (cannot be empty)
+    /// * `description` - Optional task description
+    /// * `ticket_id` - Optional ticket ID (e.g., "PROJ-123" or "owner/repo/456")
+    /// * `ticket_url` - Optional URL to the ticket
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The task name is empty
+    /// - The ticket ID format is invalid
+    /// - A task with the same ticket ID already exists
     pub fn create_task(
         &self,
         name: &str,
@@ -50,6 +75,16 @@ impl<'a> TaskService<'a> {
         self.get_task(task_id)
     }
 
+
+    /// Retrieves a task by its ID.
+    ///
+    /// # Arguments
+    ///
+    /// * `task_id` - The ID of the task to retrieve
+    ///
+    /// # Errors
+    ///
+    /// Returns `TrackError::TaskNotFound` if the task does not exist.
     pub fn get_task(&self, task_id: i64) -> Result<Task> {
         let conn = self.db.get_connection();
         let mut stmt = conn.prepare(
@@ -73,6 +108,16 @@ impl<'a> TaskService<'a> {
         Ok(task)
     }
 
+
+    /// Lists all tasks, optionally including archived tasks.
+    ///
+    /// # Arguments
+    ///
+    /// * `include_archived` - If true, includes archived tasks in the results
+    ///
+    /// # Returns
+    ///
+    /// A vector of tasks ordered by creation date (newest first).
     pub fn list_tasks(&self, include_archived: bool) -> Result<Vec<Task>> {
         let conn = self.db.get_connection();
         let query = if include_archived {
@@ -99,6 +144,18 @@ impl<'a> TaskService<'a> {
         Ok(tasks)
     }
 
+
+    /// Switches to a different task, making it the current active task.
+    ///
+    /// # Arguments
+    ///
+    /// * `task_id` - The ID of the task to switch to
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The task does not exist
+    /// - The task is archived
     pub fn switch_task(&self, task_id: i64) -> Result<Task> {
         let task = self.get_task(task_id)?;
 
@@ -110,6 +167,14 @@ impl<'a> TaskService<'a> {
         Ok(task)
     }
 
+
+    /// Archives a task, marking it as completed or abandoned.
+    ///
+    /// If the archived task is the current task, the current task is cleared.
+    ///
+    /// # Arguments
+    ///
+    /// * `task_id` - The ID of the task to archive
     pub fn archive_task(&self, task_id: i64) -> Result<()> {
         let conn = self.db.get_connection();
 
@@ -128,6 +193,20 @@ impl<'a> TaskService<'a> {
         Ok(())
     }
 
+
+    /// Links a ticket to an existing task.
+    ///
+    /// # Arguments
+    ///
+    /// * `task_id` - The ID of the task to link the ticket to
+    /// * `ticket_id` - The ticket ID (e.g., "PROJ-123" or "owner/repo/456")
+    /// * `url` - The URL to the ticket
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The ticket ID format is invalid
+    /// - Another task is already linked to this ticket
     pub fn link_ticket(&self, task_id: i64, ticket_id: &str, url: &str) -> Result<()> {
         self.validate_ticket_format(ticket_id)?;
 
@@ -150,6 +229,19 @@ impl<'a> TaskService<'a> {
         Ok(())
     }
 
+
+    /// Sets or updates the description of a task.
+    ///
+    /// # Arguments
+    ///
+    /// * `task_id` - The ID of the task to update
+    /// * `description` - The new description text
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The task does not exist
+    /// - The task is archived
     pub fn set_description(&self, task_id: i64, description: &str) -> Result<()> {
         // Validate task exists and is active
         let task = self.get_task(task_id)?;
@@ -166,6 +258,22 @@ impl<'a> TaskService<'a> {
         Ok(())
     }
 
+
+    /// Resolves a task reference to a task ID.
+    ///
+    /// Accepts either a numeric task ID or a ticket reference prefixed with "t:".
+    ///
+    /// # Arguments
+    ///
+    /// * `reference` - Either a task ID (e.g., "1") or ticket reference (e.g., "t:PROJ-123")
+    ///
+    /// # Returns
+    ///
+    /// The resolved task ID.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the reference is invalid or no matching task is found.
     pub fn resolve_task_id(&self, reference: &str) -> Result<i64> {
         // If it starts with "t:", it's a ticket reference
         if let Some(ticket_id) = reference.strip_prefix("t:") {

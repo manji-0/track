@@ -1,13 +1,34 @@
+//! Database initialization and management for the track CLI.
+//!
+//! This module handles SQLite database creation, schema initialization, migrations,
+//! and application state management. The database stores all task, TODO, link, scrap,
+//! and Git repository information.
+
 use crate::utils::Result;
 use directories::ProjectDirs;
 use rusqlite::{params, Connection, OptionalExtension};
 use std::path::PathBuf;
 
+/// Database connection and management.
+///
+/// Handles SQLite database operations including schema initialization,
+/// migrations, and application state persistence.
 pub struct Database {
     conn: Connection,
 }
 
 impl Database {
+    /// Creates a new database instance with the default file location.
+    ///
+    /// The database file is stored in the platform-specific data directory.
+    /// The schema is automatically initialized if the database is new.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The data directory cannot be determined
+    /// - The database file cannot be created or opened
+    /// - Schema initialization fails
     pub fn new() -> Result<Self> {
         let db_path = Self::get_db_path()?;
 
@@ -22,7 +43,12 @@ impl Database {
         Ok(db)
     }
 
-    /// Create a new in-memory database (primarily for testing)
+
+    /// Creates a new in-memory database (primarily for testing).
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if schema initialization fails.
     #[allow(dead_code)]
     pub fn new_in_memory() -> Result<Self> {
         let conn = Connection::open_in_memory()?;
@@ -222,6 +248,8 @@ impl Database {
         Ok(())
     }
 
+
+    /// Returns a reference to the underlying SQLite connection.
     pub fn get_connection(&self) -> &Connection {
         &self.conn
     }
@@ -242,6 +270,12 @@ impl Database {
         Ok(())
     }
 
+
+    /// Gets the ID of the current active task.
+    ///
+    /// # Returns
+    ///
+    /// `Some(task_id)` if a task is currently active, `None` otherwise.
     pub fn get_current_task_id(&self) -> Result<Option<i64>> {
         match self.get_app_state("current_task_id")? {
             Some(id_str) => Ok(Some(id_str.parse().map_err(|_| {
@@ -251,10 +285,18 @@ impl Database {
         }
     }
 
+
+    /// Sets the current active task.
+    ///
+    /// # Arguments
+    ///
+    /// * `task_id` - The ID of the task to set as current
     pub fn set_current_task_id(&self, task_id: i64) -> Result<()> {
         self.set_app_state("current_task_id", &task_id.to_string())
     }
 
+
+    /// Clears the current active task.
     pub fn clear_current_task_id(&self) -> Result<()> {
         self.conn
             .execute("DELETE FROM app_state WHERE key = 'current_task_id'", [])?;

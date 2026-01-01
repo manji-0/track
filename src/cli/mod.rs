@@ -1,7 +1,14 @@
+//! Command-line interface definitions for the track CLI.
+//!
+//! This module defines the CLI structure using `clap`, including all commands,
+//! subcommands, and their arguments. The actual command handling logic is in the
+//! [`handler`] module.
+
 pub mod handler;
 
 use clap::{Parser, Subcommand};
 
+/// Main CLI structure for the track application.
 #[derive(Parser)]
 #[command(name = "track")]
 #[command(about = "WorkTracker CLI - Manage your development tasks and context", long_about = None)]

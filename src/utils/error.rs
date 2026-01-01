@@ -1,7 +1,17 @@
+//! Error types for the track CLI application.
+//!
+//! This module defines all error types that can occur during track operations,
+//! including database errors, Git errors, validation errors, and user-facing error messages.
+
 use thiserror::Error;
 
+/// Main error type for the track CLI application.
+///
+/// This enum encompasses all possible errors that can occur during track operations.
+/// Each variant provides a descriptive error message and may contain additional context.
 #[derive(Error, Debug)]
 pub enum TrackError {
+    /// Database operation failed
     #[error("Database error: {0}")]
     Database(#[from] rusqlite::Error),
 
@@ -55,4 +65,8 @@ pub enum TrackError {
     Other(String),
 }
 
+
+/// Convenience type alias for Results with TrackError.
+///
+/// This type is used throughout the application for operations that may fail.
 pub type Result<T> = std::result::Result<T, TrackError>;
