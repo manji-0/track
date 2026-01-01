@@ -95,7 +95,7 @@ impl CommandHandler {
         ]));
 
         for task in tasks {
-            let is_current = current_task_id.map_or(false, |id| id == task.id);
+            let is_current = current_task_id == Some(task.id);
             let marker = if is_current { "*" } else { " " };
             let ticket = task.ticket_id.as_deref().unwrap_or("-");
             let created = task
