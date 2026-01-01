@@ -218,17 +218,7 @@ impl<'a> WorktreeService<'a> {
 
     fn determine_worktree_path(&self, repo_path: &str, branch: &str) -> Result<String> {
         let repo_path = Path::new(repo_path);
-        let repo_name = repo_path
-            .file_name()
-            .and_then(|n| n.to_str())
-            .ok_or_else(|| TrackError::Other("Invalid repository path".to_string()))?;
-
-        let parent = repo_path
-            .parent()
-            .ok_or_else(|| TrackError::Other("Repository has no parent directory".to_string()))?;
-
-        let worktree_dir = parent.join(format!("{}-worktrees", repo_name));
-        let worktree_path = worktree_dir.join(branch);
+        let worktree_path = repo_path.join(branch);
 
         Ok(worktree_path.to_string_lossy().to_string())
     }
@@ -493,6 +483,21 @@ mod tests {
         // Modify
         std::fs::write(temp_dir.path().join("test.txt"), "mod").unwrap();
         assert!(service.has_uncommitted_changes(path).unwrap());
+    }
+
+    #[test]
+    fn test_determine_worktree_path() {
+        let db = setup_db();
+        let service = WorktreeService::new(&db);
+        
+        // Test with simple path
+        let repo_path = if cfg!(windows) { "C:\\path\\to\\repo" } else { "/path/to/repo" };
+        let branch = "feature/test";
+        
+        let result = service.determine_worktree_path(repo_path, branch).unwrap();
+        
+        let expected = Path::new(repo_path).join(branch).to_string_lossy().to_string();
+        assert_eq!(result, expected);
     }
 }
 

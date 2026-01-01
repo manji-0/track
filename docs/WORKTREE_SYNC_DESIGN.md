@@ -44,7 +44,7 @@ track worktree sync
    - Determine worktree branch name:
      - If ticket exists: `<ticket_id>/todo-<todo_id>` (e.g., `PROJ-123/todo-15`)
      - If no ticket: `task-<task_id>/todo-<todo_id>` (e.g., `task-5/todo-15`)
-   - Create worktree at: `<repo_path>/../<repo_name>-worktrees/<branch_name>`
+   - Create worktree at: `<repo_path>/<branch_name>`
    - Create git_item record linked to the TODO
 
 #### Completing TODOs
@@ -133,11 +133,11 @@ track worktree sync
 
 # 4. Add TODO with worktree
 track todo add "Add login endpoint" --worktree
-# → Creates worktree at: api-repo-worktrees/PROJ-123/todo-15
-# → Creates worktree at: frontend-repo-worktrees/PROJ-123/todo-15
+# → Creates worktree at: api-repo/PROJ-123/todo-15
+# → Creates worktree at: frontend-repo/PROJ-123/todo-15
 
 # 5. Work in the worktree
-cd /path/to/api-repo-worktrees/PROJ-123/todo-15
+cd /path/to/api-repo/PROJ-123/todo-15
 # ... make changes, commit ...
 
 # 6. Complete the TODO
