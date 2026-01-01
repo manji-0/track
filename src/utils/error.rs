@@ -65,7 +65,6 @@ pub enum TrackError {
     Other(String),
 }
 
-
 /// Convenience type alias for Results with TrackError.
 ///
 /// This type is used throughout the application for operations that may fail.

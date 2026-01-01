@@ -43,7 +43,6 @@ impl Database {
         Ok(db)
     }
 
-
     /// Creates a new in-memory database (primarily for testing).
     ///
     /// # Errors
@@ -248,7 +247,6 @@ impl Database {
         Ok(())
     }
 
-
     /// Returns a reference to the underlying SQLite connection.
     pub fn get_connection(&self) -> &Connection {
         &self.conn
@@ -270,7 +268,6 @@ impl Database {
         Ok(())
     }
 
-
     /// Gets the ID of the current active task.
     ///
     /// # Returns
@@ -285,7 +282,6 @@ impl Database {
         }
     }
 
-
     /// Sets the current active task.
     ///
     /// # Arguments
@@ -294,7 +290,6 @@ impl Database {
     pub fn set_current_task_id(&self, task_id: i64) -> Result<()> {
         self.set_app_state("current_task_id", &task_id.to_string())
     }
-
 
     /// Clears the current active task.
     pub fn clear_current_task_id(&self) -> Result<()> {

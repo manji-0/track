@@ -22,7 +22,6 @@ impl<'a> TaskService<'a> {
         Self { db }
     }
 
-
     /// Creates a new task and sets it as the current task.
     ///
     /// # Arguments
@@ -75,7 +74,6 @@ impl<'a> TaskService<'a> {
         self.get_task(task_id)
     }
 
-
     /// Retrieves a task by its ID.
     ///
     /// # Arguments
@@ -107,7 +105,6 @@ impl<'a> TaskService<'a> {
 
         Ok(task)
     }
-
 
     /// Lists all tasks, optionally including archived tasks.
     ///
@@ -144,7 +141,6 @@ impl<'a> TaskService<'a> {
         Ok(tasks)
     }
 
-
     /// Switches to a different task, making it the current active task.
     ///
     /// # Arguments
@@ -166,7 +162,6 @@ impl<'a> TaskService<'a> {
         self.db.set_current_task_id(task_id)?;
         Ok(task)
     }
-
 
     /// Archives a task, marking it as completed or abandoned.
     ///
@@ -192,7 +187,6 @@ impl<'a> TaskService<'a> {
 
         Ok(())
     }
-
 
     /// Links a ticket to an existing task.
     ///
@@ -229,7 +223,6 @@ impl<'a> TaskService<'a> {
         Ok(())
     }
 
-
     /// Sets or updates the description of a task.
     ///
     /// # Arguments
@@ -257,7 +250,6 @@ impl<'a> TaskService<'a> {
 
         Ok(())
     }
-
 
     /// Resolves a task reference to a task ID.
     ///
