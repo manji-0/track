@@ -1,10 +1,10 @@
-# WorkTracker CLI
+# Track
 
 A CLI tool for recording and managing developer work logs based on "context" (current work state).
 
 ## Features
 
-- **Context-based work management**: Manage TODOs, notes, and repositories without specifying IDs each time by setting the current task
+- **Context-based task management**: Manage TODOs, notes, and repositories without specifying IDs each time by setting the current task
 - **Ticket integration**: Integration with Jira, GitHub Issues, and GitLab Issues
 - **Git Worktree management**: Automatically manage independent working directories for each task
 - **Simple CLI**: Intuitive command structure

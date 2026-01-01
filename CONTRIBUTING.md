@@ -1,6 +1,6 @@
-# Contributing to WorkTracker
+# Contributing to Track
 
-Thank you for your interest in contributing to WorkTracker!
+Thank you for your interest in contributing to Track!
 
 ## Getting Started
 
