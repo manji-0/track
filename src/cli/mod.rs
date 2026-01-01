@@ -97,6 +97,9 @@ pub enum Commands {
     /// Repository management
     #[command(subcommand)]
     Repo(RepoCommands),
+
+    /// Show help optimized for LLM agents
+    LlmHelp,
 }
 
 #[derive(Subcommand)]

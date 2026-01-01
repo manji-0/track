@@ -36,6 +36,7 @@ impl CommandHandler {
             Commands::Scrap(cmd) => self.handle_scrap(cmd),
             Commands::Sync => self.handle_sync(),
             Commands::Repo(cmd) => self.handle_repo(cmd),
+            Commands::LlmHelp => self.handle_llm_help(),
 
         }
     }
@@ -594,4 +595,49 @@ impl CommandHandler {
     }
 
 
+    fn handle_llm_help(&self) -> Result<()> {
+        println!("{}", r#"# WorkTracker CLI Help for LLM Agents
+
+## Overview
+`track` is a CLI tool designed to help manage development tasks, TODOs, and context (worktrees).
+As an LLM Agent, you should follow the workflow below to ensure tasks are tracked correctly.
+
+## Standard Workflow
+
+1.  **Check Status**: `track info`
+    - Start every session with this.
+    - It shows the current Task, TODOs, and active Worktrees.
+
+2.  **Select TODO**:
+    - Identify the next pending TODO from the list.
+    - If no TODOs exist, read the `[ Task ]` description or `DESIGN.md` to plan next steps and add TODOs using `track todo add`.
+
+3.  **Worktree Management**:
+    - If a worktree is listed for your TODO, check if you need to work in it.
+    - `track info` shows worktree paths. Navigate to the path if needed.
+
+4.  **Implementation**:
+    - Modify files in the active worktree (or current directory if no worktree).
+    - Run `cargo test` to verify changes.
+
+5.  **Completion**:
+    - Once the TODO is complete and tests pass:
+    - `track todo done <id>`
+    - This will update the status and handle worktree cleanup if applicable.
+
+## Key Commands
+
+- `track info`: Show current task context.
+- `track todo list`: List all TODOs.
+- `track todo add "<content>"`: Add a new TODO.
+- `track todo done <id>`: Mark a TODO as done.
+- `track new <name>`: Create a new task.
+- `track switch <id>`: Switch context to another task.
+
+## Tips
+- Always read `CONTRIBUTING.md` or `DESIGN.md` if available for specific rules.
+- Use `track scrap add "<note>"` to save intermediate thoughts or findings.
+"#);
+        Ok(())
+    }
 }
