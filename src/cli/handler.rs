@@ -16,6 +16,10 @@ impl CommandHandler {
         Ok(Self { db })
     }
 
+    pub fn from_db(db: Database) -> Self {
+        Self { db }
+    }
+
     pub fn handle(&self, command: Commands) -> Result<()> {
         match command {
             Commands::New { name, description, ticket, ticket_url } => {
@@ -639,5 +643,20 @@ As an LLM Agent, you should follow the workflow below to ensure tasks are tracke
 - Use `track scrap add "<note>"` to save intermediate thoughts or findings.
 "#);
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::db::Database;
+
+    #[test]
+    fn test_llm_help() {
+        let db = Database::new_in_memory().unwrap();
+        let handler = CommandHandler::from_db(db);
+        
+        let result = handler.handle_llm_help();
+        assert!(result.is_ok());
     }
 }
