@@ -40,8 +40,11 @@ The workflow is divided into two phases: **Task Setup** (typically done by a hum
 | `track status` | Show current task context (task, TODOs, worktrees) |
 | `track status --json` | Output task context in JSON format |
 | `track new <name>` | Create a new task |
+| `track new <name> --ticket <id> --ticket-url <url>` | Create task with ticket |
 | `track desc [text]` | View or set task description |
+| `track ticket <ticket_id> <url>` | Link ticket to current task |
 | `track switch <id>` | Switch to another task |
+| `track switch t:<ticket_id>` | Switch by ticket reference |
 | `track repo add [path]` | Register repository (default: current directory) |
 | `track repo list` | List registered repositories |
 | `track todo add "<text>"` | Add a new TODO |
@@ -52,7 +55,26 @@ The workflow is divided into two phases: **Task Setup** (typically done by a hum
 | `track scrap add "<note>"` | Add a work note/finding |
 | `track scrap list` | List all scraps |
 
-### 4. For LLM Agents
+### 4. Ticket Integration
+
+#### Linking Tickets
+Tasks can be linked to external tickets (Jira, GitHub Issues, GitLab Issues):
+- **During creation**: `track new "Fix bug" --ticket PROJ-123 --ticket-url <url>`
+- **After creation**: `track ticket PROJ-123 <url>`
+
+#### Ticket References
+Once linked, tasks can be referenced by ticket ID:
+- `track switch t:PROJ-123` - Switch to task by ticket ID
+- `track archive t:PROJ-123` - Archive by ticket ID
+
+#### Automatic Branch Naming
+When a ticket is linked, `track sync` uses the ticket ID in branch names:
+- **With ticket**: `task/PROJ-123` (and `task/PROJ-123-todo-1` for TODO worktrees)
+- **Without ticket**: `task/task-42` (and `task/task-42-todo-1` for TODO worktrees)
+
+
+
+### 5. For LLM Agents
 
 When starting work on a task, follow this pattern:
 
@@ -63,16 +85,17 @@ When starting work on a task, follow this pattern:
 5. **Complete TODO**: Run `track todo done <index>` when finished.
 6. **Repeat**: Continue with the next pending TODO.
 
-### 5. Important Notes
+### 6. Important Notes
 
 - **Task-Scoped TODOs**: TODO indices (1, 2, 3...) are scoped to each task, not global.
 - **Worktree Lifecycle**: When `track todo done` is called, associated worktrees are automatically merged into the task base branch and removed.
 - **Scraps**: Use scraps to record intermediate findings, questions, or decisions during work. These are timestamped and preserved with the task.
 - **Repository Registration**: Always register repositories with `track repo add` before running `track sync`.
+- **Ticket Integration**: Ticket IDs are used in branch names when linked (e.g., `task/PROJ-123`).
 
-### 6. Implementation Details
+### 7. Implementation Details
 - The command is implemented as a subcommand in `src/cli/mod.rs` and handled by `handle_llm_help()` in `src/cli/handler.rs`.
-### 7. Detailed Specifications
+### 8. Detailed Specifications
 
 #### Worktree Location
 Worktrees are created as subdirectories within the registered repository root.

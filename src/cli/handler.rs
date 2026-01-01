@@ -691,39 +691,44 @@ This guide explains the standard workflow for completing tasks.
 
 1. **Create Task**: `track new "<task_name>"`
    - Creates a new task and switches to it.
+   - Optionally link a ticket: `track new "<name>" --ticket PROJ-123 --ticket-url <url>`
 
 2. **Add Description**: `track desc "<description>"`
    - Provides detailed context about what needs to be done.
 
-3. **Register Repositories**: `track repo add [path]`
+3. **Link Ticket** (if not done during creation): `track ticket <ticket_id> <url>`
+   - Associates a Jira/GitHub/GitLab ticket with the task.
+   - Enables ticket-based references and automatic branch naming.
+
+4. **Register Repositories**: `track repo add [path]`
    - Register working repositories (default: current directory).
    - Run this for each repository involved in the task.
 
-4. **Add TODOs**: `track todo add "<content>" [--worktree]`
+5. **Add TODOs**: `track todo add "<content>" [--worktree]`
    - Add actionable items. Use `--worktree` flag to schedule worktree creation.
 
 ### Phase 2: Task Execution (LLM or Human)
 
-5. **Sync Repositories**: `track sync`
+6. **Sync Repositories**: `track sync`
    - Creates task branch on all registered repos.
    - Creates worktrees for TODOs that requested them.
    - Run this from any registered repository.
 
-6. **Check Current State**: `track status`
+7. **Check Current State**: `track status`
    - Shows current task, TODOs, worktrees, and recent scraps.
    - Use `track status --json` for structured output.
 
-7. **Execute TODOs**:
+8. **Execute TODOs**:
    - Navigate to worktree path if applicable (shown in `track status`).
    - Implement the required changes.
    - Run tests to verify.
    - Use `track scrap add "<note>"` to record findings, decisions, or progress.
 
-8. **Complete TODO**: `track todo done <index>`
+9. **Complete TODO**: `track todo done <index>`
    - Marks the TODO as done.
    - If worktree exists: merges changes to task branch and removes worktree.
 
-9. **Repeat** until all TODOs are complete.
+10. **Repeat** until all TODOs are complete.
 
 ## Key Commands Reference
 
@@ -732,8 +737,11 @@ This guide explains the standard workflow for completing tasks.
 | `track status` | Show current task, TODOs, worktrees |
 | `track status --json` | JSON output for programmatic access |
 | `track new "<name>"` | Create new task |
+| `track new "<name>" --ticket <id> --ticket-url <url>` | Create task with ticket |
 | `track desc [text]` | View or set task description |
+| `track ticket <ticket_id> <url>` | Link ticket to current task |
 | `track switch <id>` | Switch to another task |
+| `track switch t:<ticket_id>` | Switch by ticket reference |
 | `track repo add [path]` | Register repository |
 | `track repo list` | List registered repositories |
 | `track todo add "<text>"` | Add TODO |
@@ -743,6 +751,40 @@ This guide explains the standard workflow for completing tasks.
 | `track sync` | Sync branches and create worktrees |
 | `track scrap add "<note>"` | Record work note |
 | `track scrap list` | List all scraps |
+
+## Ticket Integration
+
+### Linking Tickets
+Tasks can be linked to external tickets (Jira, GitHub Issues, GitLab Issues):
+
+**During task creation:**
+```bash
+track new "Fix login bug" --ticket PROJ-123 --ticket-url https://jira.example.com/browse/PROJ-123
+```
+
+**After task creation:**
+```bash
+track ticket PROJ-123 https://jira.example.com/browse/PROJ-123
+```
+
+### Ticket References
+Once a ticket is linked, you can reference tasks by ticket ID:
+
+```bash
+# Switch to task by ticket ID
+track switch t:PROJ-123
+
+# Archive task by ticket ID
+track archive t:PROJ-123
+```
+
+### Automatic Branch Naming
+When a ticket is linked, `track sync` automatically uses the ticket ID in branch names:
+
+- **With ticket**: `task/PROJ-123` (and `task/PROJ-123-todo-1` for TODO worktrees)
+- **Without ticket**: `task/task-42` (and `task/task-42-todo-1` for TODO worktrees)
+
+This makes it easy to correlate branches with tickets in your issue tracker.
 
 ## LLM Agent Quick Start
 
@@ -761,13 +803,14 @@ When you start working on a task:
 - `track todo done` automatically merges and removes associated worktrees.
 - Always register repos with `track repo add` before running `track sync`.
 - Use `track scrap add` to document decisions and findings during work.
+- Ticket IDs are used in branch names when linked (e.g., `task/PROJ-123`).
 
 ## Detailed Specifications
 
 ### Worktree Location
 Worktrees are created as subdirectories inside the registered repository:
 - **Path**: `<repo_root>/<branch_name>`
-- **Example**: `/src/my-app/PROJ-123-todo-1`
+- **Example**: `/src/my-app/task/PROJ-123-todo-1`
 
 ### TODO Completion Process
 Executing `track todo done <index>` performs the following:
