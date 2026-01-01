@@ -69,7 +69,7 @@ track desc "Updated description" --task 5
 
 ### 3. Display description in task info
 
-The `track info` command should display the task description:
+The `track status` command should display the task description:
 
 ```
 === Task #6: feat: add task description ===
@@ -110,7 +110,7 @@ For `track list`, show a truncated description (first 50 chars):
 ### Phase 3: CLI Commands
 1. Add `--description` flag to `track new` command
 2. Implement `track desc` subcommand
-3. Update `track info` to display description
+3. Update `track status` to display description
 4. Optionally update `track list` to show truncated description
 
 ### Phase 4: Documentation

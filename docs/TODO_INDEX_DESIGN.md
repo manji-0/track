@@ -71,7 +71,7 @@ Task #2 TODOs:
 
 ### Phase 4: CLI Updates
 1. Update `track todo list` to display `task_index` instead of `id`
-2. Update `track info` to display `task_index` for TODOs
+2. Update `track status` to display `task_index` for TODOs
 3. Add support for referencing TODOs by index in commands:
    - `track todo update <index> <status>` (instead of global ID)
    - `track todo done <index>` (instead of global ID)

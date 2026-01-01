@@ -38,7 +38,7 @@ impl CommandHandler {
             ),
             Commands::List { all } => self.handle_list(all),
             Commands::Switch { task_ref } => self.handle_switch(&task_ref),
-            Commands::Info { json } => self.handle_info(json),
+            Commands::Status { json } => self.handle_info(json),
             Commands::Desc { description, task } => self.handle_desc(description.as_deref(), task),
             Commands::Ticket {
                 ticket_id,
@@ -709,12 +709,12 @@ This guide explains the standard workflow for completing tasks.
    - Creates worktrees for TODOs that requested them.
    - Run this from any registered repository.
 
-6. **Check Current State**: `track info`
+6. **Check Current State**: `track status`
    - Shows current task, TODOs, worktrees, and recent scraps.
-   - Use `track info --json` for structured output.
+   - Use `track status --json` for structured output.
 
 7. **Execute TODOs**:
-   - Navigate to worktree path if applicable (shown in `track info`).
+   - Navigate to worktree path if applicable (shown in `track status`).
    - Implement the required changes.
    - Run tests to verify.
    - Use `track scrap add "<note>"` to record findings, decisions, or progress.
@@ -729,8 +729,8 @@ This guide explains the standard workflow for completing tasks.
 
 | Command | Description |
 |---------|-------------|
-| `track info` | Show current task, TODOs, worktrees |
-| `track info --json` | JSON output for programmatic access |
+| `track status` | Show current task, TODOs, worktrees |
+| `track status --json` | JSON output for programmatic access |
 | `track new "<name>"` | Create new task |
 | `track desc [text]` | View or set task description |
 | `track switch <id>` | Switch to another task |
@@ -748,7 +748,7 @@ This guide explains the standard workflow for completing tasks.
 
 When you start working on a task:
 
-1. Run `track info` to understand the current state.
+1. Run `track status` to understand the current state.
 2. Identify the next pending TODO.
 3. If worktree paths are shown, navigate to the appropriate one.
 4. Implement changes and run tests.

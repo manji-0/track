@@ -76,7 +76,7 @@ Commands are executed with `track` as a prefix.
 | `track new` | `<name>` | Creates a new task and automatically switches to that task. |
 | `track list` | `--all` | Displays a list of recent tasks. Shows `*` for the current task. |
 | `track switch` | `<task_id>` | Switches the working task. |
-| `track info` | | Displays all information (TODO, Log, Repo, Link) for the current task. |
+| `track status` | | Displays all information (TODO, Log, Repo, Link) for the current task. |
 
 ### 4.2. Task Item Operations
 These are executed on the currently switched task.

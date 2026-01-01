@@ -37,8 +37,8 @@ The workflow is divided into two phases: **Task Setup** (typically done by a hum
 
 | Command | Description |
 |---------|-------------|
-| `track info` | Show current task context (task, TODOs, worktrees) |
-| `track info --json` | Output task context in JSON format |
+| `track status` | Show current task context (task, TODOs, worktrees) |
+| `track status --json` | Output task context in JSON format |
 | `track new <name>` | Create a new task |
 | `track desc [text]` | View or set task description |
 | `track switch <id>` | Switch to another task |
@@ -56,7 +56,7 @@ The workflow is divided into two phases: **Task Setup** (typically done by a hum
 
 When starting work on a task, follow this pattern:
 
-1. **Read Context**: Run `track info` to understand the current task and pending TODOs.
+1. **Read Context**: Run `track status` to understand the current task and pending TODOs.
 2. **Check Worktrees**: If worktrees exist, navigate to the appropriate worktree path.
 3. **Execute TODO**: Implement the required changes and run tests.
 4. **Record Progress**: Use `track scrap add` to document findings, decisions, and progress.

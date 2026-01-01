@@ -47,7 +47,7 @@ track repo add /path/to/repo
 track sync
 
 # Display current task information
-track info
+track status
 ```
 
 ## Command Reference
@@ -59,7 +59,7 @@ track info
 | `track new <name>` | Create a new task and set it as active |
 | `track list [--all]` | Display task list |
 | `track switch <task_id>` | Switch tasks |
-| `track info` | Display detailed information about the current task |
+| `track status` | Display detailed information about the current task |
 | `track desc [description]` | View or set task description |
 | `track ticket <ticket_id> <url>` | Link a ticket to the task |
 | `track archive <task_id>` | Archive a task |

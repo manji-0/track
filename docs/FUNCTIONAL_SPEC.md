@@ -184,7 +184,7 @@ Switched to task #<id>: <name>
 
 ---
 
-### 1.7. `track info` - Display Current Task Details
+### 1.7. `track status` - Display Current Task Details
 
 **Overview**: Displays all information related to the current task.
 

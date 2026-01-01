@@ -44,7 +44,7 @@ pub enum Commands {
     },
 
     /// Show detailed information about the current task
-    Info {
+    Status {
         /// Output in JSON format
         #[arg(short, long)]
         json: bool,
