@@ -331,7 +331,10 @@ impl CommandHandler {
             println!();
             for scrap in scraps.iter().take(5) {
                 let timestamp = scrap.created_at.with_timezone(&Local).format("%H:%M");
-                println!("- **[{}]** {}", timestamp, scrap.content);
+                println!("### [{}]", timestamp);
+                println!();
+                println!("{}", scrap.content);
+                println!();
             }
             println!();
         }

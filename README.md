@@ -114,8 +114,13 @@ Add JWT-based authentication system with login/logout endpoints
 
 ## Recent Scraps
 
-- **[17:20]** JWT expiry set to 24 hours for security
-- **[17:21]** Decided to use bcrypt for password hashing
+### [17:20]
+
+JWT expiry set to 24 hours for security
+
+### [17:21]
+
+Decided to use bcrypt for password hashing
 ```
 
 ### Workflow with Git Worktrees
