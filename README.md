@@ -202,6 +202,7 @@ TODOs are numbered sequentially within each task (1, 2, 3...). All TODO commands
 | Command | Description |
 |---------|-------------|
 | `track repo add [path]` | Register a repository to the current task |
+| `track repo add --base <branch>` | Register repository with custom base branch |
 | `track repo list` | Display registered repositories |
 | `track repo remove <id>` | Remove a repository registration |
 

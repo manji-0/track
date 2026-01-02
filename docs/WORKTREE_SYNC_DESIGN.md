@@ -12,6 +12,7 @@ Tasks can have multiple associated repositories. Each repository is registered w
 
 **Commands:**
 - `track repo add [path]` - Register a repository to the current task (defaults to current directory)
+- `track repo add --base <branch>` - Register repository with custom base branch
 - `track repo list` - List all repositories registered to the current task
 - `track repo remove <id>` - Remove a repository registration
 
@@ -90,6 +91,8 @@ CREATE TABLE task_repos (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     task_id INTEGER NOT NULL,
     repo_path TEXT NOT NULL,
+    base_branch TEXT,              -- Optional base branch for worktree merges
+    base_commit_hash TEXT,         -- Commit hash when repository was registered
     created_at TEXT NOT NULL,
     FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
     UNIQUE(task_id, repo_path)

@@ -46,6 +46,7 @@ The workflow is divided into two phases: **Task Setup** (typically done by a hum
 | `track switch <id>` | Switch to another task |
 | `track switch t:<ticket_id>` | Switch by ticket reference |
 | `track repo add [path]` | Register repository (default: current directory) |
+| `track repo add --base <branch>` | Register repository with custom base branch |
 | `track repo list` | List registered repositories |
 | `track todo add "<text>"` | Add a new TODO |
 | `track todo add "<text>" --worktree` | Add TODO with scheduled worktree |

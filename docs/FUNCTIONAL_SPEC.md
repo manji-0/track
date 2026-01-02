@@ -638,16 +638,20 @@ db.execute(...)
 **Overview**: Registers a Git repository to the current task.
 
 **Input**:
-| Argument | Type | Required | Description |
+| Argument/Flag | Type | Required | Description |
 |---|---|---|---| 
 | `path` | Path | | Repository path (Default: current directory `.`) |
+| `--base` / `-b` | String | | Base branch name (Default: current branch) |
 
 **Process Flow**:
 1. Validate that a task is currently active.
 2. Resolve path to absolute path.
 3. Validate that path is a Git repository (check for `.git` directory).
 4. Check if repository is already registered for this task.
-5. INSERT record into `task_repos` table.
+5. Determine base branch:
+   - If `--base` is specified, use that branch name.
+   - Otherwise, use the current branch in the repository.
+6. INSERT record into `task_repos` table with base branch.
 
 **Output**:
 ```
