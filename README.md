@@ -150,7 +150,7 @@ track todo done 2
 | `track status` | Display detailed information about the current task |
 | `track desc [description]` | View or set task description |
 | `track ticket <ticket_id> <url>` | Link a ticket to the task |
-| `track archive <task_id>` | Archive a task |
+| `track archive [task_id]` | Archive a task (defaults to current task) |
 
 **Example: Task List**
 

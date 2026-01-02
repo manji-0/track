@@ -567,16 +567,19 @@ Worktrees are automatically created via `track sync` for TODOs with `--worktree`
 
 Automatically manages relevant worktrees according to task state changes.
 
-#### `track archive <task_id>` - On Task Archive
+#### `track archive [task_id]` - On Task Archive
 
 **Process Flow**:
-1. Check for uncommitted changes in all related worktrees.
+1. Determine target task:
+   - If `task_id` provided: Use that task.
+   - If omitted: Use current active task (Error if no active task).
+2. Check for uncommitted changes in all related worktrees.
    - If changes exist, display warning and ask for confirmation.
-2. For all related worktrees:
+3. For all related worktrees:
    - Execute `git worktree remove <path>`.
    - Delete record from DB.
-3. Update task `status` to `'archived'`.
-4. If `app_state`'s `current_task_id` matches the task, clear it.
+4. Update task `status` to `'archived'`.
+5. If `app_state`'s `current_task_id` matches the task, clear it.
 
 **Output**:
 ```
