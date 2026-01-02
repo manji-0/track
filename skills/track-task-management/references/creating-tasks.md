@@ -80,13 +80,17 @@ track repo add
 # Specific path
 track repo add /home/user/projects/my-app
 
+# With specific base branch
+track repo add --base develop
+
 # Multiple repositories
 track repo add /home/user/projects/frontend
-track repo add /home/user/projects/backend
+track repo add /home/user/projects/backend --base main
 ```
 
 **What happens:**
 - Registers repository for current task
+- Optionally specifies base branch (where TODOs will merge to)
 - Later, `track sync` creates branches and worktrees in these repos
 
 ---
@@ -222,6 +226,7 @@ See [executing-tasks.md](executing-tasks.md) for working through TODOs.
 | `track new "<name>" --ticket <id> --ticket-url <url>` | Create with ticket |
 | `track desc "<text>"` | Add description |
 | `track repo add [path]` | Register repository |
+| `track repo add --base <branch>` | Register repository with base branch |
 | `track todo add "<text>"` | Add TODO |
 | `track todo add "<text>" --worktree` | Add TODO with worktree |
 | `track status` | Review setup |
