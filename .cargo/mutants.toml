@@ -1,0 +1,19 @@
+# Configuration for cargo-mutants
+
+# Skip mutation testing for specific files or patterns
+exclude_globs = []
+
+# Additional regex patterns to exclude from mutation testing
+# These are output-focused functions where testing exact stdout is costly
+exclude_re = [
+    # Entry point
+    "::main$",
+    # Database path resolution helper
+    "Database::get_db_path",
+    # Output-only CLI handlers
+    "CommandHandler::handle_list",
+    "CommandHandler::handle_info", 
+    "CommandHandler::handle_desc",
+    "CommandHandler::handle_ticket",
+    "CommandHandler::handle_llm_help",
+]
