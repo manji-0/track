@@ -586,4 +586,37 @@ mod tests {
             Some("Original description".to_string())
         );
     }
+
+    #[test]
+    fn test_resolve_task_id_not_one() {
+        let db = setup_db();
+        let service = TaskService::new(&db);
+        
+        let _ = service.create_task("Task 1", None, None, None).unwrap();
+        let task2 = service.create_task("Task 2", None, None, None).unwrap();
+        
+        // Ensure ID is not 1
+        assert_ne!(task2.id, 1);
+        
+        let resolved = service.resolve_task_id(&task2.id.to_string()).unwrap();
+        assert_eq!(resolved, task2.id);
+    }
+    
+    #[test]
+    fn test_validate_ticket_format_edge_cases() {
+        let db = setup_db();
+        let service = TaskService::new(&db);
+        
+        // Contains dash but no uppercase (should fail)
+        assert!(matches!(
+            service.validate_ticket_format("proj-123"),
+            Err(TrackError::InvalidTicketFormat(_))
+        ));
+        
+        // Contains uppercase but no dash (should fail)
+        assert!(matches!(
+            service.validate_ticket_format("PROJ123"),
+            Err(TrackError::InvalidTicketFormat(_))
+        ));
+    }
 }

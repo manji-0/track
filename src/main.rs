@@ -8,6 +8,7 @@ use clap::Parser;
 use cli::{handler::CommandHandler, Cli};
 use std::process;
 
+/// Application entry point
 fn main() {
     let cli = Cli::parse();
 

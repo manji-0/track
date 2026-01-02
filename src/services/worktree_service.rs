@@ -827,4 +827,61 @@ mod tests {
         assert_eq!(wt.id, todo_wt.id);
         assert_eq!(wt.todo_id, Some(todo.id));
     }
+
+    #[test]
+    fn test_add_worktree_with_invalid_todo_id() {
+        use crate::utils::TrackError;
+        let db = setup_db();
+        let service = WorktreeService::new(&db);
+        
+        let temp_dir = tempfile::tempdir().unwrap();
+        let repo_path = temp_dir.path().to_str().unwrap();
+        std::process::Command::new("git").args(["init", repo_path]).output().unwrap();
+        
+        let result = service.add_worktree(
+            1, // task_id
+            repo_path,
+            None,
+            None,
+            Some(999), // Invalid TODO ID
+            false
+        );
+        
+        match result {
+            Err(TrackError::TodoNotFound(id)) => assert_eq!(id, 999),
+            _ => panic!("Expected TodoNotFound error, got {:?}", result),
+        }
+    }
+
+    #[test]
+    fn test_add_worktree_validation() {
+        use crate::utils::TrackError;
+        let db = setup_db();
+        let service = WorktreeService::new(&db);
+        
+        // 1. Invalid Git Repo
+        let temp_dir = tempfile::tempdir().unwrap();
+        let path = temp_dir.path().to_str().unwrap();
+        // Don't init git
+        
+        let result = service.add_worktree(1, path, Some("b"), None, None, false);
+        assert!(matches!(result, Err(TrackError::NotGitRepository(_))));
+
+        // 2. Branch Exists
+        let temp_dir2 = tempfile::tempdir().unwrap();
+        let repo_path = temp_dir2.path().to_str().unwrap();
+        std::process::Command::new("git").args(["init", repo_path]).output().unwrap();
+        std::process::Command::new("git").args(["-C", repo_path, "config", "user.email", "test@example.com"]).output().unwrap();
+        std::process::Command::new("git").args(["-C", repo_path, "config", "user.name", "Test"]).output().unwrap();
+        std::fs::write(std::path::Path::new(repo_path).join("README.md"), "init").unwrap();
+        std::process::Command::new("git").args(["-C", repo_path, "add", "."]).output().unwrap();
+        std::process::Command::new("git").args(["-C", repo_path, "commit", "-m", "init"]).output().unwrap();
+        
+        // Create branch manualy
+        std::process::Command::new("git").args(["-C", repo_path, "branch", "existing-branch"]).output().unwrap();
+        
+        let result = service.add_worktree(1, repo_path, Some("existing-branch"), None, None, false);
+        // Should detect branch exists
+        assert!(matches!(result, Err(TrackError::BranchExists(_))));
+    }
 }

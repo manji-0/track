@@ -23,6 +23,12 @@ impl CommandHandler {
         Self { db }
     }
 
+    /// Returns a reference to the database instance.
+    /// This is primarily used for testing.
+    pub fn get_db(&self) -> &Database {
+        &self.db
+    }
+
     pub fn handle(&self, command: Commands) -> Result<()> {
         match command {
             Commands::New {
