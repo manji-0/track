@@ -147,7 +147,7 @@ track todo done 2
 | `track new <name>` | Create a new task and set it as active |
 | `track list [--all]` | Display task list |
 | `track switch <task_id>` | Switch tasks |
-| `track status` | Display detailed information about the current task |
+| `track status [id]` | Display detailed information about the current (or specified) task |
 | `track desc [description]` | View or set task description |
 | `track ticket <ticket_id> <url>` | Link a ticket to the task |
 | `track archive [task_id]` | Archive a task (defaults to current task) |

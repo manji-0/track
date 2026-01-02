@@ -45,7 +45,7 @@ impl CommandHandler {
             ),
             Commands::List { all } => self.handle_list(all),
             Commands::Switch { task_ref } => self.handle_switch(&task_ref),
-            Commands::Status { json } => self.handle_info(json),
+            Commands::Status { id, json } => self.handle_info(id, json),
             Commands::Desc { description, task } => self.handle_desc(description.as_deref(), task),
             Commands::Ticket {
                 ticket_id,
@@ -133,13 +133,16 @@ impl CommandHandler {
         Ok(())
     }
 
-    fn handle_info(&self, json: bool) -> Result<()> {
-        let current_task_id = self
-            .db
-            .get_current_task_id()?
-            .ok_or(TrackError::NoActiveTask)?;
-
+    fn handle_info(&self, task_ref: Option<String>, json: bool) -> Result<()> {
         let task_service = TaskService::new(&self.db);
+        let current_task_id = match task_ref {
+            Some(ref t_ref) => task_service.resolve_task_id(t_ref)?,
+            None => self
+                .db
+                .get_current_task_id()?
+                .ok_or(TrackError::NoActiveTask)?,
+        };
+
         let task = task_service.get_task(current_task_id)?;
 
         let todo_service = TodoService::new(&self.db);

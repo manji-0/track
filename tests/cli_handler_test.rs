@@ -804,3 +804,27 @@ fn test_handle_archive_default_current_task() {
     let t = task_service.get_task(t1.id).unwrap();
     assert_eq!(t.status, "archived");
 }
+
+#[test]
+fn test_handle_status_explicit_id() {
+    let db = Database::new_in_memory().unwrap();
+    let handler = CommandHandler::from_db(db);
+    let db = handler.get_db();
+    let task_service = TaskService::new(db);
+
+    let t1 = task_service
+        .create_task("Task 1", None, None, None)
+        .unwrap();
+    let _t2 = task_service
+        .create_task("Task 2", None, None, None)
+        .unwrap();
+
+    // Call status for t1 while t2 is active
+    let cmd = Commands::Status {
+        id: Some(t1.id.to_string()),
+        json: false,
+    };
+
+    // Should succeed
+    handler.handle(cmd).unwrap();
+}

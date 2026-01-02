@@ -52,6 +52,9 @@ pub enum Commands {
 
     /// Show detailed information about the current task
     Status {
+        /// Task ID or ticket reference (e.g., 1 or t:PROJ-123)
+        id: Option<String>,
+
         /// Output in JSON format
         #[arg(short, long)]
         json: bool,

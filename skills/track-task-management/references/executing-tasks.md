@@ -19,7 +19,7 @@ Complete workflow for working through TODOs and completing tasks.
 ### Step 1: Check Current State
 
 ```bash
-track status
+track status [id]
 ```
 
 **Analyze output:**
