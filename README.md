@@ -358,52 +358,64 @@ See [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md) for details.
 
 ## For LLM Agents
 
-Track includes **skills** - structured workflow guides designed specifically for LLM agents (Cline, Aider, etc.) to effectively use the CLI.
+Track provides **Agent Skills** following the [official Agent Skills specification](https://github.com/anthropics/skills) for LLM agents (Claude Code, Cline, Cursor, etc.).
 
 ### Quick Start for Agents
 
-1. **Check current state**: Always run `track status` first
-2. **Reference skills**: Use workflow guides in the `skills/` directory
-3. **Follow best practices**: Commit frequently, document with scraps, test before completing TODOs
+```bash
+# Always start with status
+track status
 
-### Available Skills
+# Reference the main skill
+skills/track-task-management/SKILL.md
+```
 
-| Skill | Purpose | When to Use |
-|-------|---------|-------------|
-| [Create Task Workflow](skills/create-task-workflow.md) | Create tasks and add TODOs | Starting new work |
-| [Execute Task Workflow](skills/execute-task-workflow.md) | Work through TODOs to completion | Implementing changes |
+Skills use progressive disclosure:
+- **SKILL.md**: Quick start and overview (~1000 tokens)
+- **references/**: Detailed guides loaded only when needed
+
+### Main Skill: track-task-management
+
+**Purpose**: Manages development tasks with integrated Git worktrees.
+
+**Use when**: Creating tasks, adding TODOs, working through task lists, or managing development workflows.
+
+**Quick commands:**
+```bash
+track new "<task>"              # Create task
+track todo add "<item>"         # Add TODO  
+track todo done <index>         # Complete TODO
+track scrap add "<note>"        # Record progress
+track status                    # Check state
+```
+
+### Detailed References
+
+The main skill references detailed guides for specific workflows:
+
+| Reference | When to Use |
+|-----------|-------------|
+| [creating-tasks.md](skills/track-task-management/references/creating-tasks.md) | Setting up new tasks |
+| [executing-tasks.md](skills/track-task-management/references/executing-tasks.md) | Working through TODOs |
+| [advanced-workflows.md](skills/track-task-management/references/advanced-workflows.md) | Multi-repo, parallel work |
 
 ### LLM Help Command
 
-Run `track llm-help` for a quick reference guide with essential commands and workflow overview:
+For quick CLI reference:
 
 ```bash
 track llm-help
 ```
 
-This outputs a comprehensive markdown guide covering:
-- Complete task workflow (setup → execution → completion)
-- Key commands with examples
-- Ticket integration 
-- Worktree management details
-- Best practices for LLM agents
+Outputs comprehensive guide with commands, ticket integration, and worktree details.
 
-### Skill Installation
+### Installation
 
-**For direct file access:**
-- Skills are located at `skills/` in the repository
-- Read files as needed during task execution
+**No setup required** - Skills auto-detected in workspace.
 
-**For system prompts:**
-Add to your agent's custom instructions:
-```
-When using the track CLI, refer to workflow skills at:
-- Create tasks: /path/to/track/skills/create-task-workflow.md
-- Execute tasks: /path/to/track/skills/execute-task-workflow.md
-Always run `track status` before starting work.
-```
+For agent-specific configuration, see [skills/INSTALL.md](skills/INSTALL.md).
 
-See [skills/README.md](skills/README.md) for detailed usage instructions and examples.
+Full skill documentation: [skills/README.md](skills/README.md)
 
 ## License
 
