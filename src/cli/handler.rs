@@ -212,7 +212,7 @@ impl CommandHandler {
         if !todos.is_empty() {
             println!("## TODOs");
             println!();
-            for todo in todos {
+            for todo in &todos {
                 let marker = match todo.status.as_str() {
                     "done" => "x",
                     "cancelled" => " ",
@@ -230,6 +230,23 @@ impl CommandHandler {
                     "- [{}] **[{}]**{} {}{}",
                     marker, todo.task_index, status_indicator, todo.content, status_end
                 );
+
+                // Find and display worktree for this TODO
+                for worktree in &worktrees {
+                    if worktree.todo_id == Some(todo.id) {
+                        println!("  - **Worktree:**");
+                        println!("    - **Path:** `{}`", worktree.path);
+                        println!("    - **Branch:** `{}`", worktree.branch);
+
+                        let repo_links = worktree_service.list_repo_links(worktree.id)?;
+                        if !repo_links.is_empty() {
+                            println!("    - **Repository Links:**");
+                            for link in repo_links {
+                                println!("      - {}: {}", link.kind, link.url);
+                            }
+                        }
+                    }
+                }
             }
             println!();
         }
@@ -255,11 +272,13 @@ impl CommandHandler {
             println!();
         }
 
-        // Worktrees
-        if !worktrees.is_empty() {
+        // Worktrees (only those not associated with a TODO, e.g., base worktrees)
+        let orphan_worktrees: Vec<_> = worktrees.iter().filter(|wt| wt.todo_id.is_none()).collect();
+
+        if !orphan_worktrees.is_empty() {
             println!("## Worktrees");
             println!();
-            for worktree in worktrees {
+            for worktree in orphan_worktrees {
                 println!("### Worktree #{}", worktree.id);
                 println!();
                 println!("- **Path:** `{}`", worktree.path);
