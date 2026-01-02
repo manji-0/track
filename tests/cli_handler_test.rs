@@ -823,6 +823,7 @@ fn test_handle_status_explicit_id() {
     let cmd = Commands::Status {
         id: Some(t1.id.to_string()),
         json: false,
+        all: false,
     };
 
     // Should succeed

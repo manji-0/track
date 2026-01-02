@@ -58,6 +58,10 @@ pub enum Commands {
         /// Output in JSON format
         #[arg(short, long)]
         json: bool,
+
+        /// Show all scraps
+        #[arg(short, long)]
+        all: bool,
     },
 
     /// View or set task description

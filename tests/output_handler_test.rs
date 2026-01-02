@@ -63,6 +63,7 @@ fn test_handle_info_no_output_errors() {
     let cmd = Commands::Status {
         id: None,
         json: false,
+        all: false,
     };
     assert!(handler.handle(cmd).is_ok());
 
@@ -70,6 +71,7 @@ fn test_handle_info_no_output_errors() {
     let cmd = Commands::Status {
         id: None,
         json: true,
+        all: false,
     };
     assert!(handler.handle(cmd).is_ok());
 }

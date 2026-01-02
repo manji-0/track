@@ -45,7 +45,7 @@ impl CommandHandler {
             ),
             Commands::List { all } => self.handle_list(all),
             Commands::Switch { task_ref } => self.handle_switch(&task_ref),
-            Commands::Status { id, json } => self.handle_info(id, json),
+            Commands::Status { id, json, all } => self.handle_info(id, json, all),
             Commands::Desc { description, task } => self.handle_desc(description.as_deref(), task),
             Commands::Ticket {
                 ticket_id,
@@ -133,7 +133,7 @@ impl CommandHandler {
         Ok(())
     }
 
-    fn handle_info(&self, task_ref: Option<String>, json: bool) -> Result<()> {
+    fn handle_info(&self, task_ref: Option<String>, json: bool, all_scraps: bool) -> Result<()> {
         let task_service = TaskService::new(&self.db);
         let current_task_id = match task_ref {
             Some(ref t_ref) => task_service.resolve_task_id(t_ref)?,
@@ -327,9 +327,16 @@ impl CommandHandler {
 
         // Scraps
         if !scraps.is_empty() {
-            println!("## Recent Scraps");
+            if all_scraps {
+                println!("## Scraps");
+            } else {
+                println!("## Recent Scraps");
+            }
             println!();
-            for scrap in scraps.iter().take(5) {
+
+            let count = if all_scraps { scraps.len() } else { 5 };
+
+            for scrap in scraps.iter().take(count) {
                 let timestamp = scrap.created_at.with_timezone(&Local).format("%H:%M");
                 println!("### [{}]", timestamp);
                 println!();
