@@ -139,9 +139,29 @@ fn test_handle_repo_add_remove() {
         .args(["init", &repo_path])
         .output()
         .expect("Failed to init git repo");
+    
+    // Add initial commit so git has a valid HEAD/branch
+    std::process::Command::new("git")
+        .args(["-C", &repo_path, "config", "user.email", "test@test.com"])
+        .output()
+        .unwrap();
+    std::process::Command::new("git")
+        .args(["-C", &repo_path, "config", "user.name", "Test"])
+        .output()
+        .unwrap();
+    std::fs::write(std::path::Path::new(&repo_path).join("README.md"), "init").unwrap();
+    std::process::Command::new("git")
+        .args(["-C", &repo_path, "add", "."])
+        .output()
+        .unwrap();
+    std::process::Command::new("git")
+        .args(["-C", &repo_path, "commit", "-m", "init"])
+        .output()
+        .unwrap();
 
     let cmd = Commands::Repo(RepoCommands::Add {
         path: Some(repo_path.clone()),
+        base: None,
     });
     handler.handle(cmd).unwrap();
 

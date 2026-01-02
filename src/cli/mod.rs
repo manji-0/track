@@ -183,6 +183,10 @@ pub enum RepoCommands {
     Add {
         /// Repository path (defaults to current directory)
         path: Option<String>,
+
+        /// Base branch to use (defaults to current branch)
+        #[arg(short, long)]
+        base: Option<String>,
     },
 
     /// List repositories
