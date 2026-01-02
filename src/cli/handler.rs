@@ -250,7 +250,12 @@ impl CommandHandler {
                     let done_time = completed_at.with_timezone(&Local).format("%Y-%m-%d %H:%M");
                     println!(
                         "- [{}] **[{}]**{} {}{} (done: {})",
-                        marker, todo.task_index, status_indicator, todo.content, status_end, done_time
+                        marker,
+                        todo.task_index,
+                        status_indicator,
+                        todo.content,
+                        status_end,
+                        done_time
                     );
                 } else {
                     println!(

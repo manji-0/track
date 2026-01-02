@@ -279,10 +279,8 @@ impl Database {
         )?;
 
         if count == 0 {
-            self.conn.execute(
-                "ALTER TABLE todos ADD COLUMN completed_at TEXT",
-                [],
-            )?;
+            self.conn
+                .execute("ALTER TABLE todos ADD COLUMN completed_at TEXT", [])?;
         }
 
         Ok(())

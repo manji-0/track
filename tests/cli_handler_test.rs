@@ -798,9 +798,7 @@ fn test_handle_archive_default_current_task() {
     assert_eq!(db.get_current_task_id().unwrap(), Some(t1.id));
 
     // Archive without specifying task_ref (None)
-    let cmd = Commands::Archive {
-        task_ref: None,
-    };
+    let cmd = Commands::Archive { task_ref: None };
     handler.handle(cmd).unwrap();
 
     let t = task_service.get_task(t1.id).unwrap();
