@@ -183,14 +183,14 @@ impl CommandHandler {
         // Task header
         println!("# Task #{}: {}", task.id, task.name);
         println!();
-        
+
         // Metadata section
         let created = task
             .created_at
             .with_timezone(&Local)
             .format("%Y-%m-%d %H:%M:%S");
         println!("**Created:** {}", created);
-        
+
         if let Some(ticket_id) = &task.ticket_id {
             if let Some(url) = &task.ticket_url {
                 println!("**Ticket:** [{}]({})", ticket_id, url);
@@ -226,7 +226,10 @@ impl CommandHandler {
                     "cancelled" => "~~",
                     _ => "",
                 };
-                println!("- [{}] **[{}]**{} {}{}", marker, todo.task_index, status_indicator, todo.content, status_end);
+                println!(
+                    "- [{}] **[{}]**{} {}{}",
+                    marker, todo.task_index, status_indicator, todo.content, status_end
+                );
             }
             println!();
         }
@@ -261,7 +264,7 @@ impl CommandHandler {
                 println!();
                 println!("- **Path:** `{}`", worktree.path);
                 println!("- **Branch:** `{}`", worktree.branch);
-                
+
                 let repo_links = worktree_service.list_repo_links(worktree.id)?;
                 if !repo_links.is_empty() {
                     println!("- **Repository Links:**");
