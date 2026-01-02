@@ -38,6 +38,7 @@ pub struct Todo {
     pub worktree_requested: bool,
     #[allow(dead_code)]
     pub created_at: DateTime<Utc>,
+    pub completed_at: Option<DateTime<Utc>>,
 }
 
 /// Represents a link associated with a task.

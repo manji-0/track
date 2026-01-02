@@ -37,7 +37,7 @@ impl<'a> TodoService<'a> {
     pub fn get_todo(&self, todo_id: i64) -> Result<Todo> {
         let conn = self.db.get_connection();
         let mut stmt = conn.prepare(
-            "SELECT id, task_id, task_index, content, status, worktree_requested, created_at FROM todos WHERE id = ?1"
+            "SELECT id, task_id, task_index, content, status, worktree_requested, created_at, completed_at FROM todos WHERE id = ?1"
         )?;
 
         let todo = stmt
@@ -50,6 +50,7 @@ impl<'a> TodoService<'a> {
                     status: row.get(4)?,
                     worktree_requested: row.get(5)?,
                     created_at: row.get::<_, String>(6)?.parse().unwrap(),
+                    completed_at: row.get::<_, Option<String>>(7)?.map(|s| s.parse().unwrap()),
                 })
             })
             .map_err(|_| TrackError::TodoNotFound(todo_id))?;
@@ -60,7 +61,7 @@ impl<'a> TodoService<'a> {
     pub fn list_todos(&self, task_id: i64) -> Result<Vec<Todo>> {
         let conn = self.db.get_connection();
         let mut stmt = conn.prepare(
-            "SELECT id, task_id, task_index, content, status, worktree_requested, created_at FROM todos WHERE task_id = ?1 ORDER BY task_index ASC"
+            "SELECT id, task_id, task_index, content, status, worktree_requested, created_at, completed_at FROM todos WHERE task_id = ?1 ORDER BY task_index ASC"
         )?;
 
         let todos = stmt
@@ -73,6 +74,7 @@ impl<'a> TodoService<'a> {
                     status: row.get(4)?,
                     worktree_requested: row.get(5)?,
                     created_at: row.get::<_, String>(6)?.parse().unwrap(),
+                    completed_at: row.get::<_, Option<String>>(7)?.map(|s| s.parse().unwrap()),
                 })
             })?
             .collect::<std::result::Result<Vec<_>, _>>()?;
@@ -83,7 +85,7 @@ impl<'a> TodoService<'a> {
     pub fn get_todo_by_index(&self, task_id: i64, task_index: i64) -> Result<Todo> {
         let conn = self.db.get_connection();
         let mut stmt = conn.prepare(
-            "SELECT id, task_id, task_index, content, status, worktree_requested, created_at FROM todos WHERE task_id = ?1 AND task_index = ?2"
+            "SELECT id, task_id, task_index, content, status, worktree_requested, created_at, completed_at FROM todos WHERE task_id = ?1 AND task_index = ?2"
         )?;
 
         let todo = stmt
@@ -96,6 +98,7 @@ impl<'a> TodoService<'a> {
                     status: row.get(4)?,
                     worktree_requested: row.get(5)?,
                     created_at: row.get::<_, String>(6)?.parse().unwrap(),
+                    completed_at: row.get::<_, Option<String>>(7)?.map(|s| s.parse().unwrap()),
                 })
             })
             .map_err(|_| {
@@ -109,10 +112,16 @@ impl<'a> TodoService<'a> {
         // Validate status
         TodoStatus::from_str(status).map_err(|_| TrackError::InvalidStatus(status.to_string()))?;
 
+        let completed_at = if status == "done" {
+            Some(Utc::now().to_rfc3339())
+        } else {
+            None
+        };
+
         let conn = self.db.get_connection();
         let affected = conn.execute(
-            "UPDATE todos SET status = ?1 WHERE id = ?2",
-            params![status, todo_id],
+            "UPDATE todos SET status = ?1, completed_at = ?2 WHERE id = ?3",
+            params![status, completed_at, todo_id],
         )?;
 
         if affected == 0 {

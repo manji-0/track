@@ -246,10 +246,18 @@ impl CommandHandler {
                     "cancelled" => "~~",
                     _ => "",
                 };
-                println!(
-                    "- [{}] **[{}]**{} {}{}",
-                    marker, todo.task_index, status_indicator, todo.content, status_end
-                );
+                if let Some(completed_at) = todo.completed_at {
+                    let done_time = completed_at.with_timezone(&Local).format("%Y-%m-%d %H:%M");
+                    println!(
+                        "- [{}] **[{}]**{} {}{} (done: {})",
+                        marker, todo.task_index, status_indicator, todo.content, status_end, done_time
+                    );
+                } else {
+                    println!(
+                        "- [{}] **[{}]**{} {}{}",
+                        marker, todo.task_index, status_indicator, todo.content, status_end
+                    );
+                }
 
                 // Find and display worktree for this TODO
                 for worktree in &worktrees {

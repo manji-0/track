@@ -88,6 +88,7 @@ impl Database {
                 status TEXT NOT NULL DEFAULT 'pending',
                 worktree_requested INTEGER NOT NULL DEFAULT 0,
                 created_at TEXT NOT NULL,
+                completed_at TEXT,
                 FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
             );
 
@@ -266,6 +267,20 @@ impl Database {
         if count == 0 {
             self.conn.execute(
                 "ALTER TABLE task_repos ADD COLUMN base_commit_hash TEXT",
+                [],
+            )?;
+        }
+
+        // Check for completed_at column in todos
+        let count: i64 = self.conn.query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('todos') WHERE name='completed_at'",
+            [],
+            |row| row.get(0),
+        )?;
+
+        if count == 0 {
+            self.conn.execute(
+                "ALTER TABLE todos ADD COLUMN completed_at TEXT",
                 [],
             )?;
         }
