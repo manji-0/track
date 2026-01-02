@@ -286,7 +286,25 @@ impl CommandHandler {
             println!("## Repositories");
             println!();
             for repo in &repos {
-                println!("- `{}`", repo.repo_path);
+                print!("- `{}`", repo.repo_path);
+                
+                // Display base branch and commit hash if available
+                if let Some(ref base_branch) = repo.base_branch {
+                    if let Some(ref base_hash) = repo.base_commit_hash {
+                        // Show both branch and short hash
+                        let short_hash = &base_hash[..std::cmp::min(8, base_hash.len())];
+                        print!(" (base: {} @ {})", base_branch, short_hash);
+                    } else {
+                        // Show only branch
+                        print!(" (base: {})", base_branch);
+                    }
+                } else if let Some(ref base_hash) = repo.base_commit_hash {
+                    // Show only hash
+                    let short_hash = &base_hash[..std::cmp::min(8, base_hash.len())];
+                    print!(" (base: {})", short_hash);
+                }
+                
+                println!();
             }
             println!();
         }
