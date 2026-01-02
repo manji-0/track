@@ -116,6 +116,8 @@ pub struct TaskRepo {
     #[allow(dead_code)]
     pub task_id: i64,
     pub repo_path: String,
+    pub base_branch: Option<String>,
+    pub base_commit_hash: Option<String>,
     #[allow(dead_code)]
     pub created_at: DateTime<Utc>,
 }

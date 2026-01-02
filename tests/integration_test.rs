@@ -93,7 +93,7 @@ fn test_repo_worktree_workflow() {
         .unwrap();
 
     // Register repository
-    let repo = repo_service.add_repo(task.id, repo_path).unwrap();
+    let repo = repo_service.add_repo(task.id, repo_path, None, None).unwrap();
     assert_eq!(repo.task_id, task.id);
 
     // List repositories

@@ -316,7 +316,7 @@ fn test_handle_sync() {
         .unwrap();
 
     // Register repo
-    repo_service.add_repo(task.id, &repo_path).unwrap();
+    repo_service.add_repo(task.id, &repo_path, None, None).unwrap();
 
     // Add TODO with worktree
     let todo_service = TodoService::new(db);
@@ -375,7 +375,7 @@ fn test_handle_sync_repo_not_found() {
         .output()
         .unwrap();
 
-    repo_service.add_repo(task.id, &repo_path).unwrap();
+    repo_service.add_repo(task.id, &repo_path, None, None).unwrap();
 
     // Delete the repo directory
     drop(temp_dir); // This removes the directory
@@ -431,7 +431,7 @@ fn test_handle_sync_branch_already_exists() {
         .output()
         .unwrap();
 
-    repo_service.add_repo(task.id, &repo_path).unwrap();
+    repo_service.add_repo(task.id, &repo_path, None, None).unwrap();
 
     // Call Sync - should detect existing branch and checkout
     let cmd = Commands::Sync;
@@ -485,7 +485,7 @@ fn test_handle_sync_worktree_already_exists() {
         .output()
         .unwrap();
 
-    repo_service.add_repo(task.id, &repo_path).unwrap();
+    repo_service.add_repo(task.id, &repo_path, None, None).unwrap();
 
     // Add TODO with worktree request
     let todo = todo_service.add_todo(task.id, "Todo", true).unwrap();
@@ -550,7 +550,7 @@ fn test_handle_sync_skip_done_todos() {
         .output()
         .unwrap();
 
-    repo_service.add_repo(task.id, &repo_path).unwrap();
+    repo_service.add_repo(task.id, &repo_path, None, None).unwrap();
 
     // Add TODO with worktree request but mark as done
     let todo = todo_service.add_todo(task.id, "Done Todo", true).unwrap();
@@ -603,7 +603,7 @@ fn test_handle_sync_failed_branch_create() {
         .output()
         .unwrap();
 
-    repo_service.add_repo(task.id, &repo_path).unwrap();
+    repo_service.add_repo(task.id, &repo_path, None, None).unwrap();
 
     // Make the .git directory read-only to cause failures
     let git_dir = std::path::Path::new(&repo_path).join(".git");
@@ -709,7 +709,7 @@ fn test_handle_sync_multiple_todos_different_worktrees() {
         .output()
         .unwrap();
 
-    repo_service.add_repo(task.id, &repo_path).unwrap();
+    repo_service.add_repo(task.id, &repo_path, None, None).unwrap();
 
     // Create two TODOs with worktree requests
     let todo1 = todo_service.add_todo(task.id, "Todo 1", true).unwrap();

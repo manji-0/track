@@ -154,6 +154,9 @@ impl CommandHandler {
         let worktree_service = WorktreeService::new(&self.db);
         let worktrees = worktree_service.list_worktrees(current_task_id)?;
 
+        let repo_service = RepoService::new(&self.db);
+        let repos = repo_service.list_repos(current_task_id)?;
+
         if json {
             let mut worktrees_json = Vec::new();
             for wt in worktrees {
@@ -174,6 +177,7 @@ impl CommandHandler {
                 "links": links,
                 "scraps": scraps,
                 "worktrees": worktrees_json,
+                "repos": repos,
             });
 
             println!("{}", serde_json::to_string_pretty(&output).unwrap());
@@ -198,6 +202,22 @@ impl CommandHandler {
                 println!("**Ticket:** {}", ticket_id);
             }
         }
+
+        // Display base branch (the task branch that serves as merge target for TODO worktrees)
+        let base_branch = if let Some(base_wt) = worktrees.iter().find(|wt| wt.is_base) {
+            // If base worktree exists, use its branch
+            base_wt.branch.clone()
+        } else {
+            // Otherwise, calculate the task branch name (same logic as in handle_sync)
+            if let Some(ticket_id) = &task.ticket_id {
+                format!("task/{}", ticket_id)
+            } else {
+                format!("task/task-{}", task.id)
+            }
+        };
+
+        println!("**Base Branch:** `{}`", base_branch);
+
         println!();
 
         // Description
@@ -257,6 +277,16 @@ impl CommandHandler {
             println!();
             for link in links {
                 println!("- [{}]({})", link.title, link.url);
+            }
+            println!();
+        }
+
+        // Repositories
+        if !repos.is_empty() {
+            println!("## Repositories");
+            println!();
+            for repo in &repos {
+                println!("- `{}`", repo.repo_path);
             }
             println!();
         }
@@ -701,7 +731,7 @@ impl CommandHandler {
         match command {
             RepoCommands::Add { path } => {
                 let repo_path = path.as_deref().unwrap_or(".");
-                let repo = repo_service.add_repo(current_task_id, repo_path)?;
+                let repo = repo_service.add_repo(current_task_id, repo_path, None, None)?;
                 println!("Registered repository: {}", repo.repo_path);
             }
             RepoCommands::List => {

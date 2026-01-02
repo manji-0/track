@@ -15,7 +15,13 @@ impl<'a> RepoService<'a> {
     }
 
     /// Register a repository to a task
-    pub fn add_repo(&self, task_id: i64, repo_path: &str) -> Result<TaskRepo> {
+    pub fn add_repo(
+        &self,
+        task_id: i64,
+        repo_path: &str,
+        base_branch: Option<String>,
+        base_commit_hash: Option<String>,
+    ) -> Result<TaskRepo> {
         // Resolve to absolute path
         let abs_path = self.resolve_absolute_path(repo_path)?;
 
@@ -49,8 +55,8 @@ impl<'a> RepoService<'a> {
         // Insert the repository
         let created_at = Utc::now().to_rfc3339();
         self.db.get_connection().execute(
-            "INSERT INTO task_repos (task_id, repo_path, created_at) VALUES (?1, ?2, ?3)",
-            params![task_id, path_str, created_at],
+            "INSERT INTO task_repos (task_id, repo_path, base_branch, base_commit_hash, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![task_id, path_str, base_branch, base_commit_hash, created_at],
         )?;
 
         let id = self.db.get_connection().last_insert_rowid();
@@ -59,6 +65,8 @@ impl<'a> RepoService<'a> {
             id,
             task_id,
             repo_path: path_str,
+            base_branch,
+            base_commit_hash,
             created_at: Utc::now(),
         })
     }
@@ -66,7 +74,7 @@ impl<'a> RepoService<'a> {
     /// List all repositories for a task
     pub fn list_repos(&self, task_id: i64) -> Result<Vec<TaskRepo>> {
         let mut stmt = self.db.get_connection().prepare(
-            "SELECT id, task_id, repo_path, created_at FROM task_repos WHERE task_id = ?1 ORDER BY created_at"
+            "SELECT id, task_id, repo_path, base_branch, base_commit_hash, created_at FROM task_repos WHERE task_id = ?1 ORDER BY created_at"
         )?;
 
         let repos = stmt
@@ -75,8 +83,10 @@ impl<'a> RepoService<'a> {
                     id: row.get(0)?,
                     task_id: row.get(1)?,
                     repo_path: row.get(2)?,
+                    base_branch: row.get(3)?,
+                    base_commit_hash: row.get(4)?,
                     created_at: row
-                        .get::<_, String>(3)?
+                        .get::<_, String>(5)?
                         .parse()
                         .unwrap_or_else(|_| Utc::now()),
                 })
@@ -151,7 +161,7 @@ mod tests {
 
         // Add the repository
         let repo = repo_service
-            .add_repo(task.id, temp_dir.to_str().unwrap())
+            .add_repo(task.id, temp_dir.to_str().unwrap(), None, None)
             .unwrap();
         assert_eq!(repo.task_id, task.id);
         assert!(repo.repo_path.contains("test_repo"));
@@ -175,7 +185,7 @@ mod tests {
         std::fs::create_dir_all(&temp_dir).unwrap();
 
         // Try to add the repository
-        let result = repo_service.add_repo(task.id, temp_dir.to_str().unwrap());
+        let result = repo_service.add_repo(task.id, temp_dir.to_str().unwrap(), None, None);
         assert!(result.is_err());
         assert!(result
             .unwrap_err()
@@ -202,9 +212,9 @@ mod tests {
 
         // Add the repository twice
         repo_service
-            .add_repo(task.id, temp_dir.to_str().unwrap())
+            .add_repo(task.id, temp_dir.to_str().unwrap(), None, None)
             .unwrap();
-        let result = repo_service.add_repo(task.id, temp_dir.to_str().unwrap());
+        let result = repo_service.add_repo(task.id, temp_dir.to_str().unwrap(), None, None);
 
         assert!(result.is_err());
         assert!(result
@@ -238,10 +248,10 @@ mod tests {
 
         // Add both repositories
         repo_service
-            .add_repo(task.id, temp_dir1.to_str().unwrap())
+            .add_repo(task.id, temp_dir1.to_str().unwrap(), None, None)
             .unwrap();
         repo_service
-            .add_repo(task.id, temp_dir2.to_str().unwrap())
+            .add_repo(task.id, temp_dir2.to_str().unwrap(), None, None)
             .unwrap();
 
         // List repositories
@@ -269,7 +279,7 @@ mod tests {
         std::fs::create_dir(temp_dir.join(".git")).unwrap();
 
         let repo = repo_service
-            .add_repo(task.id, temp_dir.to_str().unwrap())
+            .add_repo(task.id, temp_dir.to_str().unwrap(), None, None)
             .unwrap();
 
         // Remove the repository

@@ -244,6 +244,34 @@ impl Database {
             )?;
         }
 
+        // Check for base_branch column in task_repos
+        let count: i64 = self.conn.query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('task_repos') WHERE name='base_branch'",
+            [],
+            |row| row.get(0),
+        )?;
+
+        if count == 0 {
+            self.conn.execute(
+                "ALTER TABLE task_repos ADD COLUMN base_branch TEXT",
+                [],
+            )?;
+        }
+
+        // Check for base_commit_hash column in task_repos
+        let count: i64 = self.conn.query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('task_repos') WHERE name='base_commit_hash'",
+            [],
+            |row| row.get(0),
+        )?;
+
+        if count == 0 {
+            self.conn.execute(
+                "ALTER TABLE task_repos ADD COLUMN base_commit_hash TEXT",
+                [],
+            )?;
+        }
+
         Ok(())
     }
 
