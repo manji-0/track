@@ -257,11 +257,19 @@ impl<'a> WorktreeService<'a> {
             None => return Ok(None),
         };
 
-        let base_wt = self.get_base_worktree(wt.task_id)?.ok_or_else(|| {
-            TrackError::Other(
-                "Base worktree not found. Please init a base worktree first.".to_string(),
-            )
-        })?;
+        // Try to find a base worktree in the database
+        let merge_target_path = if let Some(base_wt) = self.get_base_worktree(wt.task_id)? {
+            // Use the registered base worktree
+            base_wt.path
+        } else {
+            // Fall back to the base repository path (main repository directory)
+            // The TODO worktree's base_repo field points to the main repository
+            wt.base_repo.clone().ok_or_else(|| {
+                TrackError::Other(
+                    "TODO worktree has no base repository reference".to_string(),
+                )
+            })?
+        };
 
         if self.has_uncommitted_changes(&wt.path)? {
             return Err(TrackError::Other(format!(
@@ -270,7 +278,7 @@ impl<'a> WorktreeService<'a> {
             )));
         }
 
-        self.merge_branch(&base_wt.path, &wt.branch)?;
+        self.merge_branch(&merge_target_path, &wt.branch)?;
         self.remove_worktree(wt.id, false)?;
 
         Ok(Some(wt.branch))
