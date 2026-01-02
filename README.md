@@ -92,25 +92,30 @@ track status
 Running `track status` displays a comprehensive overview of your current task:
 
 ```
-=== Task #12: Implement User Authentication ===
-Ticket: AUTH-456 (https://jira.example.com/browse/AUTH-456)
-Created: 2026-01-01 17:20:43
+# Task #12: Implement User Authentication
 
-Description:
-  Add JWT-based authentication system with login/logout endpoints
+**Created:** 2026-01-01 17:20:43
+**Ticket:** [AUTH-456](https://jira.example.com/browse/AUTH-456)
 
-[ TODOs ]
-  [x] [1] Design database schema for users table
-  [ ] [2] Implement JWT token generation and validation
-  [ ] [3] Create login endpoint
+## Description
 
-[ Links ]
-  - JWT Documentation: https://jwt.io/introduction
-  - Auth Specification: https://github.com/example/auth-spec
+Add JWT-based authentication system with login/logout endpoints
 
-[ Recent Scraps ]
-  [17:20] JWT expiry set to 24 hours for security
-  [17:20] Decided to use bcrypt for password hashing
+## TODOs
+
+- [x] **[1]** Design database schema for users table
+- [ ] **[2]** Implement JWT token generation and validation
+- [ ] **[3]** Create login endpoint
+
+## Links
+
+- [JWT Documentation](https://jwt.io/introduction)
+- [Auth Specification](https://github.com/example/auth-spec)
+
+## Recent Scraps
+
+- **[17:20]** JWT expiry set to 24 hours for security
+- **[17:21]** Decided to use bcrypt for password hashing
 ```
 
 ### Workflow with Git Worktrees

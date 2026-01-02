@@ -72,15 +72,18 @@ track desc "Updated description" --task 5
 The `track status` command should display the task description:
 
 ```
-=== Task #6: feat: add task description ===
-Created: 2025-12-31 23:35:37
+# Task #6: feat: add task description
 
-Description:
-  Add support for task descriptions to provide more context about tasks.
-  This includes schema changes, CLI commands, and documentation updates.
+**Created:** 2025-12-31 23:35:37
 
-[ TODOs ]
-  [ ] Design schema and command interface
+## Description
+
+Add support for task descriptions to provide more context about tasks.
+This includes schema changes, CLI commands, and documentation updates.
+
+## TODOs
+
+- [ ] **[1]** Design schema and command interface
   ...
 ```
 
