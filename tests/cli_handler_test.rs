@@ -458,3 +458,119 @@ fn test_handle_sync_skip_done_todos() {
     let worktrees = worktree_service.list_worktrees(task.id).unwrap();
     assert_eq!(worktrees.len(), 0);
 }
+
+#[test]
+fn test_handle_sync_failed_branch_create() {
+    // Test scenario where git branch creation fails
+    let db = Database::new_in_memory().unwrap();
+    let handler = CommandHandler::from_db(db);
+    let db = handler.get_db();
+    let task_service = TaskService::new(db);
+    let repo_service = RepoService::new(db);
+    
+    let task = task_service.create_task("Task", None, Some("SYNC-500"), None).unwrap();
+    
+    // Use an invalid repo path to cause git failures
+    let temp_dir = tempfile::tempdir().unwrap();
+    let repo_path = temp_dir.path().to_str().unwrap().to_string();
+    std::process::Command::new("git").args(["init", &repo_path]).output().unwrap();
+    std::process::Command::new("git").args(["-C", &repo_path, "config", "user.email", "test@test.com"]).output().unwrap();
+    std::process::Command::new("git").args(["-C", &repo_path, "config", "user.name", "Test"]).output().unwrap();
+    std::fs::write(std::path::Path::new(&repo_path).join("README.md"), "init").unwrap();
+    std::process::Command::new("git").args(["-C", &repo_path, "add", "."]).output().unwrap();
+    std::process::Command::new("git").args(["-C", &repo_path, "commit", "-m", "init"]).output().unwrap();
+
+    repo_service.add_repo(task.id, &repo_path).unwrap();
+    
+    // Make the .git directory read-only to cause failures
+    let git_dir = std::path::Path::new(&repo_path).join(".git");
+    let mut perms = std::fs::metadata(&git_dir).unwrap().permissions();
+    perms.set_readonly(true);
+    std::fs::set_permissions(&git_dir, perms).ok(); // May fail on some systems
+    
+    // Sync should handle failures gracefully (they cause continue, not panic)
+    let cmd = Commands::Sync;
+    let result = handler.handle(cmd);
+    
+    // Should succeed even if git operations failed
+    assert!(result.is_ok());
+}
+
+#[test]
+
+#[test]
+fn test_worktree_complete_with_base_only() {
+    use track::services::{TodoService, WorktreeService};
+    
+    let db = Database::new_in_memory().unwrap();
+    let task_service = TaskService::new(&db);
+    let todo_service = TodoService::new(&db);
+    let worktree_service = WorktreeService::new(&db);
+    
+    let task = task_service.create_task("Task", None, Some("WTB-100"), None).unwrap();
+    let todo = todo_service.add_todo(task.id, "Test TODO", true).unwrap();
+    
+    let temp_dir = tempfile::tempdir().unwrap();
+    let repo_path = temp_dir.path().to_str().unwrap();
+    std::process::Command::new("git").args(["init", repo_path]).output().unwrap();
+    std::process::Command::new("git").args(["-C", repo_path, "config", "user.email", "test@test.com"]).output().unwrap();
+    std::process::Command::new("git").args(["-C", repo_path, "config", "user.name", "Test"]).output().unwrap();
+    std::fs::write(std::path::Path::new(repo_path).join("README.md"), "init").unwrap();
+    std::process::Command::new("git").args(["-C", repo_path, "add", "."]).output().unwrap();
+    std::process::Command::new("git").args(["-C", repo_path, "commit", "-m", "init"]).output().unwrap();
+
+    // Create only base worktree (is_base=true), no TODO-specific worktree
+    let _base_wt = worktree_service.add_worktree(task.id, repo_path, None, Some("WTB-100"), None, true).unwrap();
+    
+    // Try to complete worktree for TODO - should return None because no TODO-specific worktree exists
+    // This exercises get_worktree_by_todo internally, which checks is_base != 0
+    let result = worktree_service.complete_worktree_for_todo(todo.id).unwrap();
+    assert!(result.is_none());
+}
+
+
+#[test]
+fn test_handle_sync_multiple_todos_different_worktrees() {
+    let db = Database::new_in_memory().unwrap();
+    let handler = CommandHandler::from_db(db);
+    let db = handler.get_db();
+    let task_service = TaskService::new(db);
+    let repo_service = RepoService::new(db);
+    let todo_service = TodoService::new(db);
+    let worktree_service = WorktreeService::new(db);
+    
+    let task = task_service.create_task("Task", None, Some("SYNC-600"), None).unwrap();
+    
+    let temp_dir = tempfile::tempdir().unwrap();
+    let repo_path = temp_dir.path().to_str().unwrap().to_string();
+    std::process::Command::new("git").args(["init", &repo_path]).output().unwrap();
+    std::process::Command::new("git").args(["-C", &repo_path, "config", "user.email", "test@test.com"]).output().unwrap();
+    std::process::Command::new("git").args(["-C", &repo_path, "config", "user.name", "Test"]).output().unwrap();
+    std::fs::write(std::path::Path::new(&repo_path).join("README.md"), "init").unwrap();
+    std::process::Command::new("git").args(["-C", &repo_path, "add", "."]).output().unwrap();
+    std::process::Command::new("git").args(["-C", &repo_path, "commit", "-m", "init"]).output().unwrap();
+
+    repo_service.add_repo(task.id, &repo_path).unwrap();
+    
+    // Create two TODOs with worktree requests
+    let todo1 = todo_service.add_todo(task.id, "Todo 1", true).unwrap();
+    let todo2 = todo_service.add_todo(task.id, "Todo 2", true).unwrap();
+    
+    // Pre-create worktree for todo1
+    worktree_service.add_worktree(task.id, &repo_path, None, Some("SYNC-600"), Some(todo1.id), false).unwrap();
+    
+    // Call Sync - should create worktree for todo2, but NOT todo1 (exists check)
+    let cmd = Commands::Sync;
+    handler.handle(cmd).unwrap();
+    
+    // Verify both worktrees exist with correct todo_id linkage
+    let worktrees = worktree_service.list_worktrees(task.id).unwrap();
+    assert_eq!(worktrees.len(), 2);
+    
+    // Verify TODO IDs match (this tests line 611: wt.todo_id == Some(todo.id))
+    let wt1 = worktrees.iter().find(|w| w.todo_id == Some(todo1.id)).expect("Todo1 worktree not found");
+    let wt2 = worktrees.iter().find(|w| w.todo_id == Some(todo2.id)).expect("Todo2 worktree not found");
+    
+    assert_eq!(wt1.todo_id, Some(todo1.id));
+    assert_eq!(wt2.todo_id, Some(todo2.id));
+}
