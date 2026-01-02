@@ -252,10 +252,8 @@ impl Database {
         )?;
 
         if count == 0 {
-            self.conn.execute(
-                "ALTER TABLE task_repos ADD COLUMN base_branch TEXT",
-                [],
-            )?;
+            self.conn
+                .execute("ALTER TABLE task_repos ADD COLUMN base_branch TEXT", [])?;
         }
 
         // Check for base_commit_hash column in task_repos

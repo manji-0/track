@@ -287,7 +287,7 @@ impl CommandHandler {
             println!();
             for repo in &repos {
                 print!("- `{}`", repo.repo_path);
-                
+
                 // Display base branch and commit hash if available
                 if let Some(ref base_branch) = repo.base_branch {
                     if let Some(ref base_hash) = repo.base_commit_hash {
@@ -303,7 +303,7 @@ impl CommandHandler {
                     let short_hash = &base_hash[..std::cmp::min(8, base_hash.len())];
                     print!(" (base: {})", short_hash);
                 }
-                
+
                 println!();
             }
             println!();
@@ -680,7 +680,10 @@ impl CommandHandler {
                 if create_result.is_ok() && create_result.unwrap().success() {
                     println!("  ✓ Branch {} created from {}", task_branch, base_ref);
                 } else {
-                    println!("  ✗ Failed to create branch {} from {}", task_branch, base_ref);
+                    println!(
+                        "  ✗ Failed to create branch {} from {}",
+                        task_branch, base_ref
+                    );
                     continue;
                 }
             } else {
@@ -758,56 +761,69 @@ impl CommandHandler {
         match command {
             RepoCommands::Add { path, base } => {
                 let repo_path = path.as_deref().unwrap_or(".");
-                
+
                 // Determine base branch and commit hash
                 let (base_branch, base_commit_hash) = if let Some(branch) = base {
                     // User specified a base branch, get its commit hash
                     let hash_output = std::process::Command::new("git")
                         .args(["-C", repo_path, "rev-parse", &branch])
                         .output()?;
-                    
+
                     if !hash_output.status.success() {
                         return Err(TrackError::Other(format!(
                             "Failed to get commit hash for branch '{}'",
                             branch
                         )));
                     }
-                    
-                    let hash = String::from_utf8_lossy(&hash_output.stdout).trim().to_string();
+
+                    let hash = String::from_utf8_lossy(&hash_output.stdout)
+                        .trim()
+                        .to_string();
                     (Some(branch), Some(hash))
                 } else {
                     // No base branch specified, use current branch
                     let branch_output = std::process::Command::new("git")
                         .args(["-C", repo_path, "rev-parse", "--abbrev-ref", "HEAD"])
                         .output()?;
-                    
+
                     if !branch_output.status.success() {
                         return Err(TrackError::Other(
-                            "Failed to get current branch name".to_string()
+                            "Failed to get current branch name".to_string(),
                         ));
                     }
-                    
-                    let branch = String::from_utf8_lossy(&branch_output.stdout).trim().to_string();
-                    
+
+                    let branch = String::from_utf8_lossy(&branch_output.stdout)
+                        .trim()
+                        .to_string();
+
                     // Get commit hash for current HEAD
                     let hash_output = std::process::Command::new("git")
                         .args(["-C", repo_path, "rev-parse", "HEAD"])
                         .output()?;
-                    
+
                     if !hash_output.status.success() {
-                        return Err(TrackError::Other(
-                            "Failed to get commit hash".to_string()
-                        ));
+                        return Err(TrackError::Other("Failed to get commit hash".to_string()));
                     }
-                    
-                    let hash = String::from_utf8_lossy(&hash_output.stdout).trim().to_string();
+
+                    let hash = String::from_utf8_lossy(&hash_output.stdout)
+                        .trim()
+                        .to_string();
                     (Some(branch), Some(hash))
                 };
-                
-                let repo = repo_service.add_repo(current_task_id, repo_path, base_branch.clone(), base_commit_hash.clone())?;
+
+                let repo = repo_service.add_repo(
+                    current_task_id,
+                    repo_path,
+                    base_branch.clone(),
+                    base_commit_hash.clone(),
+                )?;
                 println!("Registered repository: {}", repo.repo_path);
                 if let Some(branch) = base_branch {
-                    println!("Base branch: {} ({})", branch, &base_commit_hash.unwrap()[..8]);
+                    println!(
+                        "Base branch: {} ({})",
+                        branch,
+                        &base_commit_hash.unwrap()[..8]
+                    );
                 }
             }
             RepoCommands::List => {

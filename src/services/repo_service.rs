@@ -288,7 +288,6 @@ mod tests {
         // Verify it's removed
         let repos = repo_service.list_repos(task.id).unwrap();
         assert_eq!(repos.len(), 0);
-
     }
 
     #[test]
@@ -301,8 +300,7 @@ mod tests {
             .create_task("Test Task", None, None, None)
             .unwrap();
 
-        let temp_dir =
-            std::env::temp_dir().join(format!("test_repo_base_{}", std::process::id()));
+        let temp_dir = std::env::temp_dir().join(format!("test_repo_base_{}", std::process::id()));
         std::fs::create_dir_all(&temp_dir).unwrap();
         std::fs::create_dir(temp_dir.join(".git")).unwrap();
 

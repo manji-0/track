@@ -265,9 +265,7 @@ impl<'a> WorktreeService<'a> {
             // Fall back to the base repository path (main repository directory)
             // The TODO worktree's base_repo field points to the main repository
             wt.base_repo.clone().ok_or_else(|| {
-                TrackError::Other(
-                    "TODO worktree has no base repository reference".to_string(),
-                )
+                TrackError::Other("TODO worktree has no base repository reference".to_string())
             })?
         };
 

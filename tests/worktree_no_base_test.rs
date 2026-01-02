@@ -66,7 +66,6 @@ fn test_complete_worktree_without_base_worktree() {
     // Note: No base worktree exists in the DB at this point
     // This simulates the issue where track sync doesn't register the main repo
 
-
     // Make a commit in todo worktree
     fs::write(
         std::path::Path::new(&todo_wt.path).join("fix.txt"),
