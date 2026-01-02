@@ -82,8 +82,8 @@ pub enum Commands {
 
     /// Archive a task
     Archive {
-        /// Task ID or ticket reference
-        task_ref: String,
+        /// Task ID or ticket reference (defaults to current task)
+        task_ref: Option<String>,
     },
 
     /// TODO management

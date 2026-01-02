@@ -284,7 +284,7 @@ fn test_handle_archive_clean_worktree() {
     // If valid: it proceeds (no prompt). Task becomes archived.
 
     let cmd = Commands::Archive {
-        task_ref: task.id.to_string(),
+        task_ref: Some(task.id.to_string()),
     };
 
     // Note: This relies on stdin being empty in test env.
@@ -781,4 +781,28 @@ fn test_handle_sync_multiple_todos_different_worktrees() {
 
     assert_eq!(wt1.todo_id, Some(todo1.id));
     assert_eq!(wt2.todo_id, Some(todo2.id));
+}
+
+#[test]
+fn test_handle_archive_default_current_task() {
+    let db = Database::new_in_memory().unwrap();
+    let handler = CommandHandler::from_db(db);
+    let db = handler.get_db();
+    let task_service = TaskService::new(db);
+
+    let t1 = task_service
+        .create_task("Task To Archive", None, None, None)
+        .unwrap();
+
+    // Verify it is current task
+    assert_eq!(db.get_current_task_id().unwrap(), Some(t1.id));
+
+    // Archive without specifying task_ref (None)
+    let cmd = Commands::Archive {
+        task_ref: None,
+    };
+    handler.handle(cmd).unwrap();
+
+    let t = task_service.get_task(t1.id).unwrap();
+    assert_eq!(t.status, "archived");
 }

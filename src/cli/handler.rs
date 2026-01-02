@@ -52,7 +52,7 @@ impl CommandHandler {
                 url,
                 task,
             } => self.handle_ticket(&ticket_id, &url, task),
-            Commands::Archive { task_ref } => self.handle_archive(&task_ref),
+            Commands::Archive { task_ref } => self.handle_archive(task_ref.as_deref()),
             Commands::Todo(cmd) => self.handle_todo(cmd),
             Commands::Link(cmd) => self.handle_link(cmd),
             Commands::Scrap(cmd) => self.handle_scrap(cmd),
@@ -399,11 +399,17 @@ impl CommandHandler {
         Ok(())
     }
 
-    fn handle_archive(&self, task_ref: &str) -> Result<()> {
+    fn handle_archive(&self, task_ref: Option<&str>) -> Result<()> {
         let task_service = TaskService::new(&self.db);
         let worktree_service = WorktreeService::new(&self.db);
 
-        let task_id = task_service.resolve_task_id(task_ref)?;
+        let task_id = match task_ref {
+            Some(r) => task_service.resolve_task_id(r)?,
+            None => self
+                .db
+                .get_current_task_id()?
+                .ok_or(TrackError::NoActiveTask)?,
+        };
         let task = task_service.get_task(task_id)?;
 
         // 1. Get all worktrees for this task
