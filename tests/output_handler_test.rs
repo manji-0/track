@@ -60,11 +60,17 @@ fn test_handle_info_no_output_errors() {
     scrap_service.add_scrap(task.id, "Scrap note").unwrap();
 
     // Info without JSON - should not error
-    let cmd = Commands::Status { id: None, json: false };
+    let cmd = Commands::Status {
+        id: None,
+        json: false,
+    };
     assert!(handler.handle(cmd).is_ok());
 
     // Info with JSON - should not error
-    let cmd = Commands::Status { id: None, json: true };
+    let cmd = Commands::Status {
+        id: None,
+        json: true,
+    };
     assert!(handler.handle(cmd).is_ok());
 }
 
