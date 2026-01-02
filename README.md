@@ -356,6 +356,55 @@ See [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md) for details.
 - [docs/FUNCTIONAL_SPEC.md](docs/FUNCTIONAL_SPEC.md) - Functional specification
 - [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md) - Project structure
 
+## For LLM Agents
+
+Track includes **skills** - structured workflow guides designed specifically for LLM agents (Cline, Aider, etc.) to effectively use the CLI.
+
+### Quick Start for Agents
+
+1. **Check current state**: Always run `track status` first
+2. **Reference skills**: Use workflow guides in the `skills/` directory
+3. **Follow best practices**: Commit frequently, document with scraps, test before completing TODOs
+
+### Available Skills
+
+| Skill | Purpose | When to Use |
+|-------|---------|-------------|
+| [Create Task Workflow](skills/create-task-workflow.md) | Create tasks and add TODOs | Starting new work |
+| [Execute Task Workflow](skills/execute-task-workflow.md) | Work through TODOs to completion | Implementing changes |
+
+### LLM Help Command
+
+Run `track llm-help` for a quick reference guide with essential commands and workflow overview:
+
+```bash
+track llm-help
+```
+
+This outputs a comprehensive markdown guide covering:
+- Complete task workflow (setup → execution → completion)
+- Key commands with examples
+- Ticket integration 
+- Worktree management details
+- Best practices for LLM agents
+
+### Skill Installation
+
+**For direct file access:**
+- Skills are located at `skills/` in the repository
+- Read files as needed during task execution
+
+**For system prompts:**
+Add to your agent's custom instructions:
+```
+When using the track CLI, refer to workflow skills at:
+- Create tasks: /path/to/track/skills/create-task-workflow.md
+- Execute tasks: /path/to/track/skills/execute-task-workflow.md
+Always run `track status` before starting work.
+```
+
+See [skills/README.md](skills/README.md) for detailed usage instructions and examples.
+
 ## License
 
 MIT License

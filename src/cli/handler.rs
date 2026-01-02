@@ -25,6 +25,7 @@ impl CommandHandler {
 
     /// Returns a reference to the database instance.
     /// This is primarily used for testing.
+    #[allow(dead_code)]
     pub fn get_db(&self) -> &Database {
         &self.db
     }
