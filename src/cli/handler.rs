@@ -248,7 +248,7 @@ impl CommandHandler {
         if !scraps.is_empty() {
             println!("## Recent Scraps");
             println!();
-            for scrap in scraps.iter().rev().take(5) {
+            for scrap in scraps.iter().take(5) {
                 let timestamp = scrap.created_at.with_timezone(&Local).format("%H:%M");
                 println!("- **[{}]** {}", timestamp, scrap.content);
             }
