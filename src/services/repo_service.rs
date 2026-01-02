@@ -289,6 +289,45 @@ mod tests {
         let repos = repo_service.list_repos(task.id).unwrap();
         assert_eq!(repos.len(), 0);
 
+    }
+
+    #[test]
+    fn test_add_repo_with_base_info() {
+        let db = setup_db();
+        let task_service = TaskService::new(&db);
+        let repo_service = RepoService::new(&db);
+
+        let task = task_service
+            .create_task("Test Task", None, None, None)
+            .unwrap();
+
+        let temp_dir =
+            std::env::temp_dir().join(format!("test_repo_base_{}", std::process::id()));
+        std::fs::create_dir_all(&temp_dir).unwrap();
+        std::fs::create_dir(temp_dir.join(".git")).unwrap();
+
+        // Add repository with base branch and commit hash
+        let base_branch = "main".to_string();
+        let base_hash = "abc123def456".to_string();
+
+        let repo = repo_service
+            .add_repo(
+                task.id,
+                temp_dir.to_str().unwrap(),
+                Some(base_branch.clone()),
+                Some(base_hash.clone()),
+            )
+            .unwrap();
+
+        assert_eq!(repo.base_branch, Some(base_branch.clone()));
+        assert_eq!(repo.base_commit_hash, Some(base_hash.clone()));
+
+        // Verify data persists by listing repos
+        let repos = repo_service.list_repos(task.id).unwrap();
+        assert_eq!(repos.len(), 1);
+        assert_eq!(repos[0].base_branch, Some(base_branch));
+        assert_eq!(repos[0].base_commit_hash, Some(base_hash));
+
         // Cleanup
         std::fs::remove_dir_all(&temp_dir).ok();
     }
