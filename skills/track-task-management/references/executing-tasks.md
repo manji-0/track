@@ -257,7 +257,7 @@ When all TODOs marked done:
    ```
 
 5. **Archive or keep**
-   - Use `track archive` if complete
+   - Use `track archive` to archive current task
    - Or keep for reference
 
 ---
