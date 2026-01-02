@@ -180,70 +180,99 @@ impl CommandHandler {
             return Ok(());
         }
 
-        println!("=== Task #{}: {} ===", task.id, task.name);
-        if let Some(ticket_id) = &task.ticket_id {
-            print!("Ticket: {}", ticket_id);
-            if let Some(url) = &task.ticket_url {
-                print!(" ({})", url);
-            }
-            println!();
-        }
+        // Task header
+        println!("# Task #{}: {}", task.id, task.name);
+        println!();
+
+        // Metadata section
         let created = task
             .created_at
             .with_timezone(&Local)
             .format("%Y-%m-%d %H:%M:%S");
-        println!("Created: {}", created);
+        println!("**Created:** {}", created);
+
+        if let Some(ticket_id) = &task.ticket_id {
+            if let Some(url) = &task.ticket_url {
+                println!("**Ticket:** [{}]({})", ticket_id, url);
+            } else {
+                println!("**Ticket:** {}", ticket_id);
+            }
+        }
         println!();
 
         // Description
         if let Some(desc) = &task.description {
-            println!("Description:");
-            println!("  {}", desc);
+            println!("## Description");
+            println!();
+            println!("{}", desc);
             println!();
         }
 
         // TODOs
         if !todos.is_empty() {
-            println!("[ TODOs ]");
+            println!("## TODOs");
+            println!();
             for todo in todos {
                 let marker = match todo.status.as_str() {
-                    "done" => "[x]",
-                    "cancelled" => "[-]",
-                    _ => "[ ]",
+                    "done" => "x",
+                    "cancelled" => " ",
+                    _ => " ",
                 };
-                println!("  {} [{}] {}", marker, todo.task_index, todo.content);
+                let status_indicator = match todo.status.as_str() {
+                    "cancelled" => " ~~",
+                    _ => "",
+                };
+                let status_end = match todo.status.as_str() {
+                    "cancelled" => "~~",
+                    _ => "",
+                };
+                println!(
+                    "- [{}] **[{}]**{} {}{}",
+                    marker, todo.task_index, status_indicator, todo.content, status_end
+                );
             }
             println!();
         }
 
         // Links
         if !links.is_empty() {
-            println!("[ Links ]");
+            println!("## Links");
+            println!();
             for link in links {
-                println!("  - {}: {}", link.title, link.url);
+                println!("- [{}]({})", link.title, link.url);
             }
             println!();
         }
 
         // Scraps
         if !scraps.is_empty() {
-            println!("[ Recent Scraps ]");
+            println!("## Recent Scraps");
+            println!();
             for scrap in scraps.iter().rev().take(5) {
                 let timestamp = scrap.created_at.with_timezone(&Local).format("%H:%M");
-                println!("  [{}] {}", timestamp, scrap.content);
+                println!("- **[{}]** {}", timestamp, scrap.content);
             }
             println!();
         }
 
         // Worktrees
         if !worktrees.is_empty() {
-            println!("[ Worktrees ]");
+            println!("## Worktrees");
+            println!();
             for worktree in worktrees {
-                println!("  #{} {} ({})", worktree.id, worktree.path, worktree.branch);
+                println!("### Worktree #{}", worktree.id);
+                println!();
+                println!("- **Path:** `{}`", worktree.path);
+                println!("- **Branch:** `{}`", worktree.branch);
+
                 let repo_links = worktree_service.list_repo_links(worktree.id)?;
-                for link in repo_links {
-                    println!("      └─ {}: {}", link.kind, link.url);
+                if !repo_links.is_empty() {
+                    println!("- **Repository Links:**");
+                    for link in repo_links {
+                        println!("  - {}: {}", link.kind, link.url);
+                    }
                 }
+                println!();
             }
         }
 

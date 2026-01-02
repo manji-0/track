@@ -204,27 +204,37 @@ Switched to task #<id>: <name>
 
 **Output Example (Standard)**:
 ```
-=== Task #1: API Implementation ===
-Ticket: PROJ-123 (https://jira.example.com/browse/PROJ-123)
-Created: 2025-01-01 10:00:00
+# Task #1: API Implementation
 
-Description:
-  Implement RESTful API with JWT authentication and user management.
-  This includes endpoint design, database schema, and integration tests.
+**Created:** 2025-01-01 10:00:00
+**Ticket:** [PROJ-123](https://jira.example.com/browse/PROJ-123)
 
-[ TODOs ]
-  [ ] Endpoint design
-  [x] Schema definition
+## Description
 
-[ Links ]
-  - Figma Design: https://figma.com/...
+Implement RESTful API with JWT authentication and user management.
+This includes endpoint design, database schema, and integration tests.
 
-[ Recent Scraps ]
-  [10:30] Completed DB design.
+## TODOs
+
+- [ ] **[1]** Endpoint design
+- [x] **[2]** Schema definition
+
+## Links
+
+- [Figma Design](https://figma.com/...)
+
+## Recent Scraps
+
+- **[10:30]** Completed DB design.
   
-[ Worktrees ]
-  #1 /home/user/api-worktrees/task/PROJ-123 (task/PROJ-123)
-      └─ PR: https://github.com/.../pull/123
+## Worktrees
+
+### Worktree #1
+
+- **Path:** `/home/user/api-worktrees/task/PROJ-123`
+- **Branch:** `task/PROJ-123`
+- **Repository Links:**
+  - PR: https://github.com/.../pull/123
 ```
 
 **Output Example (JSON)**:
