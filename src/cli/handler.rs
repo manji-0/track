@@ -637,23 +637,32 @@ impl CommandHandler {
             let branch_exists = branch_check.map(|o| o.status.success()).unwrap_or(false);
 
             if !branch_exists {
-                // Get current branch
-                let current_branch_output = std::process::Command::new("git")
-                    .args(["-C", &repo.repo_path, "rev-parse", "--abbrev-ref", "HEAD"])
-                    .output()?;
-                let current_branch = String::from_utf8_lossy(&current_branch_output.stdout)
-                    .trim()
-                    .to_string();
+                // Determine the base for creating the task branch
+                let base_ref = if let Some(ref base_branch) = repo.base_branch {
+                    // Use registered base branch
+                    base_branch.clone()
+                } else if let Some(ref base_hash) = repo.base_commit_hash {
+                    // Use registered base commit hash
+                    base_hash.clone()
+                } else {
+                    // Fallback: use current branch (for backward compatibility)
+                    let current_branch_output = std::process::Command::new("git")
+                        .args(["-C", &repo.repo_path, "rev-parse", "--abbrev-ref", "HEAD"])
+                        .output()?;
+                    String::from_utf8_lossy(&current_branch_output.stdout)
+                        .trim()
+                        .to_string()
+                };
 
-                // Create task branch
+                // Create task branch from base
                 let create_result = std::process::Command::new("git")
-                    .args(["-C", &repo.repo_path, "branch", &task_branch])
+                    .args(["-C", &repo.repo_path, "branch", &task_branch, &base_ref])
                     .status();
 
                 if create_result.is_ok() && create_result.unwrap().success() {
-                    println!("  ✓ Branch {} created from {}", task_branch, current_branch);
+                    println!("  ✓ Branch {} created from {}", task_branch, base_ref);
                 } else {
-                    println!("  ✗ Failed to create branch {}", task_branch);
+                    println!("  ✗ Failed to create branch {} from {}", task_branch, base_ref);
                     continue;
                 }
             } else {
