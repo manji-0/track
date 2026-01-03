@@ -10,6 +10,7 @@
     <!-- Modern CSS -->
     <style>
         :root {
+            /* Dark mode colors (default) */
             --bg-primary: #0f0f1a;
             --bg-secondary: #1a1a2e;
             --bg-card: rgba(30, 30, 50, 0.8);
@@ -31,6 +32,33 @@
             --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
             --gradient-bg: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
             --transition: all 0.2s ease;
+        }
+
+        /* Light mode colors */
+        [data-theme="light"] {
+            --bg-primary: #f8f9fa;
+            --bg-secondary: #ffffff;
+            --bg-card: rgba(255, 255, 255, 0.9);
+            --bg-input: rgba(255, 255, 255, 0.8);
+            --text-primary: #1a1a1a;
+            --text-secondary: #4a5568;
+            --text-muted: #718096;
+            --accent: #7c3aed;
+            --accent-hover: #6d28d9;
+            --accent-light: rgba(124, 58, 237, 0.15);
+            --accent-text: #ffffff;
+            --success: #059669;
+            --success-dark: #047857;
+            --success-light: rgba(5, 150, 105, 0.15);
+            --success-text: #ffffff;
+            --warning: #d97706;
+            --warning-dark: #b45309;
+            --warning-text: #ffffff;
+            --danger: #dc2626;
+            --danger-light: rgba(220, 38, 38, 0.1);
+            --border-color: rgba(0, 0, 0, 0.1);
+            --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            --gradient-bg: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
         }
 
         * {
@@ -125,6 +153,12 @@
             font-weight: 500;
         }
 
+        [data-theme="light"] .task-meta .badge {
+            background: var(--accent);
+            color: white;
+            font-weight: 600;
+        }
+
         .task-meta .task-id {
             color: var(--text-muted);
             font-size: 0.875rem;
@@ -151,6 +185,15 @@
         .btn-collapse:hover {
             background: rgba(255, 255, 255, 0.1);
             border-color: rgba(255, 255, 255, 0.3);
+        }
+
+        [data-theme="light"] .btn-collapse {
+            background: rgba(0, 0, 0, 0.05);
+        }
+
+        [data-theme="light"] .btn-collapse:hover {
+            background: rgba(0, 0, 0, 0.1);
+            border-color: rgba(0, 0, 0, 0.3);
         }
 
         #collapse-icon {
@@ -185,6 +228,11 @@
             font-weight: 600;
             font-size: 1rem;
             font-family: 'JetBrains Mono', 'Fira Code', monospace;
+        }
+
+        [data-theme="light"] .ticket-id {
+            background: var(--accent);
+            color: white;
         }
 
         .ticket-url {
@@ -262,6 +310,15 @@
             transform: translateY(-1px);
         }
 
+        /* Light mode button improvements */
+        [data-theme="light"] button {
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+        }
+
+        [data-theme="light"] button:hover {
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+        }
+
         button:active {
             transform: translateY(0);
         }
@@ -278,6 +335,10 @@
             color: var(--text-primary);
         }
 
+        [data-theme="light"] button.btn-edit:hover {
+            background: rgba(0, 0, 0, 0.05);
+        }
+
         button.btn-primary {
             background: var(--accent);
             color: white;
@@ -292,6 +353,11 @@
         button.btn-secondary:hover {
             background: rgba(255, 255, 255, 0.05);
             border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        [data-theme="light"] button.btn-secondary:hover {
+            background: rgba(0, 0, 0, 0.05);
+            border-color: rgba(0, 0, 0, 0.2);
         }
 
         button.btn-danger {
@@ -336,6 +402,10 @@
             background: rgba(255, 255, 255, 0.05);
         }
 
+        [data-theme="light"] .todo-item:hover {
+            background: rgba(0, 0, 0, 0.03);
+        }
+
         .todo-item.done {
             opacity: 0.6;
         }
@@ -355,6 +425,11 @@
             text-align: center;
         }
 
+        [data-theme="light"] .todo-index {
+            background: var(--accent);
+            color: white;
+        }
+
         .todo-content {
             flex: 1;
         }
@@ -368,11 +443,23 @@
         .todo-status.pending {
             background: var(--warning);
             color: #000;
+            font-weight: 600;
         }
 
         .todo-status.done {
             background: var(--success);
             color: #000;
+            font-weight: 600;
+        }
+
+        [data-theme="light"] .todo-status.pending {
+            background: var(--warning);
+            color: white;
+        }
+
+        [data-theme="light"] .todo-status.done {
+            background: var(--success);
+            color: white;
         }
 
         /* Scrap list */
@@ -387,6 +474,10 @@
             background: rgba(255, 255, 255, 0.03);
             border-radius: 0 var(--border-radius-sm) var(--border-radius-sm) 0;
             margin-bottom: 0.75rem;
+        }
+
+        [data-theme="light"] .scrap-item {
+            background: rgba(0, 0, 0, 0.03);
         }
 
         .scrap-time {
@@ -573,6 +664,41 @@
             }
         }
 
+        /* Theme toggle button */
+        .theme-toggle {
+            position: fixed;
+            top: 1rem;
+            right: 1rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius-sm);
+            padding: 0.625rem;
+            cursor: pointer;
+            transition: var(--transition);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 2.5rem;
+            height: 2.5rem;
+            box-shadow: var(--shadow);
+        }
+
+        .theme-toggle:hover {
+            background: var(--bg-input);
+            border-color: var(--accent);
+            transform: scale(1.05);
+        }
+
+        .theme-toggle:active {
+            transform: scale(0.95);
+        }
+
+        .theme-icon {
+            font-size: 1.25rem;
+            transition: var(--transition);
+        }
+
         /* Responsive */
         @media (max-width: 640px) {
             .container {
@@ -595,6 +721,11 @@
             .form-actions {
                 flex-direction: column;
             }
+
+            .theme-toggle {
+                top: 0.5rem;
+                right: 0.5rem;
+            }
         }
     </style>
 
@@ -603,6 +734,11 @@
 </head>
 
 <body>
+    <!-- Theme Toggle Button -->
+    <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+        <span class="theme-icon" id="theme-icon">🌙</span>
+    </button>
+
     <div class="container">
         {% block content %}{% endblock %}
     </div>
@@ -612,6 +748,40 @@
         <span class="status-dot"></span>
         <span class="status-text">Connecting...</span>
     </div>
+
+    <script>
+        // Theme management
+        (function () {
+            const html = document.documentElement;
+            const themeToggle = document.getElementById('theme-toggle');
+            const themeIcon = document.getElementById('theme-icon');
+
+            // Get saved theme or default to dark
+            const savedTheme = localStorage.getItem('theme') || 'dark';
+
+            // Apply theme
+            function applyTheme(theme) {
+                if (theme === 'light') {
+                    html.setAttribute('data-theme', 'light');
+                    themeIcon.textContent = '☀️';
+                } else {
+                    html.removeAttribute('data-theme');
+                    themeIcon.textContent = '🌙';
+                }
+                localStorage.setItem('theme', theme);
+            }
+
+            // Initialize theme
+            applyTheme(savedTheme);
+
+            // Toggle theme
+            themeToggle.addEventListener('click', function () {
+                const currentTheme = html.getAttribute('data-theme');
+                const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+                applyTheme(newTheme);
+            });
+        })();
+    </script>
 
     <script>
         // SSE connection for real-time updates
