@@ -28,14 +28,19 @@ pub struct Task {
 /// and can optionally request a Git worktree for isolated development.
 #[derive(Debug, Clone, Serialize)]
 pub struct Todo {
+    #[serde(skip)]
     pub id: i64,
+    #[serde(skip)]
     #[allow(dead_code)]
     pub task_id: i64,
+    /// Task-scoped sequential ID for this TODO
+    #[serde(rename = "todo_id")]
     pub task_index: i64,
     pub content: String,
     pub status: String,
-    #[serde(default)]
+    #[serde(skip)]
     pub worktree_requested: bool,
+    #[serde(skip)]
     #[allow(dead_code)]
     pub created_at: DateTime<Utc>,
     pub completed_at: Option<DateTime<Utc>>,
