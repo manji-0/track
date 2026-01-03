@@ -62,10 +62,14 @@ pub struct Link {
 /// during task execution. They help maintain context and flow of work.
 #[derive(Debug, Clone, Serialize)]
 pub struct Scrap {
+    #[serde(skip)]
     #[allow(dead_code)]
     pub id: i64,
+    #[serde(skip)]
     #[allow(dead_code)]
     pub task_id: i64,
+    /// Task-scoped sequential ID for this scrap
+    pub scrap_id: i64,
     pub content: String,
     pub created_at: DateTime<Utc>,
 }

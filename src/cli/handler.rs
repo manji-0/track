@@ -340,7 +340,14 @@ impl CommandHandler {
                 let timestamp = scrap.created_at.with_timezone(&Local).format("%H:%M");
                 println!("### [{}]", timestamp);
                 println!();
-                println!("{}", scrap.content);
+                // Wrap content in blockquote to prevent markdown heading conflicts
+                for line in scrap.content.lines() {
+                    if line.is_empty() {
+                        println!(">");
+                    } else {
+                        println!("> {}", line);
+                    }
+                }
                 println!();
             }
             println!();

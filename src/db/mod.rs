@@ -283,6 +283,40 @@ impl Database {
                 .execute("ALTER TABLE todos ADD COLUMN completed_at TEXT", [])?;
         }
 
+        // Check for task_index column in scraps
+        let count: i64 = self.conn.query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('scraps') WHERE name='task_index'",
+            [],
+            |row| row.get(0),
+        )?;
+
+        if count == 0 {
+            // Add task_index column
+            self.conn
+                .execute("ALTER TABLE scraps ADD COLUMN task_index INTEGER", [])?;
+
+            // Populate task_index for existing scraps based on creation order
+            self.conn.execute_batch(
+                r#"
+                WITH numbered_scraps AS (
+                    SELECT id, task_id, 
+                           ROW_NUMBER() OVER (PARTITION BY task_id ORDER BY created_at) as idx
+                    FROM scraps
+                )
+                UPDATE scraps 
+                SET task_index = (
+                    SELECT idx FROM numbered_scraps WHERE numbered_scraps.id = scraps.id
+                )
+                "#,
+            )?;
+
+            // Create unique index on (task_id, task_index)
+            self.conn.execute(
+                "CREATE UNIQUE INDEX idx_scraps_task_index ON scraps(task_id, task_index)",
+                [],
+            )?;
+        }
+
         Ok(())
     }
 

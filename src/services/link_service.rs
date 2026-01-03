@@ -90,9 +90,16 @@ impl<'a> ScrapService<'a> {
         let now = Utc::now().to_rfc3339();
         let conn = self.db.get_connection();
 
+        // Get the next task_index for this task
+        let next_index: i64 = conn.query_row(
+            "SELECT COALESCE(MAX(task_index), 0) + 1 FROM scraps WHERE task_id = ?1",
+            params![task_id],
+            |row| row.get(0),
+        )?;
+
         conn.execute(
-            "INSERT INTO scraps (task_id, content, created_at) VALUES (?1, ?2, ?3)",
-            params![task_id, content, now],
+            "INSERT INTO scraps (task_id, task_index, content, created_at) VALUES (?1, ?2, ?3, ?4)",
+            params![task_id, next_index, content, now],
         )?;
 
         let scrap_id = conn.last_insert_rowid();
@@ -101,15 +108,17 @@ impl<'a> ScrapService<'a> {
 
     pub fn get_scrap(&self, scrap_id: i64) -> Result<Scrap> {
         let conn = self.db.get_connection();
-        let mut stmt =
-            conn.prepare("SELECT id, task_id, content, created_at FROM scraps WHERE id = ?1")?;
+        let mut stmt = conn.prepare(
+            "SELECT id, task_id, task_index, content, created_at FROM scraps WHERE id = ?1",
+        )?;
 
         let scrap = stmt.query_row(params![scrap_id], |row| {
             Ok(Scrap {
                 id: row.get(0)?,
                 task_id: row.get(1)?,
-                content: row.get(2)?,
-                created_at: row.get::<_, String>(3)?.parse().unwrap(),
+                scrap_id: row.get(2)?,
+                content: row.get(3)?,
+                created_at: row.get::<_, String>(4)?.parse().unwrap(),
             })
         })?;
 
@@ -119,7 +128,7 @@ impl<'a> ScrapService<'a> {
     pub fn list_scraps(&self, task_id: i64) -> Result<Vec<Scrap>> {
         let conn = self.db.get_connection();
         let mut stmt = conn.prepare(
-            "SELECT id, task_id, content, created_at FROM scraps WHERE task_id = ?1 ORDER BY created_at ASC"
+            "SELECT id, task_id, task_index, content, created_at FROM scraps WHERE task_id = ?1 ORDER BY created_at ASC"
         )?;
 
         let scraps = stmt
@@ -127,8 +136,9 @@ impl<'a> ScrapService<'a> {
                 Ok(Scrap {
                     id: row.get(0)?,
                     task_id: row.get(1)?,
-                    content: row.get(2)?,
-                    created_at: row.get::<_, String>(3)?.parse().unwrap(),
+                    scrap_id: row.get(2)?,
+                    content: row.get(3)?,
+                    created_at: row.get::<_, String>(4)?.parse().unwrap(),
                 })
             })?
             .collect::<std::result::Result<Vec<_>, _>>()?;
