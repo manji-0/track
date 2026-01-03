@@ -1,150 +1,150 @@
 # Test Documentation
 
-このドキュメントは、`track` CLIプロジェクトのテスト構成と戦略を説明します。
+This document describes the test configuration and strategy for the `track` CLI project.
 
-## テスト概要
+## Test Overview
 
-### テスト統計
-- **合計テスト数**: 79
-  - ユニットテスト: 74
-  - 統合テスト: 5
+### Test Statistics
+- **Total Tests**: 79
+  - Unit Tests: 74
+  - Integration Tests: 5
 
-### テストカバレッジ
+### Test Coverage
 
 #### 1. Models (`src/models/mod.rs`)
-**テスト数**: 4
+**Number of Tests**: 4
 
-- `test_task_status_as_str`: TaskStatusのas_strメソッドのテスト
-- `test_task_status_from_str`: TaskStatusのfrom_strメソッドのテスト
-- `test_todo_status_as_str`: TodoStatusのas_strメソッドのテスト
-- `test_todo_status_from_str`: TodoStatusのfrom_strメソッドのテスト
+- `test_task_status_as_str`: Test for TaskStatus `as_str` method
+- `test_task_status_from_str`: Test for TaskStatus `from_str` method
+- `test_todo_status_as_str`: Test for TodoStatus `as_str` method
+- `test_todo_status_from_str`: Test for TodoStatus `from_str` method
 
-**カバレッジ**: ✅ 完全
-- すべてのenumバリアントの変換をテスト
-- 無効な入力のハンドリングをテスト
+**Coverage**: ✅ Complete
+- Tests conversion for all enum variants
+- Tests handling of invalid inputs
 
 #### 2. Database (`src/db/mod.rs`)
-**テスト数**: 4
+**Number of Tests**: 4
 
-- `test_new_in_memory`: インメモリDBの作成テスト
-- `test_app_state_get_set`: アプリケーション状態の取得・設定テスト
-- `test_current_task_id`: 現在のタスクID管理のテスト
-- `test_schema_initialization`: スキーマ初期化のテスト
+- `test_new_in_memory`: Test creation of in-memory DB
+- `test_app_state_get_set`: Test getting/setting application state
+- `test_current_task_id`: Test current task ID management
+- `test_schema_initialization`: Test schema initialization
 
-**カバレッジ**: ✅ 完全
-- DB接続とスキーマ初期化
-- 状態管理機能
-- すべての公開メソッド
+**Coverage**: ✅ Complete
+- DB connection and schema initialization
+- State management functionality
+- All public methods
 
 #### 3. TaskService (`src/services/task_service.rs`)
-**テスト数**: 18
+**Number of Tests**: 18
 
-**基本CRUD操作**:
-- `test_create_task_success`: タスク作成の成功ケース
-- `test_create_task_with_ticket`: チケット付きタスク作成
-- `test_create_task_with_description`: 説明付きタスク作成
-- `test_create_task_empty_name`: 空の名前でのエラーハンドリング
-- `test_create_task_duplicate_ticket`: 重複チケットのエラーハンドリング
-- `test_get_task_success`: タスク取得の成功ケース
-- `test_get_task_not_found`: 存在しないタスクのエラーハンドリング
-- `test_list_tasks`: タスク一覧取得
-- `test_list_tasks_exclude_archived`: アーカイブ済みタスクの除外
+**Basic CRUD Operations**:
+- `test_create_task_success`: Success case for task creation
+- `test_create_task_with_ticket`: Task creation with ticket
+- `test_create_task_with_description`: Task creation with description
+- `test_create_task_empty_name`: Error handling for empty name
+- `test_create_task_duplicate_ticket`: Error handling for duplicate ticket
+- `test_get_task_success`: Success case for task retrieval
+- `test_get_task_not_found`: Error handling for non-existent task
+- `test_list_tasks`: Task list retrieval
+- `test_list_tasks_exclude_archived`: Exclusion of archived tasks
 
-**タスク管理**:
-- `test_switch_task_success`: タスク切り替えの成功ケース
-- `test_switch_task_archived`: アーカイブ済みタスクへの切り替えエラー
-- `test_archive_task`: タスクのアーカイブ
+**Task Management**:
+- `test_switch_task_success`: Success case for task switching
+- `test_switch_task_archived`: Error switching to archived task
+- `test_archive_task`: Task archiving
 
-**チケット管理**:
-- `test_link_ticket_success`: チケットリンクの成功ケース
-- `test_link_ticket_duplicate`: 重複チケットのエラーハンドリング
-- `test_validate_ticket_format_jira`: JIRAチケット形式の検証
-- `test_validate_ticket_format_github`: GitHubチケット形式の検証
-- `test_validate_ticket_format_invalid`: 無効なチケット形式のエラーハンドリング
+**Ticket Management**:
+- `test_link_ticket_success`: Success case for linking ticket
+- `test_link_ticket_duplicate`: Error handling for duplicate ticket
+- `test_validate_ticket_format_jira`: Validation of JIRA ticket format
+- `test_validate_ticket_format_github`: Validation of GitHub ticket format
+- `test_validate_ticket_format_invalid`: Error handling for invalid ticket format
 
-**説明管理**:
-- `test_set_description`: 説明の設定
-- `test_set_description_archived_task`: アーカイブ済みタスクへの説明設定エラー
-- `test_description_persists`: 説明の永続化確認
+**Description Management**:
+- `test_set_description`: Setting description
+- `test_set_description_archived_task`: Error setting description for archived task
+- `test_description_persists`: Verifying description matches persistence
 
-**タスク解決**:
-- `test_resolve_task_id_by_id`: IDによるタスク解決
-- `test_resolve_task_id_by_ticket`: チケットIDによるタスク解決
+**Task Resolution**:
+- `test_resolve_task_id_by_id`: Task resolution by ID
+- `test_resolve_task_id_by_ticket`: Task resolution by ticket ID
 
-**カバレッジ**: ✅ 完全
-- すべての公開メソッド
-- 成功ケースとエラーケース
-- エッジケース
+**Coverage**: ✅ Complete
+- All public methods
+- Success and error cases
+- Edge cases
 
 #### 4. TodoService (`src/services/todo_service.rs`)
-**テスト数**: 15
+**Number of Tests**: 15
 
-**基本CRUD操作**:
-- `test_add_todo_success`: TODO追加の成功ケース
-- `test_add_todo_with_worktree_success`: worktree付きTODO追加
-- `test_get_todo_success`: TODO取得の成功ケース
-- `test_get_todo_not_found`: 存在しないTODOのエラーハンドリング
-- `test_list_todos`: TODO一覧取得
-- `test_delete_todo_success`: TODO削除の成功ケース
-- `test_delete_todo_not_found`: 存在しないTODO削除のエラーハンドリング
+**Basic CRUD Operations**:
+- `test_add_todo_success`: Success case for adding TODO
+- `test_add_todo_with_worktree_success`: Adding TODO with worktree
+- `test_get_todo_success`: Success case for TODO retrieval
+- `test_get_todo_not_found`: Error handling for non-existent TODO
+- `test_list_todos`: TODO list retrieval
+- `test_delete_todo_success`: Success case for TODO deletion
+- `test_delete_todo_not_found`: Error handling for deleting non-existent TODO
 
-**ステータス管理**:
-- `test_update_status_success`: ステータス更新の成功ケース
-- `test_update_status_invalid`: 無効なステータスのエラーハンドリング
-- `test_update_status_not_found`: 存在しないTODOのステータス更新エラー
+**Status Management**:
+- `test_update_status_success`: Success case for status update
+- `test_update_status_invalid`: Error handling for invalid status
+- `test_update_status_not_found`: Error updating status for non-existent TODO
 
-**タスクインデックス管理**:
-- `test_task_index_sequential`: タスクインデックスの連番性
-- `test_task_index_independence`: タスク間のインデックス独立性
-- `test_get_todo_by_index_success`: インデックスによるTODO取得の成功ケース
-- `test_get_todo_by_index_not_found`: 存在しないインデックスのエラーハンドリング
-- `test_list_todos_ordered_by_index`: インデックス順のTODO一覧
+**Task Index Management**:
+- `test_task_index_sequential`: Sequentiality of task index
+- `test_task_index_independence`: Independence of indices between tasks
+- `test_get_todo_by_index_success`: Success case for TODO retrieval by index
+- `test_get_todo_by_index_not_found`: Error handling for non-existent index
+- `test_list_todos_ordered_by_index`: TODO list ordered by index
 
-**カバレッジ**: ✅ 完全
-- すべての公開メソッド
-- タスクスコープのインデックス管理
-- エラーハンドリング
+**Coverage**: ✅ Complete
+- All public methods
+- Task-scoped index management
+- Error handling
 
 #### 5. LinkService & ScrapService (`src/services/link_service.rs`)
-**テスト数**: 10
+**Number of Tests**: 10
 
-**LinkService (7テスト)**:
-- `test_add_link_success`: リンク追加の成功ケース
-- `test_add_link_default_title`: デフォルトタイトルでのリンク追加
-- `test_add_link_invalid_url`: 無効なURLのエラーハンドリング
-- `test_list_links`: リンク一覧取得
-- `test_validate_url_http`: HTTP URLの検証
-- `test_validate_url_https`: HTTPS URLの検証
-- `test_validate_url_invalid`: 無効なURLの検証エラー
+**LinkService (7 Tests)**:
+- `test_add_link_success`: Success case for adding link
+- `test_add_link_default_title`: Adding link with default title
+- `test_add_link_invalid_url`: Error handling for invalid URL
+- `test_list_links`: Link list retrieval
+- `test_validate_url_http`: Validation of HTTP URL
+- `test_validate_url_https`: Validation of HTTPS URL
+- `test_validate_url_invalid`: Validation error for invalid URL
 
-**ScrapService (3テスト)**:
-- `test_add_scrap_success`: スクラップ追加の成功ケース
-- `test_get_scrap_success`: スクラップ取得の成功ケース
-- `test_list_scraps`: スクラップ一覧取得（時系列順）
+**ScrapService (3 Tests)**:
+- `test_add_scrap_success`: Success case for adding scrap
+- `test_get_scrap_success`: Success case for scrap retrieval
+- `test_list_scraps`: Scrap list retrieval (chronological order)
 
-**カバレッジ**: ✅ 完全
-- すべての公開メソッド
-- URL検証ロジック
-- 時系列順のソート
+**Coverage**: ✅ Complete
+- All public methods
+- URL validation logic
+- Chronological sorting
 
 #### 6. RepoService (`src/services/repo_service.rs`)
-**テスト数**: 5
+**Number of Tests**: 5
 
-- `test_add_repo_success`: リポジトリ登録の成功ケース
-- `test_add_repo_not_git`: 非Gitディレクトリのエラーハンドリング
-- `test_add_repo_duplicate`: 重複リポジトリのエラーハンドリング
-- `test_list_repos`: リポジトリ一覧取得
-- `test_remove_repo`: リポジトリ削除
+- `test_add_repo_success`: Success case for repository registration
+- `test_add_repo_not_git`: Error handling for non-Git directory
+- `test_add_repo_duplicate`: Error handling for duplicate repository
+- `test_list_repos`: Repository list retrieval
+- `test_remove_repo`: Repository removal
 
-**カバレッジ**: ✅ 完全
-- すべての公開メソッド
-- Git検証ロジック
-- 重複チェック
+**Coverage**: ✅ Complete
+- All public methods
+- Git validation logic
+- Duplicate checks
 
 #### 7. WorktreeService (`src/services/worktree_service.rs`)
-**テスト数**: 13
+**Number of Tests**: 13
 
-**ブランチ名決定ロジック (6テスト)**:
+**Branch Name Determination Logic (6 Tests)**:
 - `test_determine_branch_name_with_explicit_branch_and_ticket`
 - `test_determine_branch_name_with_explicit_branch_only`
 - `test_determine_branch_name_with_ticket_and_todo`
@@ -152,161 +152,161 @@
 - `test_determine_branch_name_base_with_ticket`
 - `test_determine_branch_name_base_without_ticket`
 
-**Worktree操作 (6テスト)**:
-- `test_add_worktree_and_get`: worktree追加と取得
-- `test_list_worktrees`: worktree一覧取得
-- `test_remove_worktree`: worktree削除
-- `test_get_base_worktree`: ベースworktree取得
-- `test_get_worktree_by_todo`: TODOによるworktree取得
-- `test_determine_worktree_path`: worktreeパス決定
+**Worktree Operations (6 Tests)**:
+- `test_add_worktree_and_get`: Worktree addition and retrieval
+- `test_list_worktrees`: Worktree list retrieval
+- `test_remove_worktree`: Worktree removal
+- `test_get_base_worktree`: Base worktree retrieval
+- `test_get_worktree_by_todo`: Retrieval of worktree by TODO
+- `test_determine_worktree_path`: Worktree path determination
 
-**Git操作 (1テスト)**:
-- `test_has_uncommitted_changes`: 未コミット変更の検出
+**Git Operations (1 Test)**:
+- `test_has_uncommitted_changes`: Detection of uncommitted changes
 
-**カバレッジ**: ✅ 完全
-- すべての公開メソッド
-- ブランチ命名戦略のすべてのパターン
-- 実際のGitリポジトリを使用した統合テスト
+**Coverage**: ✅ Complete
+- All public methods
+- All patterns of branch naming strategy
+- Integration tests using actual Git repositories
 
 #### 8. CommandHandler (`src/cli/handler.rs`)
-**テスト数**: 1
+**Number of Tests**: 1
 
-- `test_llm_help`: LLMヘルプコマンドの実行テスト
+- `test_llm_help`: Execution test for LLM help command
 
-**カバレッジ**: ⚠️ 部分的
-- LLMヘルプコマンドのみテスト
-- 他のCLIコマンドは統合テストでカバー
+**Coverage**: ⚠️ Partial
+- Only LLM help command is tested
+- Other CLI commands are covered by integration tests
 
-### 統合テスト (`tests/integration_test.rs`)
-**テスト数**: 5
+### Integration Tests (`tests/integration_test.rs`)
+**Number of Tests**: 5
 
 1. **test_full_task_workflow**
-   - タスク作成から完了までの完全なワークフロー
-   - TODO追加、ステータス更新、アーカイブ
+   - Complete workflow from task creation to completion
+   - TODO addition, status update, archiving
 
 2. **test_repo_worktree_workflow**
-   - リポジトリ登録
-   - ベースworktree作成
-   - worktree一覧取得
-   - リポジトリ削除
+   - Repository registration
+   - Base worktree creation
+   - Worktree list retrieval
+   - Repository removal
 
 3. **test_task_switching**
-   - 複数タスク間の切り替え
-   - 現在タスクの管理
-   - アーカイブ済みタスクの除外
+   - Switching between multiple tasks
+   - Current task management
+   - Exclusion of archived tasks
 
 4. **test_todo_task_index_independence**
-   - 複数タスク間でのTODOインデックスの独立性
-   - タスクスコープのインデックス管理
+   - Independence of TODO indices across multiple tasks
+   - Task-scoped index management
 
 5. **test_error_handling**
-   - 存在しないリソースへのアクセスエラー
-   - アーカイブ済みタスクへの操作エラー
-   - 無効な操作のエラーハンドリング
+   - Access errors for non-existent resources
+   - Operation errors for archived tasks
+   - Error handling for invalid operations
 
-## テスト実行方法
+## How to Run Tests
 
-### すべてのテストを実行
+### Run All Tests
 ```bash
 cargo test --all
 ```
 
-### 特定のテストを実行
+### Run Specific Tests
 ```bash
-# ユニットテストのみ
+# Unit tests only
 cargo test --lib
 
-# 統合テストのみ
+# Integration tests only
 cargo test --test integration_test
 
-# 特定のモジュールのテスト
+# Tests for a specific module
 cargo test services::task_service
 
-# 特定のテスト関数
+# Specific test function
 cargo test test_create_task_success
 ```
 
-### テストの詳細出力
+### Detailed Test Output
 ```bash
 cargo test -- --nocapture
 ```
 
-### テストカバレッジ（要tarpaulin）
+### Test Coverage (Requires tarpaulin)
 ```bash
 cargo install cargo-tarpaulin
 cargo tarpaulin --out Html
 ```
 
-## テスト戦略
+## Test Strategy
 
-### 1. ユニットテスト
-- 各サービスの公開メソッドをテスト
-- インメモリDBを使用して高速実行
-- 成功ケースとエラーケースの両方をカバー
+### 1. Unit Tests
+- Test public methods of each service
+- Use in-memory DB for high-speed execution
+- Cover both success and error cases
 
-### 2. 統合テスト
-- 複数のサービスを組み合わせたワークフローをテスト
-- 実際のGitリポジトリを使用（tempfileで管理）
-- エンドツーエンドのシナリオをカバー
+### 2. Integration Tests
+- Test workflows combining multiple services
+- Use actual Git repositories (managed by tempfile)
+- Cover end-to-end scenarios
 
-### 3. テストデータ管理
-- 各テストは独立したDBインスタンスを使用
-- 一時ディレクトリ（tempfile）でファイルシステムの状態を管理
-- テスト後の自動クリーンアップ
+### 3. Test Data Management
+- Use independent DB instances for each test
+- Manage file system state with temporary directories (tempfile)
+- Automatic cleanup after tests
 
-## テスト品質指標
+## Quality Metrics
 
-### カバレッジ
-- ✅ **Models**: 100% - すべてのenum変換メソッド
-- ✅ **Database**: 100% - すべての公開メソッド
-- ✅ **TaskService**: 100% - すべての公開メソッド
-- ✅ **TodoService**: 100% - すべての公開メソッド
-- ✅ **LinkService/ScrapService**: 100% - すべての公開メソッド
-- ✅ **RepoService**: 100% - すべての公開メソッド
-- ✅ **WorktreeService**: 100% - すべての公開メソッド
-- ⚠️ **CommandHandler**: 部分的 - LLMヘルプのみ
+### Coverage
+- ✅ **Models**: 100% - All enum conversion methods
+- ✅ **Database**: 100% - All public methods
+- ✅ **TaskService**: 100% - All public methods
+- ✅ **TodoService**: 100% - All public methods
+- ✅ **LinkService/ScrapService**: 100% - All public methods
+- ✅ **RepoService**: 100% - All public methods
+- ✅ **WorktreeService**: 100% - All public methods
+- ⚠️ **CommandHandler**: Partial - LLM help only
 
-### エラーハンドリング
-すべてのサービスで以下をテスト:
-- 存在しないリソースへのアクセス
-- 無効な入力データ
-- 重複データの処理
-- ビジネスルール違反（例: アーカイブ済みタスクへの操作）
+### Error Handling
+Tested in all services:
+- Access to non-existent resources
+- Invalid input data
+- Duplicate data handling
+- Business rule violations (e.g., operations on archived tasks)
 
-### エッジケース
-- 空の入力
-- 境界値
-- 特殊文字を含むデータ
-- 複数の同時操作
+### Edge Cases
+- Empty input
+- Boundary values
+- Data containing special characters
+- Multiple concurrent operations
 
-## 今後の改善案
+## Future Improvements
 
-### 1. CommandHandlerのテスト拡張
-現在、CommandHandlerは統合テストで間接的にテストされていますが、各コマンドハンドラーの直接的なユニットテストを追加することを検討。
+### 1. CommandHandler Test Expansion
+Currently, CommandHandler is indirectly tested via integration tests, but consider adding direct unit tests for each command handler.
 
-### 2. パフォーマンステスト
-大量のタスク/TODOを扱う場合のパフォーマンステストを追加。
+### 2. Performance Testing
+Add performance tests for handling large numbers of tasks/TODOs.
 
-### 3. 並行性テスト
-複数の操作が同時に実行される場合のテストを追加。
+### 3. Concurrency Testing
+Add tests for when multiple operations are executed simultaneously.
 
-### 4. エラーメッセージの検証
-エラーケースで返されるメッセージの内容を検証するテストを追加。
+### 4. Error Message Verification
+Add tests to verify the content of messages returned in error cases.
 
-## メンテナンス
+## Maintenance
 
-### 新機能追加時
-1. 新しい公開メソッドには必ずテストを追加
-2. 成功ケースとエラーケースの両方をカバー
-3. 統合テストで実際のワークフローを確認
+### When Adding New Features
+1. Always add tests for new public methods
+2. Cover both success and error cases
+3. Verify actual workflows with integration tests
 
-### テスト失敗時
-1. 失敗したテストのログを確認
-2. 関連するコードの変更を確認
-3. テストが正しいか、実装が正しいかを判断
-4. 必要に応じてテストまたは実装を修正
+### When Tests Fail
+1. Check the log of the failed test
+2. Check the relevant code changes
+3. Determine if the test or the implementation is correct
+4. Fix the test or implementation as necessary
 
-### リファクタリング時
-1. すべてのテストが引き続き成功することを確認
-2. テストコードも同様にリファクタリング
-3. 重複するテストコードは共通化
+### When Refactoring
+1. Ensure all tests continue to pass
+2. Refactor test code as well
+3. Commonize duplicate test code

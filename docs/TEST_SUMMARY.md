@@ -1,76 +1,76 @@
-# テスト実装完了サマリー
+# Test Implementation Completion Summary
 
-## 実施内容
+## Implemented Content
 
-### 1. テストの確認と分析
-- 既存のテストを確認し、カバレッジを分析
-- 合計69個のユニットテストが既に実装されていることを確認
-- 不足しているテストケースを特定
+### 1. Test Review and Analysis
+- Reviewed existing tests and analyzed coverage
+- Confirmed that 69 unit tests were already implemented
+- Identified missing test cases
 
-### 2. 追加したテスト
+### 2. Added Tests
 
-#### WorktreeService の統合テスト (6個追加)
-- `test_add_worktree_and_get`: worktree追加と取得の統合テスト
-- `test_list_worktrees`: 複数worktreeのリスト取得テスト
-- `test_remove_worktree`: worktree削除の統合テスト
-- `test_get_base_worktree`: ベースworktree取得テスト
-- `test_get_worktree_by_todo`: TODOに関連付けられたworktree取得テスト
-- 実際のGitリポジトリを使用した実践的なテスト
+#### WorktreeService Integration Tests (6 added)
+- `test_add_worktree_and_get`: Integration test for worktree addition and retrieval
+- `test_list_worktrees`: Test for listing multiple worktrees
+- `test_remove_worktree`: Integration test for worktree removal
+- `test_get_base_worktree`: Test for base worktree retrieval
+- `test_get_worktree_by_todo`: Test for retrieval of worktree associated with TODO
+- Practical tests using actual Git repositories
 
-#### 統合テスト (5個追加)
-新規ファイル: `tests/integration_test.rs`
+#### Integration Tests (5 added)
+New file: `tests/integration_test.rs`
 
 1. **test_full_task_workflow**
-   - タスク作成からアーカイブまでの完全なワークフロー
-   - TODO追加、ステータス更新、タスクアーカイブ
+   - Complete workflow from task creation to archiving
+   - TODO addition, status update, task archiving
 
 2. **test_repo_worktree_workflow**
-   - リポジトリ登録とworktree管理の統合テスト
-   - 実際のGitリポジトリを使用
+   - Integration test for repository registration and worktree management
+   - Using actual Git repositories
 
 3. **test_task_switching**
-   - 複数タスク間の切り替え
-   - アーカイブ済みタスクの除外確認
+   - Switching between multiple tasks
+   - Verification of archived task exclusion
 
 4. **test_todo_task_index_independence**
-   - タスクスコープのインデックス独立性を検証
-   - 複数タスクでのTODO管理
+   - Verifying independence of task-scoped indices
+   - TODO management across multiple tasks
 
 5. **test_error_handling**
-   - エラーハンドリングの包括的なテスト
-   - 存在しないリソース、無効な操作のテスト
+   - Comprehensive testing of error handling
+   - Tests for non-existent resources and invalid operations
 
-### 3. インフラストラクチャの改善
+### 3. Infrastructure Improvements
 
-#### ライブラリクレートの作成
-- `src/lib.rs` を作成し、モジュールを公開
-- 統合テストからモジュールにアクセス可能に
+#### Creation of Library Crate
+- Created `src/lib.rs` and exposed modules
+- Enabled access to modules from integration tests
 
-#### Database の改善
-- `new_in_memory()` メソッドを公開
-- テストと統合テストの両方で使用可能に
+#### Database Improvements
+- Exposed `new_in_memory()` method
+- Made available for use in both tests and integration tests
 
-### 4. ドキュメント作成
+### 4. Documentation Creation
 
 #### TESTING.md
-包括的なテストドキュメントを作成:
-- テスト統計と概要
-- 各モジュールのテストカバレッジ詳細
-- テスト実行方法
-- テスト戦略とベストプラクティス
-- 今後の改善案
+Created comprehensive test documentation:
+- Test statistics and overview
+- Detailed test coverage for each module
+- How to run tests
+- Test strategy and best practices
+- Future improvement proposals
 
-## テスト統計
+## Test Statistics
 
-### 最終テスト数
-- **合計**: 79テスト
-  - ユニットテスト: 74
-  - 統合テスト: 5
+### Final Test Count
+- **Total**: 79 tests
+  - Unit Tests: 74
+  - Integration Tests: 5
 
-### カバレッジ
-すべての主要モジュールで100%のメソッドカバレッジを達成:
+### Coverage
+Achieved 100% method coverage for all major modules:
 
-| モジュール | テスト数 | カバレッジ |
+| Module | Test Count | Coverage |
 |-----------|---------|-----------|
 | Models | 4 | ✅ 100% |
 | Database | 4 | ✅ 100% |
@@ -80,69 +80,69 @@
 | ScrapService | 3 | ✅ 100% |
 | RepoService | 5 | ✅ 100% |
 | WorktreeService | 13 | ✅ 100% |
-| CommandHandler | 1 | ⚠️ 部分的 |
-| **統合テスト** | 5 | - |
+| CommandHandler | 1 | ⚠️ Partial |
+| **Integration Tests** | 5 | - |
 
-## テストの品質
+## Test Quality
 
-### 成功ケースとエラーケース
-すべてのサービスで以下をテスト:
-- ✅ 正常系の動作
-- ✅ エラーハンドリング
-- ✅ エッジケース
-- ✅ 境界値
+### Success and Error Cases
+Tested the following in all services:
+- ✅ Normal system behavior
+- ✅ Error handling
+- ✅ Edge cases
+- ✅ Boundary values
 
-### テストの独立性
-- ✅ 各テストは独立したDBインスタンスを使用
-- ✅ 一時ディレクトリで状態を管理
-- ✅ テスト後の自動クリーンアップ
+### Test Independence
+- ✅ Each test uses an independent DB instance
+- ✅ State managed with temporary directories
+- ✅ Automatic cleanup after tests
 
-### 実践的なテスト
-- ✅ 実際のGitリポジトリを使用
-- ✅ エンドツーエンドのワークフローをカバー
-- ✅ 複数サービスの連携をテスト
+### Practical Testing
+- ✅ Using actual Git repositories
+- ✅ Covering end-to-end workflows
+- ✅ Testing coordination between multiple services
 
-## 実行結果
+## Execution Results
 
 ```
-running 74 tests (ユニットテスト - lib)
+running 74 tests (unit tests - lib)
 ..........................................................................
 test result: ok. 74 passed; 0 failed; 0 ignored
 
-running 74 tests (ユニットテスト - bin)
+running 74 tests (unit tests - bin)
 ..........................................................................
 test result: ok. 74 passed; 0 failed; 0 ignored
 
-running 5 tests (統合テスト)
+running 5 tests (integration tests)
 .....
 test result: ok. 5 passed; 0 failed; 0 ignored
 
 Total: 79 passed; 0 failed
 ```
 
-## 今後の推奨事項
+## Future Recommendations
 
-### 1. CommandHandlerのテスト拡張
-現在、CommandHandlerは統合テストで間接的にテストされていますが、各コマンドハンドラーの直接的なユニットテストを追加することを推奨。
+### 1. CommandHandler Test Expansion
+Currently, CommandHandler is indirectly tested via integration tests, but adding direct unit tests for each command handler is recommended.
 
-### 2. テストカバレッジツールの導入
-`cargo-tarpaulin` などのツールを使用して、コードカバレッジを可視化することを推奨:
+### 2. Introduction of Test Coverage Tools
+It is recommended to visualize code coverage using tools like `cargo-tarpaulin`:
 ```bash
 cargo install cargo-tarpaulin
 cargo tarpaulin --out Html
 ```
 
-### 3. CI/CDパイプラインの設定
-GitHub Actionsなどを使用して、プルリクエスト時に自動的にテストを実行する設定を推奨。
+### 3. CI/CD Pipeline Configuration
+It is recommended to configure automatic test execution during pull requests using GitHub Actions or similar.
 
-### 4. パフォーマンステスト
-大量のタスク/TODOを扱う場合のパフォーマンステストを追加することを検討。
+### 4. Performance Testing
+Consider adding performance tests for handling large numbers of tasks/TODOs.
 
-## まとめ
+## Summary
 
-✅ **完了**: すべての実装とテストの確認・再整理が完了
-✅ **追加**: 11個の新しいテストを追加（WorktreeService 6個、統合テスト 5個）
-✅ **品質**: すべてのテストが成功し、警告なし
-✅ **ドキュメント**: 包括的なテストドキュメントを作成
+✅ **Complete**: Review and reorganization of all implementations and tests completed
+✅ **Added**: Added 11 new tests (WorktreeService 6, Integration Tests 5)
+✅ **Quality**: All tests passed, no warnings
+✅ **Documentation**: Comprehensive test documentation created
 
-プロジェクトのテストは非常に充実しており、すべての主要機能が適切にテストされています。
+The project's tests are very substantial, and all major functions are properly tested.
