@@ -360,6 +360,28 @@
             border-color: rgba(0, 0, 0, 0.2);
         }
 
+        button.btn-success {
+            background: transparent;
+            color: var(--success);
+            padding: 0.5rem;
+            font-size: 1rem;
+        }
+
+        button.btn-success:hover {
+            background: var(--success-light);
+        }
+
+        button.btn-warning {
+            background: transparent;
+            color: var(--warning);
+            padding: 0.5rem;
+            font-size: 1rem;
+        }
+
+        button.btn-warning:hover {
+            background: rgba(245, 158, 11, 0.2);
+        }
+
         button.btn-danger {
             background: transparent;
             color: var(--danger);
@@ -368,6 +390,12 @@
 
         button.btn-danger:hover {
             background: var(--danger-light);
+        }
+
+        .todo-actions {
+            display: flex;
+            gap: 0.25rem;
+            align-items: center;
         }
 
         /* 2-Pane Layout */
@@ -389,21 +417,128 @@
         }
 
         .todo-item {
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-            padding: 0.75rem;
+            position: relative;
             border-radius: var(--border-radius-sm);
             transition: var(--transition);
             margin-bottom: 0.5rem;
         }
 
-        .todo-item:hover {
+        .todo-item.menu-open {
+            z-index: 10;
+        }
+
+        .todo-main {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 0.75rem;
+            cursor: pointer;
+            border-radius: var(--border-radius-sm);
+            transition: var(--transition);
+        }
+
+        .todo-main:hover {
             background: rgba(255, 255, 255, 0.05);
         }
 
-        [data-theme="light"] .todo-item:hover {
+        [data-theme="light"] .todo-main:hover {
             background: rgba(0, 0, 0, 0.03);
+        }
+
+        .todo-menu-indicator {
+            margin-left: auto;
+            color: var(--text-muted);
+            font-size: 1.25rem;
+            font-weight: bold;
+            transition: var(--transition);
+        }
+
+        .todo-main:hover .todo-menu-indicator {
+            color: var(--text-secondary);
+        }
+
+        .todo-menu {
+            position: fixed;
+            background: #1a1a2e !important;
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius-sm);
+            box-shadow: var(--shadow);
+            min-width: 200px;
+            z-index: 9999;
+            overflow: hidden;
+        }
+
+        [data-theme="light"] .todo-menu {
+            background: #ffffff !important;
+        }
+
+        .menu-item {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.75rem 1rem !important;
+            background: inherit;
+            border: none !important;
+            border-radius: 0;
+            text-align: left;
+            cursor: pointer;
+            transition: var(--transition);
+            font-size: 0.875rem;
+        }
+
+        .menu-item:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        [data-theme="light"] .menu-item:hover {
+            background: rgba(0, 0, 0, 0.05);
+        }
+
+        .menu-item.btn-success {
+            color: var(--success);
+        }
+
+        .menu-item.btn-success:hover {
+            background: var(--success-light);
+        }
+
+        .menu-item.btn-warning {
+            color: var(--warning);
+        }
+
+        .menu-item.btn-warning:hover {
+            background: rgba(245, 158, 11, 0.2);
+        }
+
+        .menu-item.btn-secondary {
+            color: var(--text-secondary);
+        }
+
+        .menu-item.btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        [data-theme="light"] .menu-item.btn-secondary:hover {
+            background: rgba(0, 0, 0, 0.05);
+        }
+
+        .menu-item.btn-danger {
+            color: var(--danger);
+        }
+
+        .menu-item.btn-danger:hover {
+            background: var(--danger-light);
+        }
+
+        .menu-icon {
+            font-size: 1rem;
+            width: 1.25rem;
+            text-align: center;
+        }
+
+        .menu-label {
+            flex: 1;
         }
 
         .todo-item.done {
@@ -452,6 +587,12 @@
             font-weight: 600;
         }
 
+        .todo-status.cancelled {
+            background: var(--text-muted);
+            color: #000;
+            font-weight: 600;
+        }
+
         [data-theme="light"] .todo-status.pending {
             background: var(--warning);
             color: white;
@@ -460,6 +601,19 @@
         [data-theme="light"] .todo-status.done {
             background: var(--success);
             color: white;
+        }
+
+        [data-theme="light"] .todo-status.cancelled {
+            background: var(--text-muted);
+            color: white;
+        }
+
+        .todo-item.cancelled {
+            opacity: 0.5;
+        }
+
+        .todo-item.cancelled .todo-content {
+            text-decoration: line-through;
         }
 
         /* Scrap list */
@@ -785,69 +939,124 @@
 
     <script>
         // SSE connection for real-time updates
-        let eventSource = null;
-        let reconnectAttempts = 0;
-        const maxReconnectAttempts = 5;
+        // Use global flag to prevent duplicate connections
+        if (!window.sseInitialized) {
+            console.log('Initializing SSE connection...');
+            window.sseInitialized = true;
 
-        function connect() {
-            // Close existing connection if any
-            if (eventSource) {
-                eventSource.close();
-                eventSource = null;
-            }
+            window.eventSource = null;
+            window.reconnectAttempts = 0;
+            const maxReconnectAttempts = 5;
 
-            eventSource = new EventSource('/api/sse');
-
-            eventSource.onopen = function () {
-                reconnectAttempts = 0;
-                const status = document.getElementById('connection-status');
-                if (status) {
-                    status.className = 'connection-status connected';
-                    const textEl = status.querySelector('.status-text');
-                    if (textEl) textEl.textContent = 'Live';
+            window.connectSSE = function () {
+                // Close existing connection if any
+                if (window.eventSource) {
+                    console.log('Closing existing SSE connection');
+                    window.eventSource.close();
+                    window.eventSource = null;
                 }
+
+                console.log('Creating new SSE connection');
+                window.eventSource = new EventSource('/api/sse');
+
+                window.eventSource.onopen = function () {
+                    console.log('SSE connection opened');
+                    window.reconnectAttempts = 0;
+                    const status = document.getElementById('connection-status');
+                    if (status) {
+                        status.className = 'connection-status connected';
+                        const textEl = status.querySelector('.status-text');
+                        if (textEl) textEl.textContent = 'Live';
+                    }
+                };
+
+                window.eventSource.addEventListener('update', function (e) {
+                    const event = JSON.parse(e.data);
+                    console.log('SSE event:', event);
+
+                    // Only reload the specific sections based on event type
+                    if (event.type === 'todo_added' || event.type === 'todo_deleted' || event.type === 'todo_updated') {
+                        console.log('Updating todos section');
+                        htmx.ajax('GET', '/', {
+                            target: '#todos-section',
+                            swap: 'outerHTML show:none',
+                            select: '#todos-section'
+                        });
+                    } else if (event.type === 'scrap_added') {
+                        console.log('Updating scraps section');
+                        htmx.ajax('GET', '/', {
+                            target: '#scraps-section',
+                            swap: 'outerHTML show:none',
+                            select: '#scraps-section'
+                        });
+                    } else {
+                        // For status_update or unknown events, reload both sections
+                        console.log('Updating all sections');
+                        htmx.ajax('GET', '/', {
+                            target: '#todos-section',
+                            swap: 'outerHTML show:none',
+                            select: '#todos-section'
+                        });
+                        htmx.ajax('GET', '/', {
+                            target: '#scraps-section',
+                            swap: 'outerHTML show:none',
+                            select: '#scraps-section'
+                        });
+                    }
+                });
+
+                window.eventSource.onerror = function () {
+                    console.log('SSE connection error');
+                    const status = document.getElementById('connection-status');
+                    if (status) {
+                        status.className = 'connection-status disconnected';
+                        const textEl = status.querySelector('.status-text');
+                        if (textEl) textEl.textContent = 'Disconnected';
+                    }
+
+                    if (window.eventSource) {
+                        window.eventSource.close();
+                        window.eventSource = null;
+                    }
+
+                    if (window.reconnectAttempts < maxReconnectAttempts) {
+                        window.reconnectAttempts++;
+                        const delay = 2000 * window.reconnectAttempts;
+                        console.log(`Reconnecting in ${delay}ms (attempt ${window.reconnectAttempts}/${maxReconnectAttempts})`);
+                        setTimeout(window.connectSSE, delay);
+                    }
+                };
             };
 
-            eventSource.addEventListener('update', function (e) {
-                const event = JSON.parse(e.data);
-                console.log('SSE event:', event);
+            // Start connection
+            window.connectSSE();
 
-                // Reload the page content on any update
-                htmx.ajax('GET', '/', { target: '.container', swap: 'innerHTML' });
+            // Reconnect on visibility change
+            document.addEventListener('visibilitychange', function () {
+                if (!document.hidden && (!window.eventSource || window.eventSource.readyState === EventSource.CLOSED)) {
+                    console.log('Page visible, reconnecting SSE');
+                    window.reconnectAttempts = 0;
+                    window.connectSSE();
+                }
             });
 
-            eventSource.onerror = function () {
-                const status = document.getElementById('connection-status');
-                if (status) {
-                    status.className = 'connection-status disconnected';
-                    const textEl = status.querySelector('.status-text');
-                    if (textEl) textEl.textContent = 'Disconnected';
+            // Clean up any duplicate connection-status elements
+            setTimeout(() => {
+                const statusElements = document.querySelectorAll('.connection-status');
+                console.log(`Found ${statusElements.length} connection-status elements`);
+                if (statusElements.length > 1) {
+                    console.warn('Removing duplicate connection-status elements');
+                    // Keep only the one with id="connection-status"
+                    statusElements.forEach(el => {
+                        if (el.id !== 'connection-status') {
+                            el.remove();
+                        }
+                    });
                 }
-
-                if (eventSource) {
-                    eventSource.close();
-                    eventSource = null;
-                }
-
-                if (reconnectAttempts < maxReconnectAttempts) {
-                    reconnectAttempts++;
-                    const delay = 2000 * reconnectAttempts;
-                    console.log(`Reconnecting in ${delay}ms (attempt ${reconnectAttempts}/${maxReconnectAttempts})`);
-                    setTimeout(connect, delay);
-                }
-            };
+            }, 100);
+        } else {
+            console.log('SSE already initialized, skipping');
         }
-
-        // Start connection
-        connect();
-
-        // Reconnect on visibility change
-        document.addEventListener('visibilitychange', function () {
-            if (!document.hidden && (!eventSource || eventSource.readyState === EventSource.CLOSED)) {
-                reconnectAttempts = 0;
-                connect();
-            }
-        });
     </script>
 </body>
 

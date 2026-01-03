@@ -5,7 +5,7 @@ use crate::webui::sse::sse_handler;
 use crate::webui::state::AppState;
 use crate::webui::templates::Templates;
 use axum::{
-    routing::{delete, get, post},
+    routing::{delete, get, patch, post},
     Router,
 };
 use std::net::SocketAddr;
@@ -34,6 +34,7 @@ pub async fn start_server(port: u16, open_browser: bool) -> anyhow::Result<()> {
         .route("/api/status", get(routes::api_status))
         .route("/api/todo", post(routes::add_todo))
         .route("/api/todo/:id", delete(routes::delete_todo))
+        .route("/api/todo/:id/:status", patch(routes::update_todo_status))
         .route("/api/scrap", post(routes::add_scrap))
         .route("/api/description", post(routes::update_description))
         .route("/api/ticket", post(routes::update_ticket))

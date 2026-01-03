@@ -204,6 +204,36 @@ pub async fn add_todo(
     Ok(Html(html))
 }
 
+/// Update todo status
+pub async fn update_todo_status(
+    State(state): State<WebState>,
+    Path((todo_index, new_status)): Path<(i64, String)>,
+) -> Result<Html<String>, AppError> {
+    let db = state.app.db.lock().await;
+
+    let current_task_id = db.get_current_task_id()?.ok_or(TrackError::NoActiveTask)?;
+
+    let todo_service = TodoService::new(&db);
+    let todo = todo_service.get_todo_by_index(current_task_id, todo_index)?;
+    todo_service.update_status(todo.id, &new_status)?;
+
+    // Broadcast SSE event
+    state
+        .app
+        .broadcast(SseEvent::TodoUpdated { todo_id: todo.id });
+
+    // Return updated todo list partial
+    let todos = todo_service.list_todos(current_task_id)?;
+    let html = state.templates.render(
+        "partials/todo_list.html",
+        serde_json::json!({
+            "todos": todos,
+        }),
+    )?;
+
+    Ok(Html(html))
+}
+
 /// Delete a todo by task-scoped index
 pub async fn delete_todo(
     State(state): State<WebState>,

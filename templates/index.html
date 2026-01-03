@@ -149,8 +149,8 @@
         }
     }
 
-    // Initialize metadata section state from localStorage
-    document.addEventListener('DOMContentLoaded', function () {
+    // Function to restore metadata collapse state
+    function restoreMetadataState() {
         const collapsed = localStorage.getItem('metadataCollapsed') === 'true';
         if (collapsed) {
             const section = document.getElementById('metadata-section');
@@ -160,6 +160,15 @@
                 icon.textContent = '▶';
             }
         }
-    });
+    }
+
+    // Initialize metadata section state from localStorage
+    document.addEventListener('DOMContentLoaded', restoreMetadataState);
+
+    // Restore state after HTMX content swap and settle
+    document.body.addEventListener('htmx:afterSwap', restoreMetadataState);
+    document.body.addEventListener('htmx:afterSettle', restoreMetadataState);
+
+
 </script>
 {% endblock %}
