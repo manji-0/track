@@ -80,6 +80,13 @@ pub struct UpdateTicketForm {
     pub ticket_url: Option<String>,
 }
 
+/// Form data for adding a link
+#[derive(Deserialize)]
+pub struct AddLinkForm {
+    pub url: String,
+    pub title: Option<String>,
+}
+
 /// Main dashboard page
 pub async fn index(State(state): State<WebState>) -> Result<Html<String>, AppError> {
     let db = state.app.db.lock().await;
@@ -373,6 +380,75 @@ pub async fn update_ticket(
         "partials/ticket.html",
         serde_json::json!({
             "task": task,
+        }),
+    )?;
+
+    Ok(Html(html))
+}
+
+/// Add a new link
+pub async fn add_link(
+    State(state): State<WebState>,
+    Form(form): Form<AddLinkForm>,
+) -> Result<Html<String>, AppError> {
+    let db = state.app.db.lock().await;
+
+    let current_task_id = db.get_current_task_id()?.ok_or(TrackError::NoActiveTask)?;
+
+    let link_service = LinkService::new(&db);
+    
+    // Clean up title if empty
+    let title = form.title.filter(|t| !t.trim().is_empty());
+    
+    link_service.add_link(current_task_id, &form.url, title.as_deref())?;
+
+    // Broadcast SSE event
+    state.app.broadcast(SseEvent::StatusUpdate);
+
+    // Return updated links list partial
+    let links = link_service.list_links(current_task_id)?;
+    let html = state.templates.render(
+        "partials/links.html",
+        serde_json::json!({
+            "links": links,
+        }),
+    )?;
+
+    Ok(Html(html))
+}
+
+/// Delete a link by index (1-based, display order)
+pub async fn delete_link(
+    State(state): State<WebState>,
+    Path(link_index): Path<usize>,
+) -> Result<Html<String>, AppError> {
+    let db = state.app.db.lock().await;
+
+    let current_task_id = db.get_current_task_id()?.ok_or(TrackError::NoActiveTask)?;
+
+    let link_service = LinkService::new(&db);
+    let links = link_service.list_links(current_task_id)?;
+    
+    // Get link by index (1-based)
+    if link_index == 0 || link_index > links.len() {
+        return Err(TrackError::Other("Link not found".to_string()).into());
+    }
+    
+    let link = &links[link_index - 1];
+    
+    // Delete link directly via SQL
+    let conn = db.get_connection();
+    conn.execute("DELETE FROM links WHERE id = ?1", rusqlite::params![link.id])?;
+
+    // Broadcast SSE event
+    state.app.broadcast(SseEvent::StatusUpdate);
+
+    // Return updated links list partial
+    let links = link_service.list_links(current_task_id)?;
+    let html = state.templates.render(
+        "partials/links.html",
+        serde_json::json!({
+            "links": links,
         }),
     )?;
 

@@ -1,0 +1,33 @@
+<div class="card-header">
+    <h2 class="card-title"><span class="icon">🔗</span> Links</h2>
+</div>
+
+<!-- Add Link Form -->
+<form hx-post="/api/link" hx-target="#links-section" hx-swap="innerHTML" class="input-group"
+    style="margin-bottom: 1rem;">
+    <input type="text" name="url" placeholder="URL" required autocomplete="off" style="flex: 2;">
+    <input type="text" name="title" placeholder="Title (optional)" autocomplete="off" style="flex: 1;">
+    <button type="submit">
+        <span>➕</span> Add
+    </button>
+</form>
+
+<!-- Link List -->
+{% if links and links|length > 0 %}
+<div class="link-list">
+    {% for link in links %}
+    <div class="link-item">
+        <a href="{{ link.url }}" target="_blank" class="link-url">{{ link.title or link.url }}</a>
+        <button class="btn-danger" hx-delete="/api/link/{{ loop.index }}" hx-target="#links-section" hx-swap="innerHTML"
+            hx-confirm="Delete this link?">
+            🗑️
+        </button>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="empty-state">
+    <div class="icon">✨</div>
+    <p>No links yet. Add one above!</p>
+</div>
+{% endif %}

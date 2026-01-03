@@ -69,21 +69,8 @@
 </div>
 
 <!-- Links Section -->
-<div class="card">
-    <div class="card-header">
-        <h2 class="card-title"><span class="icon">🔗</span> Links</h2>
-    </div>
-    {% if links and links|length > 0 %}
-    <div class="link-list">
-        {% for link in links %}
-        <div class="link-item">
-            <a href="{{ link.url }}" target="_blank" class="link-url">{{ link.title or link.url }}</a>
-        </div>
-        {% endfor %}
-    </div>
-    {% else %}
-    <div class="text-muted">No links added.</div>
-    {% endif %}
+<div class="card" id="links-section">
+    {% include "partials/links.html" %}
 </div>
 
 <!-- 2-Pane Layout for TODOs and Scraps -->
