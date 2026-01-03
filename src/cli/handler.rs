@@ -161,10 +161,41 @@ impl CommandHandler {
         let repos = repo_service.list_repos(current_task_id)?;
 
         if json {
+            // Build todos with worktree_branch
+            let mut todos_json = Vec::new();
+            for todo in &todos {
+                let mut todo_val = serde_json::to_value(todo).unwrap_or(serde_json::Value::Null);
+                if let Some(obj) = todo_val.as_object_mut() {
+                    // Determine worktree branch
+                    let worktree_branch = if let Some(wt) = worktrees.iter().find(|wt| wt.todo_id == Some(todo.id))
+                    {
+                        // Use existing worktree branch
+                        Some(wt.branch.clone())
+                    } else if todo.worktree_requested {
+                        // Calculate expected branch name
+                        worktree_service
+                            .get_todo_branch_name(
+                                current_task_id,
+                                task.ticket_id.as_deref(),
+                                todo.task_index, // Note: this is todo_id in JSON but task_index in struct
+                            )
+                            .ok()
+                    } else {
+                        None
+                    };
+
+                    obj.insert(
+                        "worktree_branch".to_string(),
+                        serde_json::to_value(&worktree_branch).unwrap_or(serde_json::Value::Null),
+                    );
+                }
+                todos_json.push(todo_val);
+            }
+
             let mut worktrees_json = Vec::new();
-            for wt in worktrees {
+            for wt in &worktrees {
                 let repo_links = worktree_service.list_repo_links(wt.id)?;
-                let mut wt_val = serde_json::to_value(&wt).unwrap_or(serde_json::Value::Null);
+                let mut wt_val = serde_json::to_value(wt).unwrap_or(serde_json::Value::Null);
                 if let Some(obj) = wt_val.as_object_mut() {
                     obj.insert(
                         "repo_links".to_string(),
@@ -176,7 +207,7 @@ impl CommandHandler {
 
             let output = serde_json::json!({
                 "task": task,
-                "todos": todos,
+                "todos": todos_json,
                 "links": links,
                 "scraps": scraps,
                 "worktrees": worktrees_json,

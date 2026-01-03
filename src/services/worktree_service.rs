@@ -251,6 +251,17 @@ impl<'a> WorktreeService<'a> {
         Ok(())
     }
 
+    /// Calculates the expected branch name for a TODO item.
+    /// This allows clients to know the branch name even before the worktree is created.
+    pub fn get_todo_branch_name(
+        &self,
+        task_id: i64,
+        ticket_id: Option<&str>,
+        todo_index: i64,
+    ) -> Result<String> {
+        self.determine_branch_name(None, ticket_id, task_id, Some(todo_index))
+    }
+
     pub fn complete_worktree_for_todo(&self, todo_id: i64) -> Result<Option<String>> {
         let wt = match self.get_worktree_by_todo(todo_id)? {
             Some(wt) => wt,
