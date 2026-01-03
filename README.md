@@ -221,6 +221,8 @@ TODOs are numbered sequentially within each task (1, 2, 3...). All TODO commands
 
 ### Web UI
 
+<img width="2520" height="2001" alt="de5e316bf86187756a01c867ddb199df" src="https://github.com/user-attachments/assets/49c5ce74-2eac-4448-87d7-1eadb4214743" />
+
 | Command | Description |
 |---------|-------------|
 | `track webui` | Start web-based user interface on port 3000 |
