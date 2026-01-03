@@ -67,6 +67,12 @@ pub struct AddScrapForm {
     pub content: String,
 }
 
+/// Form data for updating description
+#[derive(Deserialize)]
+pub struct UpdateDescriptionForm {
+    pub description: String,
+}
+
 /// Main dashboard page
 pub async fn index(State(state): State<WebState>) -> Result<Html<String>, AppError> {
     let db = state.app.db.lock().await;
@@ -209,6 +215,33 @@ pub async fn add_scrap(
     
     Ok(Html(html))
 }
+
+/// Update task description
+pub async fn update_description(
+    State(state): State<WebState>,
+    Form(form): Form<UpdateDescriptionForm>,
+) -> Result<Html<String>, AppError> {
+    let db = state.app.db.lock().await;
+    
+    let current_task_id = db.get_current_task_id()?.ok_or(TrackError::NoActiveTask)?;
+    
+    let task_service = TaskService::new(&db);
+    task_service.set_description(current_task_id, &form.description)?;
+    
+    // Get updated task
+    let task = task_service.get_task(current_task_id)?;
+    
+    // Broadcast SSE event
+    state.app.broadcast(SseEvent::StatusUpdate);
+    
+    // Return updated description section
+    let html = state.templates.render("partials/description.html", serde_json::json!({
+        "task": task,
+    }))?;
+    
+    Ok(Html(html))
+}
+
 
 /// Build status context for templates
 fn build_status_context(db: &Database, task_id: i64) -> anyhow::Result<serde_json::Value> {

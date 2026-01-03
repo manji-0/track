@@ -1,0 +1,18 @@
+<div class="card-header">
+    <h2 class="card-title"><span class="icon">📝</span> Description</h2>
+    <button class="btn-edit" onclick="toggleDescEdit()">✏️ Edit</button>
+</div>
+{% if task.description %}
+<div class="description" id="desc-display">{{ task.description }}</div>
+{% else %}
+<div class="description text-muted" id="desc-display">No description set.</div>
+{% endif %}
+<form id="desc-edit-form" style="display: none;" hx-post="/api/description" hx-target="#description-section"
+    hx-swap="outerHTML">
+    <textarea name="description" rows="4"
+        placeholder="Enter task description...">{{ task.description or '' }}</textarea>
+    <div class="form-actions">
+        <button type="submit" class="btn-primary">💾 Save</button>
+        <button type="button" class="btn-secondary" onclick="toggleDescEdit()">✖ Cancel</button>
+    </div>
+</form>

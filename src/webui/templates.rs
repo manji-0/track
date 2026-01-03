@@ -31,6 +31,8 @@ impl Templates {
             .expect("Failed to add todo_list.html template");
         env.add_template("partials/scrap_list.html", include_str!("../../templates/partials/scrap_list.html"))
             .expect("Failed to add scrap_list.html template");
+        env.add_template("partials/description.html", include_str!("../../templates/partials/description.html"))
+            .expect("Failed to add description.html template");
         
         Self { env }
     }

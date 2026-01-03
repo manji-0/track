@@ -1,11 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Track WebUI{% endblock %}</title>
     <meta name="description" content="Track - Task and TODO Management">
-    
+
     <!-- Modern CSS -->
     <style>
         :root {
@@ -47,7 +48,7 @@
         }
 
         .container {
-            max-width: 900px;
+            max-width: 1400px;
             margin: 0 auto;
             padding: 2rem 1rem;
         }
@@ -126,22 +127,36 @@
             white-space: pre-wrap;
         }
 
+        .text-muted {
+            color: var(--text-muted);
+            font-style: italic;
+        }
+
         /* Form styles */
         .input-group {
             display: flex;
             gap: 0.5rem;
         }
 
+        .form-actions {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 0.75rem;
+        }
+
         input[type="text"],
         textarea {
             flex: 1;
+            width: 100%;
             background: var(--bg-input);
             border: 1px solid var(--border-color);
             border-radius: var(--border-radius-sm);
             padding: 0.75rem 1rem;
             color: var(--text-primary);
             font-size: 0.875rem;
+            font-family: inherit;
             transition: var(--transition);
+            resize: vertical;
         }
 
         input[type="text"]:focus,
@@ -169,6 +184,7 @@
             display: flex;
             align-items: center;
             gap: 0.5rem;
+            white-space: nowrap;
         }
 
         button:hover {
@@ -180,6 +196,34 @@
             transform: translateY(0);
         }
 
+        button.btn-edit {
+            background: transparent;
+            color: var(--text-muted);
+            padding: 0.5rem 0.75rem;
+            font-size: 0.875rem;
+        }
+
+        button.btn-edit:hover {
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-primary);
+        }
+
+        button.btn-primary {
+            background: var(--accent);
+            color: white;
+        }
+
+        button.btn-secondary {
+            background: transparent;
+            color: var(--text-secondary);
+            border: 1px solid var(--border-color);
+        }
+
+        button.btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.05);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+
         button.btn-danger {
             background: transparent;
             color: var(--danger);
@@ -188,6 +232,19 @@
 
         button.btn-danger:hover {
             background: var(--danger-light);
+        }
+
+        /* 2-Pane Layout */
+        .two-pane-layout {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 1.5rem;
+        }
+
+        @media (min-width: 1024px) {
+            .two-pane-layout {
+                grid-template-columns: 1fr 1fr;
+            }
         }
 
         /* Todo list */
@@ -250,7 +307,7 @@
 
         /* Scrap list */
         .scrap-list {
-            max-height: 400px;
+            max-height: 600px;
             overflow-y: auto;
         }
 
@@ -385,8 +442,15 @@
         }
 
         @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.5;
+            }
         }
 
         /* Responsive */
@@ -407,12 +471,17 @@
                 width: 100%;
                 justify-content: center;
             }
+
+            .form-actions {
+                flex-direction: column;
+            }
         }
     </style>
-    
+
     <!-- HTMX -->
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
 </head>
+
 <body>
     <div class="container">
         {% block content %}{% endblock %}
@@ -433,28 +502,28 @@
         function connect() {
             eventSource = new EventSource('/api/sse');
 
-            eventSource.onopen = function() {
+            eventSource.onopen = function () {
                 reconnectAttempts = 0;
                 const status = document.getElementById('connection-status');
                 status.className = 'connection-status connected';
                 status.querySelector('.status-text').textContent = 'Live';
             };
 
-            eventSource.addEventListener('update', function(e) {
+            eventSource.addEventListener('update', function (e) {
                 const event = JSON.parse(e.data);
                 console.log('SSE event:', event);
-                
+
                 // Reload the page content on any update
-                htmx.ajax('GET', '/', {target: '.container', swap: 'innerHTML'});
+                htmx.ajax('GET', '/', { target: '.container', swap: 'innerHTML' });
             });
 
-            eventSource.onerror = function() {
+            eventSource.onerror = function () {
                 const status = document.getElementById('connection-status');
                 status.className = 'connection-status disconnected';
                 status.querySelector('.status-text').textContent = 'Disconnected';
-                
+
                 eventSource.close();
-                
+
                 if (reconnectAttempts < maxReconnectAttempts) {
                     reconnectAttempts++;
                     setTimeout(connect, 2000 * reconnectAttempts);
@@ -466,7 +535,7 @@
         connect();
 
         // Reconnect on visibility change
-        document.addEventListener('visibilitychange', function() {
+        document.addEventListener('visibilitychange', function () {
             if (!document.hidden && (!eventSource || eventSource.readyState === EventSource.CLOSED)) {
                 reconnectAttempts = 0;
                 connect();
@@ -474,4 +543,5 @@
         });
     </script>
 </body>
+
 </html>

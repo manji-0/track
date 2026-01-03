@@ -18,23 +18,25 @@
 </header>
 
 <!-- Description -->
-{% if task.description %}
-<div class="card">
+<div class="card" id="description-section">
     <div class="card-header">
         <h2 class="card-title"><span class="icon">📝</span> Description</h2>
+        <button class="btn-edit" onclick="toggleDescEdit()">✏️ Edit</button>
     </div>
-    <div class="description">{{ task.description }}</div>
-</div>
-{% endif %}
-
-<!-- TODOs Section -->
-<div class="card" id="todos-section">
-    {% include "partials/todo_list.html" %}
-</div>
-
-<!-- Scraps Section -->
-<div class="card" id="scraps-section">
-    {% include "partials/scrap_list.html" %}
+    {% if task.description %}
+    <div class="description" id="desc-display">{{ task.description }}</div>
+    {% else %}
+    <div class="description text-muted" id="desc-display">No description set.</div>
+    {% endif %}
+    <form id="desc-edit-form" style="display: none;" hx-post="/api/description" hx-target="#description-section"
+        hx-swap="outerHTML">
+        <textarea name="description" rows="4"
+            placeholder="Enter task description...">{{ task.description or '' }}</textarea>
+        <div class="form-actions">
+            <button type="submit" class="btn-primary">💾 Save</button>
+            <button type="button" class="btn-secondary" onclick="toggleDescEdit()">✖ Cancel</button>
+        </div>
+    </form>
 </div>
 
 <!-- Repositories Section -->
@@ -55,6 +57,19 @@
     </div>
 </div>
 {% endif %}
+
+<!-- 2-Pane Layout for TODOs and Scraps -->
+<div class="two-pane-layout">
+    <!-- TODOs Section (Left) -->
+    <div class="card" id="todos-section">
+        {% include "partials/todo_list.html" %}
+    </div>
+
+    <!-- Scraps Section (Right) -->
+    <div class="card" id="scraps-section">
+        {% include "partials/scrap_list.html" %}
+    </div>
+</div>
 {% else %}
 <!-- No Task State -->
 <div class="no-task">
@@ -66,4 +81,19 @@
     </p>
 </div>
 {% endif %}
+
+<script>
+    function toggleDescEdit() {
+        const display = document.getElementById('desc-display');
+        const form = document.getElementById('desc-edit-form');
+        if (form.style.display === 'none') {
+            display.style.display = 'none';
+            form.style.display = 'block';
+            form.querySelector('textarea').focus();
+        } else {
+            display.style.display = 'block';
+            form.style.display = 'none';
+        }
+    }
+</script>
 {% endblock %}
