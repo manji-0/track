@@ -194,15 +194,45 @@ impl CommandHandler {
 
             let mut worktrees_json = Vec::new();
             for wt in &worktrees {
-                let repo_links = worktree_service.list_repo_links(wt.id)?;
                 let mut wt_val = serde_json::to_value(wt).unwrap_or(serde_json::Value::Null);
                 if let Some(obj) = wt_val.as_object_mut() {
+                    obj.remove("id");
+                    obj.remove("is_base");
+                    obj.remove("task_id");
+
+                    let task_scoped_id = wt.todo_id.and_then(|id| {
+                        todos.iter().find(|t| t.id == id).map(|t| t.task_index)
+                    });
                     obj.insert(
-                        "repo_links".to_string(),
-                        serde_json::to_value(&repo_links).unwrap_or(serde_json::Value::Null),
+                        "todo_id".to_string(),
+                        serde_json::to_value(task_scoped_id).unwrap_or(serde_json::Value::Null),
                     );
                 }
                 worktrees_json.push(wt_val);
+            }
+
+            // Add pending worktrees (requested in TODOs but not yet created via sync)
+            for todo in &todos {
+                if todo.worktree_requested && !worktrees.iter().any(|wt| wt.todo_id == Some(todo.id)) {
+                    let branch_name = worktree_service
+                        .get_todo_branch_name(
+                            current_task_id,
+                            task.ticket_id.as_deref(),
+                            todo.task_index,
+                        )
+                        .ok();
+
+                    // Create a virtual worktree object for the pending state
+                    let pending_wt = serde_json::json!({
+                        "todo_id": todo.task_index,
+                        "branch": branch_name,
+                        "status": "requested",
+                        "path": null,
+                        "created_at": null,
+                        "base_repo": null
+                    });
+                    worktrees_json.push(pending_wt);
+                }
             }
 
             let output = serde_json::json!({
