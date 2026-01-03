@@ -22,14 +22,26 @@ pub async fn start_server(port: u16, open_browser: bool) -> anyhow::Result<()> {
     let templates = Arc::new(Templates::embedded());
 
     let web_state = WebState {
-        app: app_state,
+        app: app_state.clone(),
         templates,
     };
+
+    // Spawn background task to poll for database changes
+    let poll_state = app_state.clone();
+    tokio::spawn(async move {
+        poll_state.start_change_detection().await;
+    });
 
     // Build router
     let app = Router::new()
         // Pages
         .route("/", get(routes::index))
+        // Card GET endpoints for HTMX updates
+        .route("/api/card/description", get(routes::get_description))
+        .route("/api/card/ticket", get(routes::get_ticket))
+        .route("/api/card/links", get(routes::get_links))
+        .route("/api/card/todos", get(routes::get_todos))
+        .route("/api/card/scraps", get(routes::get_scraps))
         // API endpoints
         .route("/api/status", get(routes::api_status))
         .route("/api/todo", post(routes::add_todo))

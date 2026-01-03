@@ -1,134 +1,68 @@
-<div class="card-header">
-    <h2 class="card-title"><span class="icon">📋</span> TODOs</h2>
-</div>
+<div class="card" id="todos-section">
+    <div class="card-header">
+        <h2 class="card-title"><span class="icon">📋</span> TODOs</h2>
+    </div>
 
-<!-- Add Todo Form -->
-<form hx-post="/api/todo" hx-target="#todos-section" hx-swap="innerHTML show:none" class="input-group"
-    style="margin-bottom: 1rem;">
-    <input type="text" name="content" placeholder="Add a new todo..." required autocomplete="off">
-    <button type="submit">
-        <span>✅</span> Add
-    </button>
-</form>
+    <!-- Add Todo Form -->
+    <form hx-post="/api/todo" hx-swap="none" hx-on::after-request="this.reset()" class="input-group"
+        style="margin-bottom: 1rem;">
+        <input type="text" name="content" placeholder="Add a new todo..." required autocomplete="off">
+        <button type="submit">
+            <span>✅</span> Add
+        </button>
+    </form>
 
-<!-- Todo List -->
-{% if todos and todos|length > 0 %}
-<ul class="todo-list">
+    <!-- Todo List -->
+    {% if todos and todos|length > 0 %}
+    <ul class="todo-list">
+        {% for todo in todos %}
+        <li class="todo-item {{ todo.status }}" data-todo-id="{{ todo.todo_id }}">
+            <div class="todo-main" onclick="toggleTodoMenu(event, '{{ todo.todo_id }}')">
+                <span class="todo-index">{{ todo.todo_id }}</span>
+                <span class="todo-content">{{ todo.content }}</span>
+                <span class="todo-status {{ todo.status }}">{{ todo.status }}</span>
+                <span class="todo-menu-indicator">⋮</span>
+            </div>
+        </li>
+        {% endfor %}
+    </ul>
+
+    <!-- Menus (outside of list items to avoid opacity inheritance) -->
     {% for todo in todos %}
-    <li class="todo-item {{ todo.status }}" data-todo-id="{{ todo.todo_id }}">
-        <div class="todo-main" onclick="toggleTodoMenu(event, '{{ todo.todo_id }}')">
-            <span class="todo-index">{{ todo.todo_id }}</span>
-            <span class="todo-content">{{ todo.content }}</span>
-            <span class="todo-status {{ todo.status }}">{{ todo.status }}</span>
-            <span class="todo-menu-indicator">⋮</span>
-        </div>
-    </li>
+    <div class="todo-menu" id="todo-menu-{{ todo.todo_id }}" style="display: none;">
+        {% if todo.status != 'done' %}
+        <button class="menu-item btn-success" hx-patch="/api/todo/{{ todo.todo_id }}/done" hx-target="#todos-section"
+            hx-swap="none" onclick="event.stopPropagation()">
+            <span class="menu-icon">✓</span>
+            <span class="menu-label">Mark as Done</span>
+        </button>
+        {% endif %}
+        {% if todo.status != 'pending' %}
+        <button class="menu-item btn-warning" hx-patch="/api/todo/{{ todo.todo_id }}/pending" hx-target="#todos-section"
+            hx-swap="none" onclick="event.stopPropagation()">
+            <span class="menu-icon">↻</span>
+            <span class="menu-label">Mark as Pending</span>
+        </button>
+        {% endif %}
+        {% if todo.status != 'cancelled' %}
+        <button class="menu-item btn-secondary" hx-patch="/api/todo/{{ todo.todo_id }}/cancelled"
+            hx-swap="none" onclick="event.stopPropagation()">
+            <span class="menu-icon">✕</span>
+            <span class="menu-label">Cancel</span>
+        </button>
+        {% endif %}
+        <button class="menu-item btn-danger" hx-delete="/api/todo/{{ todo.todo_id }}" hx-target="#todos-section"
+            hx-swap="none" hx-confirm="Delete this todo?" onclick="event.stopPropagation()">
+            <span class="menu-icon">🗑️</span>
+            <span class="menu-label">Delete</span>
+        </button>
+    </div>
     {% endfor %}
-</ul>
 
-<!-- Menus (outside of list items to avoid opacity inheritance) -->
-{% for todo in todos %}
-<div class="todo-menu" id="todo-menu-{{ todo.todo_id }}" style="display: none;">
-    {% if todo.status != 'done' %}
-    <button class="menu-item btn-success" hx-patch="/api/todo/{{ todo.todo_id }}/done" hx-target="#todos-section"
-        hx-swap="innerHTML show:none" onclick="event.stopPropagation()">
-        <span class="menu-icon">✓</span>
-        <span class="menu-label">Mark as Done</span>
-    </button>
+    {% else %}
+    <div class="empty-state">
+        <div class="icon">✨</div>
+        <p>No todos yet. Add one above!</p>
+    </div>
     {% endif %}
-    {% if todo.status != 'pending' %}
-    <button class="menu-item btn-warning" hx-patch="/api/todo/{{ todo.todo_id }}/pending" hx-target="#todos-section"
-        hx-swap="innerHTML show:none" onclick="event.stopPropagation()">
-        <span class="menu-icon">↻</span>
-        <span class="menu-label">Mark as Pending</span>
-    </button>
-    {% endif %}
-    {% if todo.status != 'cancelled' %}
-    <button class="menu-item btn-secondary" hx-patch="/api/todo/{{ todo.todo_id }}/cancelled" hx-target="#todos-section"
-        hx-swap="innerHTML show:none" onclick="event.stopPropagation()">
-        <span class="menu-icon">✕</span>
-        <span class="menu-label">Cancel</span>
-    </button>
-    {% endif %}
-    <button class="menu-item btn-danger" hx-delete="/api/todo/{{ todo.todo_id }}" hx-target="#todos-section"
-        hx-swap="innerHTML show:none" hx-confirm="Delete this todo?" onclick="event.stopPropagation()">
-        <span class="menu-icon">🗑️</span>
-        <span class="menu-label">Delete</span>
-    </button>
 </div>
-{% endfor %}
-
-<script>
-    function toggleTodoMenu(event, todoId) {
-        event.stopPropagation();
-
-        const currentItem = document.querySelector(`[data-todo-id="${todoId}"]`);
-        const currentMenu = document.getElementById(`todo-menu-${todoId}`);
-
-        // Close all other menus and remove menu-open class
-        document.querySelectorAll('.todo-item').forEach(item => {
-            if (item.getAttribute('data-todo-id') !== todoId) {
-                const menuId = `todo-menu-${item.getAttribute('data-todo-id')}`;
-                const menu = document.getElementById(menuId);
-                if (menu) {
-                    menu.style.display = 'none';
-                }
-                item.classList.remove('menu-open');
-            }
-        });
-
-        // Toggle current menu
-        if (currentMenu) {
-            const isOpen = currentMenu.style.display === 'block';
-
-            if (isOpen) {
-                currentMenu.style.display = 'none';
-                currentItem.classList.remove('menu-open');
-            } else {
-                // Move menu to body to avoid parent container offsets
-                if (currentMenu.parentElement !== document.body) {
-                    document.body.appendChild(currentMenu);
-                }
-
-                // Position menu at cursor location
-                currentMenu.style.left = `${event.clientX}px`;
-                currentMenu.style.top = `${event.clientY}px`;
-                currentMenu.style.display = 'block';
-
-                currentItem.classList.add('menu-open');
-            }
-        } else {
-            console.error('Menu not found:', `todo-menu-${todoId}`);
-        }
-    }
-
-    // Close menus when clicking outside
-    document.addEventListener('click', function (event) {
-        if (!event.target.closest('.todo-item') && !event.target.closest('.todo-menu')) {
-            document.querySelectorAll('.todo-menu').forEach(menu => {
-                menu.style.display = 'none';
-            });
-            document.querySelectorAll('.todo-item').forEach(item => {
-                item.classList.remove('menu-open');
-            });
-        }
-    });
-
-    // Close menus when HTMX request starts (e.g., when menu button is clicked)
-    document.body.addEventListener('htmx:beforeRequest', function () {
-        document.querySelectorAll('.todo-menu').forEach(menu => {
-            menu.style.display = 'none';
-        });
-        document.querySelectorAll('.todo-item').forEach(item => {
-            item.classList.remove('menu-open');
-        });
-    });
-
-</script>
-
-{% else %}
-<div class="empty-state">
-    <div class="icon">✨</div>
-    <p>No todos yet. Add one above!</p>
-</div>
-{% endif %}

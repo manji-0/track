@@ -3,22 +3,32 @@
 use crate::db::Database;
 use std::sync::Arc;
 use tokio::sync::{broadcast, Mutex};
+use std::time::Duration;
 
 /// Event types broadcast via SSE
 #[derive(Clone, Debug, serde::Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum SseEvent {
-    /// Full status update needed
-    StatusUpdate,
-    /// A new TODO was added
-    TodoAdded { todo_id: i64 },
-    /// A TODO was deleted
-    TodoDeleted { todo_id: i64 },
-    /// A TODO status changed
-    #[allow(dead_code)]
-    TodoUpdated { todo_id: i64 },
-    /// A new scrap was added
-    ScrapAdded { id: i64 },
+    /// Description was updated
+    DescriptionUpdated,
+    /// Ticket was updated
+    TicketUpdated,
+    /// Links were updated
+    LinksUpdated,
+    /// TODOs were updated
+    TodosUpdated,
+    /// Scraps were updated
+    ScrapsUpdated,
+}
+
+/// Database state snapshot for change detection
+#[derive(Clone, Debug, PartialEq)]
+struct DbSnapshot {
+    task_count: i64,
+    todo_count: i64,
+    scrap_count: i64,
+    link_count: i64,
+    task_modified: Option<String>,
 }
 
 /// Shared application state
@@ -28,6 +38,8 @@ pub struct AppState {
     pub db: Arc<Mutex<Database>>,
     /// Broadcast channel for SSE events
     pub sse_tx: broadcast::Sender<SseEvent>,
+    /// Last known database state for change detection
+    last_snapshot: Arc<Mutex<Option<DbSnapshot>>>,
 }
 
 impl AppState {
@@ -39,6 +51,7 @@ impl AppState {
         Ok(Self {
             db: Arc::new(Mutex::new(db)),
             sse_tx,
+            last_snapshot: Arc::new(Mutex::new(None)),
         })
     }
 
@@ -46,5 +59,99 @@ impl AppState {
     pub fn broadcast(&self, event: SseEvent) {
         // Ignore send errors (no receivers connected)
         let _ = self.sse_tx.send(event);
+    }
+
+    /// Get current database snapshot
+    async fn get_snapshot(&self) -> anyhow::Result<DbSnapshot> {
+        let db = self.db.lock().await;
+        let conn = db.get_connection();
+
+        let task_count: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM tasks",
+            [],
+            |row| row.get(0),
+        )?;
+
+        let todo_count: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM todos",
+            [],
+            |row| row.get(0),
+        )?;
+
+        let scrap_count: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM scraps",
+            [],
+            |row| row.get(0),
+        )?;
+
+        let link_count: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM links",
+            [],
+            |row| row.get(0),
+        )?;
+
+        // Get current task's last modification info
+        let task_modified: Option<String> = if let Ok(Some(task_id)) = db.get_current_task_id() {
+            conn.query_row(
+                "SELECT ticket_id || ':' || COALESCE(description, '') FROM tasks WHERE id = ?1",
+                [task_id],
+                |row| row.get(0),
+            ).ok()
+        } else {
+            None
+        };
+
+        Ok(DbSnapshot {
+            task_count,
+            todo_count,
+            scrap_count,
+            link_count,
+            task_modified,
+        })
+    }
+
+    /// Start background task to detect database changes
+    pub async fn start_change_detection(&self) {
+        let mut interval = tokio::time::interval(Duration::from_secs(1));
+        
+        loop {
+            interval.tick().await;
+
+            // Get current snapshot
+            let current = match self.get_snapshot().await {
+                Ok(snapshot) => snapshot,
+                Err(e) => {
+                    eprintln!("Error getting database snapshot: {}", e);
+                    continue;
+                }
+            };
+
+            // Compare with last snapshot and broadcast specific events
+            let mut last = self.last_snapshot.lock().await;
+            
+            if let Some(ref prev) = *last {
+                // Check each field and broadcast specific events
+                if current.task_modified != prev.task_modified {
+                    // Task metadata changed (description or ticket)
+                    self.broadcast(SseEvent::DescriptionUpdated);
+                    self.broadcast(SseEvent::TicketUpdated);
+                }
+                
+                if current.link_count != prev.link_count {
+                    self.broadcast(SseEvent::LinksUpdated);
+                }
+                
+                if current.todo_count != prev.todo_count {
+                    self.broadcast(SseEvent::TodosUpdated);
+                }
+                
+                if current.scrap_count != prev.scrap_count {
+                    self.broadcast(SseEvent::ScrapsUpdated);
+                }
+            }
+
+            // Update last snapshot
+            *last = Some(current);
+        }
     }
 }

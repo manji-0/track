@@ -974,34 +974,50 @@
                     const event = JSON.parse(e.data);
                     console.log('SSE event:', event);
 
-                    // Only reload the specific sections based on event type
-                    if (event.type === 'todo_added' || event.type === 'todo_deleted' || event.type === 'todo_updated') {
-                        console.log('Updating todos section');
-                        htmx.ajax('GET', '/', {
-                            target: '#todos-section',
-                            swap: 'outerHTML show:none',
-                            select: '#todos-section'
-                        });
-                    } else if (event.type === 'scrap_added') {
-                        console.log('Updating scraps section');
-                        htmx.ajax('GET', '/', {
-                            target: '#scraps-section',
-                            swap: 'outerHTML show:none',
-                            select: '#scraps-section'
-                        });
-                    } else {
-                        // For status_update or unknown events, reload both sections
-                        console.log('Updating all sections');
-                        htmx.ajax('GET', '/', {
-                            target: '#todos-section',
-                            swap: 'outerHTML show:none',
-                            select: '#todos-section'
-                        });
-                        htmx.ajax('GET', '/', {
-                            target: '#scraps-section',
-                            swap: 'outerHTML show:none',
-                            select: '#scraps-section'
-                        });
+                    // Handle card-specific events
+                    switch (event.type) {
+                        case 'description_updated':
+                            console.log('Updating description section');
+                            htmx.ajax('GET', '/api/card/description', {
+                                target: '#description-section',
+                                swap: 'outerHTML'
+                            });
+                            break;
+
+                        case 'ticket_updated':
+                            console.log('Updating ticket section');
+                            htmx.ajax('GET', '/api/card/ticket', {
+                                target: '#ticket-section',
+                                swap: 'outerHTML'
+                            });
+                            break;
+
+                        case 'links_updated':
+                            console.log('Updating links section');
+                            htmx.ajax('GET', '/api/card/links', {
+                                target: '#links-section',
+                                swap: 'outerHTML'
+                            });
+                            break;
+
+                        case 'todos_updated':
+                            console.log('Updating todos section');
+                            htmx.ajax('GET', '/api/card/todos', {
+                                target: '#todos-section',
+                                swap: 'outerHTML'
+                            });
+                            break;
+
+                        case 'scraps_updated':
+                            console.log('Updating scraps section');
+                            htmx.ajax('GET', '/api/card/scraps', {
+                                target: '#scraps-section',
+                                swap: 'outerHTML'
+                            });
+                            break;
+
+                        default:
+                            console.warn('Unknown SSE event type:', event.type);
                     }
                 });
 
@@ -1057,6 +1073,105 @@
         } else {
             console.log('SSE already initialized, skipping');
         }
+    </script>
+
+    <script>
+        // Global edit toggle functions
+        window.toggleDescEdit = function () {
+            const display = document.getElementById('desc-display');
+            const form = document.getElementById('desc-edit-form');
+            if (form && form.style.display === 'none') {
+                if (display) display.style.display = 'none';
+                form.style.display = 'block';
+                const textarea = form.querySelector('textarea');
+                if (textarea) textarea.focus();
+            } else if (form) {
+                if (display) display.style.display = 'block';
+                form.style.display = 'none';
+            }
+        };
+
+        window.toggleTicketEdit = function () {
+            const display = document.getElementById('ticket-display');
+            const form = document.getElementById('ticket-edit-form');
+            if (form && form.style.display === 'none') {
+                if (display) display.style.display = 'none';
+                form.style.display = 'block';
+                const input = form.querySelector('input[name="ticket_id"]');
+                if (input) input.focus();
+            } else if (form) {
+                if (display) display.style.display = 'block';
+                form.style.display = 'none';
+            }
+        };
+    </script>
+
+    <script>
+        // Global TODO menu handler
+        window.toggleTodoMenu = function (event, todoId) {
+            event.stopPropagation();
+
+            const currentItem = document.querySelector(`[data-todo-id="${todoId}"]`);
+            const currentMenu = document.getElementById(`todo-menu-${todoId}`);
+
+            // Close all other menus and remove menu-open class
+            document.querySelectorAll('.todo-item').forEach(item => {
+                if (item.getAttribute('data-todo-id') !== todoId) {
+                    const menuId = `todo-menu-${item.getAttribute('data-todo-id')}`;
+                    const menu = document.getElementById(menuId);
+                    if (menu) {
+                        menu.style.display = 'none';
+                    }
+                    item.classList.remove('menu-open');
+                }
+            });
+
+            // Toggle current menu
+            if (currentMenu) {
+                const isOpen = currentMenu.style.display === 'block';
+
+                if (isOpen) {
+                    currentMenu.style.display = 'none';
+                    currentItem.classList.remove('menu-open');
+                } else {
+                    // Move menu to body to avoid parent container offsets
+                    if (currentMenu.parentElement !== document.body) {
+                        document.body.appendChild(currentMenu);
+                    }
+
+                    // Position menu at cursor location
+                    currentMenu.style.left = `${event.clientX}px`;
+                    currentMenu.style.top = `${event.clientY}px`;
+                    currentMenu.style.display = 'block';
+
+                    currentItem.classList.add('menu-open');
+                }
+            } else {
+                console.error('Menu not found:', `todo-menu-${todoId}`);
+            }
+        };
+
+        // Close menus when clicking outside (use event delegation)
+        document.addEventListener('click', function (event) {
+            if (!event.target.closest('.todo-item') && !event.target.closest('.todo-menu')) {
+                document.querySelectorAll('.todo-menu').forEach(menu => {
+                    menu.style.display = 'none';
+                });
+                document.querySelectorAll('.todo-item').forEach(item => {
+                    item.classList.remove('menu-open');
+                });
+            }
+        });
+
+        // Close menus when HTMX request starts
+        document.body.addEventListener('htmx:beforeRequest', function () {
+            document.querySelectorAll('.todo-menu').forEach(menu => {
+                menu.style.display = 'none';
+            });
+            document.querySelectorAll('.todo-item').forEach(item => {
+                item.classList.remove('menu-open');
+            });
+        });
     </script>
 </body>
 

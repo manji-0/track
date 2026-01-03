@@ -175,6 +175,96 @@ pub async fn api_status(State(state): State<WebState>) -> Result<Json<StatusResp
     }))
 }
 
+/// Get description card HTML
+pub async fn get_description(State(state): State<WebState>) -> Result<Html<String>, AppError> {
+    let db = state.app.db.lock().await;
+    let current_task_id = db.get_current_task_id()?.ok_or(TrackError::NoActiveTask)?;
+    
+    let task_service = TaskService::new(&db);
+    let task = task_service.get_task(current_task_id)?;
+    
+    let html = state.templates.render(
+        "partials/description.html",
+        serde_json::json!({
+            "task": task,
+        }),
+    )?;
+    
+    Ok(Html(html))
+}
+
+/// Get ticket card HTML
+pub async fn get_ticket(State(state): State<WebState>) -> Result<Html<String>, AppError> {
+    let db = state.app.db.lock().await;
+    let current_task_id = db.get_current_task_id()?.ok_or(TrackError::NoActiveTask)?;
+    
+    let task_service = TaskService::new(&db);
+    let task = task_service.get_task(current_task_id)?;
+    
+    let html = state.templates.render(
+        "partials/ticket.html",
+        serde_json::json!({
+            "task": task,
+        }),
+    )?;
+    
+    Ok(Html(html))
+}
+
+/// Get links card HTML
+pub async fn get_links(State(state): State<WebState>) -> Result<Html<String>, AppError> {
+    let db = state.app.db.lock().await;
+    let current_task_id = db.get_current_task_id()?.ok_or(TrackError::NoActiveTask)?;
+    
+    let link_service = LinkService::new(&db);
+    let links = link_service.list_links(current_task_id)?;
+    
+    let html = state.templates.render(
+        "partials/links.html",
+        serde_json::json!({
+            "links": links,
+        }),
+    )?;
+    
+    Ok(Html(html))
+}
+
+/// Get todos card HTML
+pub async fn get_todos(State(state): State<WebState>) -> Result<Html<String>, AppError> {
+    let db = state.app.db.lock().await;
+    let current_task_id = db.get_current_task_id()?.ok_or(TrackError::NoActiveTask)?;
+    
+    let todo_service = TodoService::new(&db);
+    let todos = todo_service.list_todos(current_task_id)?;
+    
+    let html = state.templates.render(
+        "partials/todo_list.html",
+        serde_json::json!({
+            "todos": todos,
+        }),
+    )?;
+    
+    Ok(Html(html))
+}
+
+/// Get scraps card HTML
+pub async fn get_scraps(State(state): State<WebState>) -> Result<Html<String>, AppError> {
+    let db = state.app.db.lock().await;
+    let current_task_id = db.get_current_task_id()?.ok_or(TrackError::NoActiveTask)?;
+    
+    let scrap_service = ScrapService::new(&db);
+    let scraps = scrap_service.list_scraps(current_task_id)?;
+    
+    let html = state.templates.render(
+        "partials/scrap_list.html",
+        serde_json::json!({
+            "scraps": format_scraps(&scraps),
+        }),
+    )?;
+    
+    Ok(Html(html))
+}
+
 /// Add a new todo
 pub async fn add_todo(
     State(state): State<WebState>,
@@ -185,12 +275,10 @@ pub async fn add_todo(
     let current_task_id = db.get_current_task_id()?.ok_or(TrackError::NoActiveTask)?;
 
     let todo_service = TodoService::new(&db);
-    let todo = todo_service.add_todo(current_task_id, &form.content, false)?;
+    let _todo = todo_service.add_todo(current_task_id, &form.content, false)?;
 
     // Broadcast SSE event
-    state
-        .app
-        .broadcast(SseEvent::TodoAdded { todo_id: todo.id });
+    state.app.broadcast(SseEvent::TodosUpdated);
 
     // Return updated todo list partial
     let todos = todo_service.list_todos(current_task_id)?;
@@ -218,9 +306,7 @@ pub async fn update_todo_status(
     todo_service.update_status(todo.id, &new_status)?;
 
     // Broadcast SSE event
-    state
-        .app
-        .broadcast(SseEvent::TodoUpdated { todo_id: todo.id });
+    state.app.broadcast(SseEvent::TodosUpdated);
 
     // Return updated todo list partial
     let todos = todo_service.list_todos(current_task_id)?;
@@ -248,9 +334,7 @@ pub async fn delete_todo(
     todo_service.delete_todo(todo.id)?;
 
     // Broadcast SSE event
-    state
-        .app
-        .broadcast(SseEvent::TodoDeleted { todo_id: todo.id });
+    state.app.broadcast(SseEvent::TodosUpdated);
 
     // Return updated todo list partial
     let todos = todo_service.list_todos(current_task_id)?;
@@ -274,10 +358,10 @@ pub async fn add_scrap(
     let current_task_id = db.get_current_task_id()?.ok_or(TrackError::NoActiveTask)?;
 
     let scrap_service = ScrapService::new(&db);
-    let scrap = scrap_service.add_scrap(current_task_id, &form.content)?;
+    let _scrap = scrap_service.add_scrap(current_task_id, &form.content)?;
 
     // Broadcast SSE event
-    state.app.broadcast(SseEvent::ScrapAdded { id: scrap.id });
+    state.app.broadcast(SseEvent::ScrapsUpdated);
 
     // Return updated scrap list partial
     let scraps = scrap_service.list_scraps(current_task_id)?;
@@ -307,7 +391,7 @@ pub async fn update_description(
     let task = task_service.get_task(current_task_id)?;
 
     // Broadcast SSE event
-    state.app.broadcast(SseEvent::StatusUpdate);
+    state.app.broadcast(SseEvent::DescriptionUpdated);
 
     // Return updated description section
     let html = state.templates.render(
@@ -403,7 +487,7 @@ pub async fn update_ticket(
     let task = task_service.get_task(current_task_id)?;
 
     // Broadcast SSE event
-    state.app.broadcast(SseEvent::StatusUpdate);
+    state.app.broadcast(SseEvent::TicketUpdated);
 
     // Return updated ticket section
     let html = state.templates.render(
@@ -433,7 +517,7 @@ pub async fn add_link(
     link_service.add_link(current_task_id, &form.url, title.as_deref())?;
 
     // Broadcast SSE event
-    state.app.broadcast(SseEvent::StatusUpdate);
+    state.app.broadcast(SseEvent::LinksUpdated);
 
     // Return updated links list partial
     let links = link_service.list_links(current_task_id)?;
@@ -474,7 +558,7 @@ pub async fn delete_link(
     )?;
 
     // Broadcast SSE event
-    state.app.broadcast(SseEvent::StatusUpdate);
+    state.app.broadcast(SseEvent::LinksUpdated);
 
     // Return updated links list partial
     let links = link_service.list_links(current_task_id)?;

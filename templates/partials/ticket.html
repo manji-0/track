@@ -1,30 +1,33 @@
-<div class="card-header">
-    <h2 class="card-title"><span class="icon">🎫</span> Ticket</h2>
-    <button class="btn-edit" onclick="toggleTicketEdit()">✏️ Edit</button>
-</div>
-<div id="ticket-display">
-    {% if task.ticket_id %}
-    <div class="ticket-info">
-        <div class="ticket-id">{{ task.ticket_id }}</div>
-        {% if task.ticket_url %}
-        <a href="{{ task.ticket_url }}" target="_blank" class="ticket-url">🔗 Open Ticket</a>
+<div class="card" id="ticket-section">
+    <div class="card-header">
+        <h2 class="card-title"><span class="icon">🎫</span> Ticket</h2>
+        <button class="btn-edit" onclick="toggleTicketEdit()">✏️ Edit</button>
+    </div>
+    <div id="ticket-display">
+        {% if task.ticket_id %}
+        <div class="ticket-info">
+            <div class="ticket-id">{{ task.ticket_id }}</div>
+            {% if task.ticket_url %}
+            <a href="{{ task.ticket_url }}" target="_blank" class="ticket-url">🔗 Open Ticket</a>
+            {% endif %}
+        </div>
+        {% else %}
+        <div class="text-muted">No ticket linked.</div>
         {% endif %}
     </div>
-    {% else %}
-    <div class="text-muted">No ticket linked.</div>
-    {% endif %}
+    <form id="ticket-edit-form" style="display: none;" hx-post="/api/ticket" hx-target="#ticket-section"
+        hx-swap="none">
+        <div class="input-group" style="margin-bottom: 0.5rem;">
+            <input type="text" name="ticket_id" placeholder="Ticket ID (e.g., PROJ-123)"
+                value="{{ task.ticket_id or '' }}" required>
+        </div>
+        <div class="input-group">
+            <input type="text" name="ticket_url" placeholder="Ticket URL (optional)"
+                value="{{ task.ticket_url or '' }}">
+        </div>
+        <div class="form-actions">
+            <button type="submit" class="btn-primary">💾 Save</button>
+            <button type="button" class="btn-secondary" onclick="toggleTicketEdit()">✖ Cancel</button>
+        </div>
+    </form>
 </div>
-<form id="ticket-edit-form" style="display: none;" hx-post="/api/ticket" hx-target="#ticket-section"
-    hx-swap="outerHTML">
-    <div class="input-group" style="margin-bottom: 0.5rem;">
-        <input type="text" name="ticket_id" placeholder="Ticket ID (e.g., PROJ-123)" value="{{ task.ticket_id or '' }}"
-            required>
-    </div>
-    <div class="input-group">
-        <input type="text" name="ticket_url" placeholder="Ticket URL (optional)" value="{{ task.ticket_url or '' }}">
-    </div>
-    <div class="form-actions">
-        <button type="submit" class="btn-primary">💾 Save</button>
-        <button type="button" class="btn-secondary" onclick="toggleTicketEdit()">✖ Cancel</button>
-    </div>
-</form>

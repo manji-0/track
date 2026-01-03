@@ -26,31 +26,10 @@
     <!-- 2-Pane Layout for Description and Ticket -->
     <div class="two-pane-layout">
         <!-- Description Section (Left) -->
-        <div class="card" id="description-section">
-            <div class="card-header">
-                <h2 class="card-title"><span class="icon">📝</span> Description</h2>
-                <button class="btn-edit" onclick="toggleDescEdit()">✏️ Edit</button>
-            </div>
-            {% if task.description %}
-            <div class="description" id="desc-display">{{ task.description }}</div>
-            {% else %}
-            <div class="description text-muted" id="desc-display">No description set.</div>
-            {% endif %}
-            <form id="desc-edit-form" style="display: none;" hx-post="/api/description" hx-target="#description-section"
-                hx-swap="outerHTML">
-                <textarea name="description" rows="4"
-                    placeholder="Enter task description...">{{ task.description or '' }}</textarea>
-                <div class="form-actions">
-                    <button type="submit" class="btn-primary">💾 Save</button>
-                    <button type="button" class="btn-secondary" onclick="toggleDescEdit()">✖ Cancel</button>
-                </div>
-            </form>
-        </div>
+        {% include "partials/description.html" %}
 
         <!-- Ticket Section (Right) -->
-        <div class="card" id="ticket-section">
-            {% include "partials/ticket.html" %}
-        </div>
+        {% include "partials/ticket.html" %}
     </div>
 
     <!-- 2-Pane Layout for Repositories and Links -->
@@ -77,23 +56,17 @@
         </div>
 
         <!-- Links Section (Right) -->
-        <div class="card" id="links-section">
-            {% include "partials/links.html" %}
-        </div>
+        {% include "partials/links.html" %}
     </div>
 </div>
 
 <!-- 2-Pane Layout for TODOs and Scraps -->
 <div class="two-pane-layout">
     <!-- TODOs Section (Left) -->
-    <div class="card" id="todos-section">
-        {% include "partials/todo_list.html" %}
-    </div>
+    {% include "partials/todo_list.html" %}
 
     <!-- Scraps Section (Right) -->
-    <div class="card" id="scraps-section">
-        {% include "partials/scrap_list.html" %}
-    </div>
+    {% include "partials/scrap_list.html" %}
 </div>
 {% else %}
 <!-- No Task State -->
@@ -108,32 +81,6 @@
 {% endif %}
 
 <script>
-    function toggleDescEdit() {
-        const display = document.getElementById('desc-display');
-        const form = document.getElementById('desc-edit-form');
-        if (form.style.display === 'none') {
-            display.style.display = 'none';
-            form.style.display = 'block';
-            form.querySelector('textarea').focus();
-        } else {
-            display.style.display = 'block';
-            form.style.display = 'none';
-        }
-    }
-
-    function toggleTicketEdit() {
-        const display = document.getElementById('ticket-display');
-        const form = document.getElementById('ticket-edit-form');
-        if (form.style.display === 'none') {
-            display.style.display = 'none';
-            form.style.display = 'block';
-            form.querySelector('input[name="ticket_id"]').focus();
-        } else {
-            display.style.display = 'block';
-            form.style.display = 'none';
-        }
-    }
-
     function toggleMetadata() {
         const section = document.getElementById('metadata-section');
         const icon = document.getElementById('collapse-icon');
