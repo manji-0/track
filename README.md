@@ -1,4 +1,8 @@
-# Track
+<div align="center">
+  <img src="static/track.svg" width="128" height="128" alt="Track Logo" />
+  <h1>Track</h1>
+</div>
+
 
 **A lightweight CLI tool for managing development tasks with integrated Git worktree support.**
 
