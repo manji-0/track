@@ -1,6 +1,6 @@
 [package]
 name = "track"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 authors = ["manji0"]
 description = "A Git worktree-based task and TODO management CLI tool"
