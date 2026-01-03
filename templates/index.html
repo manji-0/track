@@ -39,59 +39,52 @@
     </form>
 </div>
 
-<!-- Ticket Information -->
-<div class="card" id="ticket-section">
-    <div class="card-header">
-        <h2 class="card-title"><span class="icon">🎫</span> Ticket</h2>
-        <button class="btn-edit" onclick="toggleTicketEdit()">✏️ Edit</button>
+<!-- 2-Pane Layout for Ticket and Repositories -->
+<div class="two-pane-layout">
+    <!-- Ticket Section (Left) -->
+    <div class="card" id="ticket-section">
+        {% include "partials/ticket.html" %}
     </div>
-    <div id="ticket-display">
-        {% if task.ticket_id %}
-        <div class="ticket-info">
-            <div class="ticket-id">{{ task.ticket_id }}</div>
-            {% if task.ticket_url %}
-            <a href="{{ task.ticket_url }}" target="_blank" class="ticket-url">🔗 Open Ticket</a>
-            {% endif %}
+
+    <!-- Repositories Section (Right) -->
+    <div class="card">
+        <div class="card-header">
+            <h2 class="card-title"><span class="icon">📁</span> Repositories</h2>
+        </div>
+        {% if repos and repos|length > 0 %}
+        <div class="repo-list">
+            {% for repo in repos %}
+            <div class="repo-item">
+                <span class="repo-path">{{ repo.repo_path }}</span>
+                {% if repo.base_branch %}
+                <span class="todo-status pending">{{ repo.base_branch }}</span>
+                {% endif %}
+            </div>
+            {% endfor %}
         </div>
         {% else %}
-        <div class="text-muted">No ticket linked.</div>
+        <div class="text-muted">No repositories registered.</div>
         {% endif %}
     </div>
-    <form id="ticket-edit-form" style="display: none;" hx-post="/api/ticket" hx-target="#ticket-section"
-        hx-swap="outerHTML">
-        <div class="input-group" style="margin-bottom: 0.5rem;">
-            <input type="text" name="ticket_id" placeholder="Ticket ID (e.g., PROJ-123)"
-                value="{{ task.ticket_id or '' }}" required>
-        </div>
-        <div class="input-group">
-            <input type="text" name="ticket_url" placeholder="Ticket URL (optional)"
-                value="{{ task.ticket_url or '' }}">
-        </div>
-        <div class="form-actions">
-            <button type="submit" class="btn-primary">💾 Save</button>
-            <button type="button" class="btn-secondary" onclick="toggleTicketEdit()">✖ Cancel</button>
-        </div>
-    </form>
 </div>
 
-<!-- Repositories Section -->
-{% if repos and repos|length > 0 %}
+<!-- Links Section -->
 <div class="card">
     <div class="card-header">
-        <h2 class="card-title"><span class="icon">📁</span> Repositories</h2>
+        <h2 class="card-title"><span class="icon">🔗</span> Links</h2>
     </div>
-    <div class="repo-list">
-        {% for repo in repos %}
-        <div class="repo-item">
-            <span class="repo-path">{{ repo.repo_path }}</span>
-            {% if repo.base_branch %}
-            <span class="todo-status pending">{{ repo.base_branch }}</span>
-            {% endif %}
+    {% if links and links|length > 0 %}
+    <div class="link-list">
+        {% for link in links %}
+        <div class="link-item">
+            <a href="{{ link.url }}" target="_blank" class="link-url">{{ link.title or link.url }}</a>
         </div>
         {% endfor %}
     </div>
+    {% else %}
+    <div class="text-muted">No links added.</div>
+    {% endif %}
 </div>
-{% endif %}
 
 <!-- 2-Pane Layout for TODOs and Scraps -->
 <div class="two-pane-layout">

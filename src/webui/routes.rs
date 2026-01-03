@@ -326,7 +326,7 @@ fn build_status_context(db: &Database, task_id: i64) -> anyhow::Result<serde_jso
 /// Format scraps with human-readable timestamps
 fn format_scraps(scraps: &[crate::models::Scrap]) -> Vec<serde_json::Value> {
     use chrono::Local;
-    
+
     scraps
         .iter()
         .map(|scrap| {
@@ -335,7 +335,7 @@ fn format_scraps(scraps: &[crate::models::Scrap]) -> Vec<serde_json::Value> {
                 .with_timezone(&Local)
                 .format("%Y-%m-%d %H:%M:%S")
                 .to_string();
-            
+
             serde_json::json!({
                 "scrap_id": scrap.scrap_id,
                 "content": scrap.content,
@@ -355,11 +355,11 @@ pub async fn update_ticket(
     let current_task_id = db.get_current_task_id()?.ok_or(TrackError::NoActiveTask)?;
 
     let task_service = TaskService::new(&db);
-    
+
     // Clean up ticket_url if empty
     let ticket_url = form.ticket_url.filter(|url| !url.trim().is_empty());
     let ticket_url_str = ticket_url.as_deref().unwrap_or("");
-    
+
     task_service.link_ticket(current_task_id, &form.ticket_id, ticket_url_str)?;
 
     // Get updated task
