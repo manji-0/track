@@ -1,0 +1,30 @@
+<div class="card-header">
+    <h2 class="card-title"><span class="icon">📝</span> Scraps</h2>
+</div>
+
+<!-- Add Scrap Form -->
+<form hx-post="/api/scrap" hx-target="#scraps-section" hx-swap="innerHTML" style="margin-bottom: 1rem;">
+    <div class="input-group">
+        <input type="text" name="content" placeholder="Add a note or scrap..." required autocomplete="off">
+        <button type="submit">
+            <span>📌</span> Add
+        </button>
+    </div>
+</form>
+
+<!-- Scrap List -->
+{% if scraps and scraps|length > 0 %}
+<div class="scrap-list">
+    {% for scrap in scraps %}
+    <div class="scrap-item">
+        <div class="scrap-time">{{ scrap.created_at }}</div>
+        <div class="scrap-content">{{ scrap.content }}</div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="empty-state">
+    <div class="icon">📝</div>
+    <p>No scraps yet. Record your thoughts and progress!</p>
+</div>
+{% endif %}

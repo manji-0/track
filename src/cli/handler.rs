@@ -59,6 +59,8 @@ impl CommandHandler {
             Commands::Sync => self.handle_sync(),
             Commands::Repo(cmd) => self.handle_repo(cmd),
             Commands::LlmHelp => self.handle_llm_help(),
+            // Webui is handled directly in main.rs with async runtime
+            Commands::Webui { .. } => unreachable!("Webui command is handled in main.rs"),
         }
     }
 

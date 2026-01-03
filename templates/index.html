@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+
+{% block title %}
+{% if task %}Task #{{ task.id }}: {{ task.name }}{% else %}Track WebUI{% endif %}
+{% endblock %}
+
+{% block content %}
+{% if task %}
+<!-- Task Header -->
+<header class="task-header">
+    <h1>{{ task.name }}</h1>
+    <div class="task-meta">
+        Task #{{ task.id }}
+        {% if task.ticket_id %}
+        <span class="badge">{{ task.ticket_id }}</span>
+        {% endif %}
+    </div>
+</header>
+
+<!-- Description -->
+{% if task.description %}
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title"><span class="icon">📝</span> Description</h2>
+    </div>
+    <div class="description">{{ task.description }}</div>
+</div>
+{% endif %}
+
+<!-- TODOs Section -->
+<div class="card" id="todos-section">
+    {% include "partials/todo_list.html" %}
+</div>
+
+<!-- Scraps Section -->
+<div class="card" id="scraps-section">
+    {% include "partials/scrap_list.html" %}
+</div>
+
+<!-- Repositories Section -->
+{% if repos and repos|length > 0 %}
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title"><span class="icon">📁</span> Repositories</h2>
+    </div>
+    <div class="repo-list">
+        {% for repo in repos %}
+        <div class="repo-item">
+            <span class="repo-path">{{ repo.repo_path }}</span>
+            {% if repo.base_branch %}
+            <span class="todo-status pending">{{ repo.base_branch }}</span>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+{% else %}
+<!-- No Task State -->
+<div class="no-task">
+    <div class="icon">📋</div>
+    <h2>No Active Task</h2>
+    <p>Create a new task or switch to an existing one to get started.</p>
+    <p style="margin-top: 1rem;">
+        Run <code>track new "Task name"</code> to create a new task.
+    </p>
+</div>
+{% endif %}
+{% endblock %}

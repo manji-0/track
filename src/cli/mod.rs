@@ -114,6 +114,17 @@ pub enum Commands {
 
     /// Show help optimized for LLM agents
     LlmHelp,
+
+    /// Start web-based user interface
+    Webui {
+        /// Port to listen on
+        #[arg(short, long, default_value = "3000")]
+        port: u16,
+
+        /// Open browser automatically
+        #[arg(short, long)]
+        open: bool,
+    },
 }
 
 #[derive(Subcommand)]

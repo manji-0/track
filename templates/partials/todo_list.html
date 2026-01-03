@@ -1,0 +1,36 @@
+<div class="card-header">
+    <h2 class="card-title"><span class="icon">📋</span> TODOs</h2>
+</div>
+
+<!-- Add Todo Form -->
+<form hx-post="/api/todo" hx-target="#todos-section" hx-swap="innerHTML" class="input-group"
+    style="margin-bottom: 1rem;">
+    <input type="text" name="content" placeholder="Add a new todo..." required autocomplete="off">
+    <button type="submit">
+        <span>➕</span> Add
+    </button>
+</form>
+
+<!-- Todo List -->
+{% if todos and todos|length > 0 %}
+<ul class="todo-list">
+    {% for todo in todos %}
+    <li class="todo-item {{ todo.status }}">
+        <span class="todo-index">{{ todo.todo_id }}</span>
+        <span class="todo-content">{{ todo.content }}</span>
+        <span class="todo-status {{ todo.status }}">{{ todo.status }}</span>
+        {% if todo.status != 'done' %}
+        <button class="btn-danger" hx-delete="/api/todo/{{ todo.todo_id }}" hx-target="#todos-section"
+            hx-swap="innerHTML" hx-confirm="Delete this todo?">
+            🗑️
+        </button>
+        {% endif %}
+    </li>
+    {% endfor %}
+</ul>
+{% else %}
+<div class="empty-state">
+    <div class="icon">✨</div>
+    <p>No todos yet. Add one above!</p>
+</div>
+{% endif %}

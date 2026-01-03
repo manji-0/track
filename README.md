@@ -219,6 +219,28 @@ TODOs are numbered sequentially within each task (1, 2, 3...). All TODO commands
 
 **Note**: The `track sync` command creates task branches in all registered repositories and sets up worktrees for TODOs that have `--worktree` flag.
 
+### Web UI
+
+| Command | Description |
+|---------|-------------|
+| `track webui` | Start web-based user interface on port 3000 |
+| `track webui --port 8080` | Start on custom port |
+| `track webui --open` | Start and open browser automatically |
+
+The Web UI provides a modern, browser-based interface for task management:
+
+- **Real-time Updates**: Changes sync instantly across all connected browser tabs and CLI sessions via Server-Sent Events (SSE)
+- **Todo Management**: Add and delete todos directly from the browser
+- **Scrap Recording**: Add work notes through the web interface
+- **Modern Design**: Dark theme with glassmorphism, gradients, and micro-animations
+
+```bash
+# Start the web UI
+track webui --port 3000 --open
+
+# Access at http://localhost:3000
+```
+
 ## Ticket Reference
 
 You can reference tasks by ticket ID instead of task ID:
@@ -356,6 +378,7 @@ Complies with the XDG Base Directory specification.
 - **Error handling**: anyhow, thiserror
 - **Date/time**: chrono
 - **Display**: prettytable-rs
+- **Web UI**: Axum, MiniJinja, HTMX, SSE
 
 ## Project Structure
 

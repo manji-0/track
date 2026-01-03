@@ -39,6 +39,7 @@
 //! - [`models`]: Data models for tasks, TODOs, links, and scraps
 //! - [`services`]: Business logic for task, TODO, repository, and worktree operations
 //! - [`utils`]: Utility functions and error types
+//! - [`webui`]: Web-based user interface with real-time updates
 
 // Re-export modules for testing and external use
 pub mod cli;
@@ -46,3 +47,4 @@ pub mod db;
 pub mod models;
 pub mod services;
 pub mod utils;
+pub mod webui;
