@@ -80,6 +80,21 @@ pub struct Scrap {
     pub created_at: DateTime<Utc>,
 }
 
+impl Scrap {
+    /// Converts the scrap content from markdown to HTML.
+    ///
+    /// This method uses pulldown-cmark to parse the markdown content
+    /// and render it as HTML. The output is safe for display in web pages.
+    pub fn content_html(&self) -> String {
+        use pulldown_cmark::{html, Parser};
+
+        let parser = Parser::new(&self.content);
+        let mut html_output = String::new();
+        html::push_html(&mut html_output, parser);
+        html_output
+    }
+}
+
 /// Represents a Git worktree associated with a task or TODO.
 ///
 /// Worktrees track both base repositories and TODO-specific worktrees,
@@ -245,5 +260,78 @@ mod tests {
             Ok(TodoStatus::Cancelled)
         ));
         assert!("invalid".parse::<TodoStatus>().is_err());
+    }
+
+    #[test]
+    fn test_scrap_content_html_plain_text() {
+        let scrap = Scrap {
+            id: 1,
+            task_id: 1,
+            scrap_id: 1,
+            content: "This is a plain text scrap.".to_string(),
+            created_at: Utc::now(),
+        };
+        let html = scrap.content_html();
+        assert!(html.contains("<p>This is a plain text scrap.</p>"));
+    }
+
+    #[test]
+    fn test_scrap_content_html_with_markdown() {
+        let scrap = Scrap {
+            id: 1,
+            task_id: 1,
+            scrap_id: 1,
+            content: "# Heading\n\nThis is **bold** and *italic*.".to_string(),
+            created_at: Utc::now(),
+        };
+        let html = scrap.content_html();
+        assert!(html.contains("<h1>Heading</h1>"));
+        assert!(html.contains("<strong>bold</strong>"));
+        assert!(html.contains("<em>italic</em>"));
+    }
+
+    #[test]
+    fn test_scrap_content_html_with_code() {
+        let scrap = Scrap {
+            id: 1,
+            task_id: 1,
+            scrap_id: 1,
+            content: "Inline `code` and:\n\n```rust\nfn main() {}\n```".to_string(),
+            created_at: Utc::now(),
+        };
+        let html = scrap.content_html();
+        assert!(html.contains("<code>code</code>"));
+        assert!(html.contains("<pre><code"));
+        assert!(html.contains("fn main() {}"));
+    }
+
+    #[test]
+    fn test_scrap_content_html_with_list() {
+        let scrap = Scrap {
+            id: 1,
+            task_id: 1,
+            scrap_id: 1,
+            content: "- Item 1\n- Item 2\n- Item 3".to_string(),
+            created_at: Utc::now(),
+        };
+        let html = scrap.content_html();
+        assert!(html.contains("<ul>"));
+        assert!(html.contains("<li>Item 1</li>"));
+        assert!(html.contains("<li>Item 2</li>"));
+        assert!(html.contains("<li>Item 3</li>"));
+        assert!(html.contains("</ul>"));
+    }
+
+    #[test]
+    fn test_scrap_content_html_with_link() {
+        let scrap = Scrap {
+            id: 1,
+            task_id: 1,
+            scrap_id: 1,
+            content: "Check out [this link](https://example.com).".to_string(),
+            created_at: Utc::now(),
+        };
+        let html = scrap.content_html();
+        assert!(html.contains("<a href=\"https://example.com\">this link</a>"));
     }
 }

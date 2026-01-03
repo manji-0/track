@@ -663,6 +663,145 @@
             word-break: break-word;
         }
 
+        /* Markdown styling for scrap content */
+        .scrap-markdown {
+            line-height: 1.6;
+        }
+
+        .scrap-markdown h1,
+        .scrap-markdown h2,
+        .scrap-markdown h3,
+        .scrap-markdown h4,
+        .scrap-markdown h5,
+        .scrap-markdown h6 {
+            margin: 0.75rem 0 0.5rem 0;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .scrap-markdown h1 {
+            font-size: 1.5rem;
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 0.25rem;
+        }
+
+        .scrap-markdown h2 {
+            font-size: 1.25rem;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 0.25rem;
+        }
+
+        .scrap-markdown h3 {
+            font-size: 1.125rem;
+        }
+
+        .scrap-markdown h4 {
+            font-size: 1rem;
+        }
+
+        .scrap-markdown h5,
+        .scrap-markdown h6 {
+            font-size: 0.875rem;
+        }
+
+        .scrap-markdown p {
+            margin: 0.5rem 0;
+        }
+
+        .scrap-markdown ul,
+        .scrap-markdown ol {
+            margin: 0.5rem 0;
+            padding-left: 1.5rem;
+        }
+
+        .scrap-markdown li {
+            margin: 0.25rem 0;
+        }
+
+        .scrap-markdown code {
+            background: var(--bg-input);
+            padding: 0.125rem 0.375rem;
+            border-radius: 3px;
+            font-family: 'JetBrains Mono', 'Fira Code', monospace;
+            font-size: 0.875em;
+            color: var(--accent);
+        }
+
+        .scrap-markdown pre {
+            background: var(--bg-input);
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius-sm);
+            padding: 1rem;
+            overflow-x: auto;
+            margin: 0.75rem 0;
+        }
+
+        .scrap-markdown pre code {
+            background: none;
+            padding: 0;
+            color: var(--text-primary);
+        }
+
+        .scrap-markdown a {
+            color: var(--accent);
+            text-decoration: none;
+            transition: var(--transition);
+        }
+
+        .scrap-markdown a:hover {
+            color: var(--accent-hover);
+            text-decoration: underline;
+        }
+
+        .scrap-markdown blockquote {
+            border-left: 3px solid var(--accent);
+            padding-left: 1rem;
+            margin: 0.75rem 0;
+            color: var(--text-secondary);
+            font-style: italic;
+        }
+
+        .scrap-markdown strong {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .scrap-markdown em {
+            font-style: italic;
+        }
+
+        .scrap-markdown hr {
+            border: none;
+            border-top: 1px solid var(--border-color);
+            margin: 1rem 0;
+        }
+
+        .scrap-markdown table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 0.75rem 0;
+        }
+
+        .scrap-markdown th,
+        .scrap-markdown td {
+            border: 1px solid var(--border-color);
+            padding: 0.5rem;
+            text-align: left;
+        }
+
+        .scrap-markdown th {
+            background: var(--bg-input);
+            font-weight: 600;
+        }
+
+        .scrap-markdown img {
+            max-width: 100%;
+            height: auto;
+            border-radius: var(--border-radius-sm);
+            margin: 0.5rem 0;
+        }
+
+
         /* Repository list */
         .repo-item {
             display: flex;

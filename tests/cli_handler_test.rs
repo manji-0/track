@@ -15,6 +15,7 @@ fn test_handle_new_creates_and_switches_task() {
         description: Some("Desc".to_string()),
         ticket: None,
         ticket_url: None,
+        template: None,
     };
 
     handler.handle(cmd).unwrap();

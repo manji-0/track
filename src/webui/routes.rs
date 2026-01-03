@@ -460,6 +460,7 @@ fn format_scraps(scraps: &[crate::models::Scrap]) -> Vec<serde_json::Value> {
             serde_json::json!({
                 "scrap_id": scrap.scrap_id,
                 "content": scrap.content,
+                "content_html": scrap.content_html(),
                 "created_at": formatted_time,
             })
         })

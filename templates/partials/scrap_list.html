@@ -4,8 +4,7 @@
     </div>
 
     <!-- Add Scrap Form -->
-    <form hx-post="/api/scrap" hx-swap="none" hx-on::after-request="this.reset()"
-        style="margin-bottom: 1rem;">
+    <form hx-post="/api/scrap" hx-swap="none" hx-on::after-request="this.reset()" style="margin-bottom: 1rem;">
         <div class="input-group">
             <input type="text" name="content" placeholder="Add a note or scrap..." required autocomplete="off">
             <button type="submit">
@@ -20,7 +19,7 @@
         {% for scrap in scraps %}
         <div class="scrap-item">
             <div class="scrap-time">{{ scrap.created_at }}</div>
-            <div class="scrap-content">{{ scrap.content }}</div>
+            <div class="scrap-content scrap-markdown">{{ scrap.content_html | safe }}</div>
         </div>
         {% endfor %}
     </div>
