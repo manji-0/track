@@ -678,6 +678,21 @@ impl CommandHandler {
 
                 table.printstd();
             }
+            LinkCommands::Delete { index } => {
+                let links = link_service.list_links(current_task_id)?;
+                
+                if index == 0 || index > links.len() {
+                    return Err(TrackError::Other(format!("Link #{} not found. Valid range: 1-{}", index, links.len())));
+                }
+                
+                let link = &links[index - 1];
+                
+                // Delete link directly via SQL
+                let conn = self.db.get_connection();
+                conn.execute("DELETE FROM links WHERE id = ?1", rusqlite::params![link.id])?;
+                
+                println!("Deleted link #{}: {}", index, link.title);
+            }
         }
 
         Ok(())

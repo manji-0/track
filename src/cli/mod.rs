@@ -181,6 +181,12 @@ pub enum LinkCommands {
 
     /// List links
     List,
+
+    /// Delete a link
+    Delete {
+        /// Link index (1-based)
+        index: usize,
+    },
 }
 
 #[derive(Subcommand)]
