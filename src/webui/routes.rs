@@ -240,7 +240,7 @@ pub async fn add_scrap(
     let html = state.templates.render(
         "partials/scrap_list.html",
         serde_json::json!({
-            "scraps": scraps,
+            "scraps": format_scraps(&scraps),
         }),
     )?;
 
@@ -309,9 +309,31 @@ fn build_status_context(db: &Database, task_id: i64) -> anyhow::Result<serde_jso
         "task": task,
         "todos": todos,
         "links": links,
-        "scraps": scraps,
+        "scraps": format_scraps(&scraps),
         "worktrees": worktrees,
         "repos": repos,
         "base_branch": base_branch,
     }))
+}
+
+/// Format scraps with human-readable timestamps
+fn format_scraps(scraps: &[crate::models::Scrap]) -> Vec<serde_json::Value> {
+    use chrono::Local;
+    
+    scraps
+        .iter()
+        .map(|scrap| {
+            let formatted_time = scrap
+                .created_at
+                .with_timezone(&Local)
+                .format("%Y-%m-%d %H:%M:%S")
+                .to_string();
+            
+            serde_json::json!({
+                "scrap_id": scrap.scrap_id,
+                "content": scrap.content,
+                "created_at": formatted_time,
+            })
+        })
+        .collect()
 }

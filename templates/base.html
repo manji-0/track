@@ -320,9 +320,19 @@
         }
 
         .scrap-time {
-            color: var(--text-muted);
-            font-size: 0.75rem;
-            margin-bottom: 0.25rem;
+            color: var(--text-secondary);
+            font-size: 0.8125rem;
+            font-weight: 500;
+            font-family: 'JetBrains Mono', 'Fira Code', monospace;
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .scrap-time::before {
+            content: '🕐';
+            font-size: 0.875rem;
         }
 
         .scrap-content {
