@@ -13,7 +13,7 @@ pub async fn sse_handler(
     axum::extract::State(state): axum::extract::State<WebState>,
 ) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
     let rx = state.app.sse_tx.subscribe();
-    
+
     let stream = BroadcastStream::new(rx).filter_map(|result| {
         match result {
             Ok(event) => {
@@ -23,11 +23,10 @@ pub async fn sse_handler(
             Err(_) => None, // Ignore lagged messages
         }
     });
-    
+
     Sse::new(stream).keep_alive(
         KeepAlive::new()
             .interval(Duration::from_secs(30))
             .text("keep-alive"),
     )
 }
-

@@ -35,13 +35,13 @@ impl AppState {
     pub fn new() -> anyhow::Result<Self> {
         let db = Database::new()?;
         let (sse_tx, _) = broadcast::channel(100);
-        
+
         Ok(Self {
             db: Arc::new(Mutex::new(db)),
             sse_tx,
         })
     }
-    
+
     /// Broadcast an SSE event to all connected clients
     pub fn broadcast(&self, event: SseEvent) {
         // Ignore send errors (no receivers connected)

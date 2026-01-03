@@ -17,15 +17,15 @@ use tower_http::services::ServeDir;
 pub async fn start_server(port: u16, open_browser: bool) -> anyhow::Result<()> {
     // Initialize application state
     let app_state = AppState::new()?;
-    
+
     // Initialize templates (embedded for single-binary distribution)
     let templates = Arc::new(Templates::embedded());
-    
+
     let web_state = WebState {
         app: app_state,
         templates,
     };
-    
+
     // Build router
     let app = Router::new()
         // Pages
@@ -41,14 +41,14 @@ pub async fn start_server(port: u16, open_browser: bool) -> anyhow::Result<()> {
         // Static files (CSS, JS)
         .nest_service("/static", ServeDir::new("static"))
         .with_state(web_state);
-    
+
     let addr = SocketAddr::from(([127, 0, 0, 1], port));
-    
+
     println!("Starting track webui server...");
     println!("  → http://localhost:{}", port);
     println!();
     println!("Press Ctrl+C to stop the server.");
-    
+
     // Open browser if requested
     if open_browser {
         let url = format!("http://localhost:{}", port);
@@ -56,10 +56,10 @@ pub async fn start_server(port: u16, open_browser: bool) -> anyhow::Result<()> {
             eprintln!("Warning: Failed to open browser: {}", e);
         }
     }
-    
+
     // Start server
     let listener = TcpListener::bind(addr).await?;
     axum::serve(listener, app).await?;
-    
+
     Ok(())
 }
