@@ -167,22 +167,22 @@ impl CommandHandler {
                 let mut todo_val = serde_json::to_value(todo).unwrap_or(serde_json::Value::Null);
                 if let Some(obj) = todo_val.as_object_mut() {
                     // Determine worktree branch
-                    let worktree_branch = if let Some(wt) = worktrees.iter().find(|wt| wt.todo_id == Some(todo.id))
-                    {
-                        // Use existing worktree branch
-                        Some(wt.branch.clone())
-                    } else if todo.worktree_requested {
-                        // Calculate expected branch name
-                        worktree_service
-                            .get_todo_branch_name(
-                                current_task_id,
-                                task.ticket_id.as_deref(),
-                                todo.task_index, // Note: this is todo_id in JSON but task_index in struct
-                            )
-                            .ok()
-                    } else {
-                        None
-                    };
+                    let worktree_branch =
+                        if let Some(wt) = worktrees.iter().find(|wt| wt.todo_id == Some(todo.id)) {
+                            // Use existing worktree branch
+                            Some(wt.branch.clone())
+                        } else if todo.worktree_requested {
+                            // Calculate expected branch name
+                            worktree_service
+                                .get_todo_branch_name(
+                                    current_task_id,
+                                    task.ticket_id.as_deref(),
+                                    todo.task_index, // Note: this is todo_id in JSON but task_index in struct
+                                )
+                                .ok()
+                        } else {
+                            None
+                        };
 
                     obj.insert(
                         "worktree_branch".to_string(),
