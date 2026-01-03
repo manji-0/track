@@ -14,7 +14,7 @@ fn test_handle_list_no_output_errors() {
     let t1 = task_service
         .create_task("Active 1", None, None, None)
         .unwrap();
-    let t2 = task_service
+    let _t2 = task_service
         .create_task("Active 2", None, None, None)
         .unwrap();
     task_service.archive_task(t1.id).unwrap();

@@ -1065,6 +1065,68 @@ impl CommandHandler {
         println!(
             r#"# WorkTracker CLI Help for LLM Agents
 
+## ⚠️ MANDATORY: Read This First
+
+**BEFORE making ANY code changes, you MUST:**
+
+1. Run `track sync` to create/checkout the task branch
+2. Verify you are on the correct branch (NOT main/master/develop)
+3. ONLY THEN begin coding
+
+**FAILURE TO FOLLOW THIS WORKFLOW WILL RESULT IN:**
+- Commits on the wrong branch (main/master)
+- Merge conflicts that are difficult to resolve
+- Loss of work isolation between tasks
+- Broken git history
+
+---
+
+## LLM Agent Quick Start (MANDATORY STEPS)
+
+When you start working on a task, follow these steps **IN ORDER**:
+
+### Step 1: Sync (REQUIRED - DO THIS FIRST)
+```bash
+track sync
+```
+This creates the task branch and checks it out. **Do NOT skip this step.**
+
+### Step 2: Verify Branch
+```bash
+git branch --show-current
+```
+Confirm the output shows `task/<ticket-id>` or `task/task-<id>`.
+**If you see main/master/develop, STOP and run `track sync` again.**
+
+### Step 3: Check Status
+```bash
+track status
+```
+Understand the current task, pending TODOs, and worktree paths.
+
+### Step 4: Navigate to Worktree (if applicable)
+If `track status` shows worktree paths, navigate to the appropriate one before making changes.
+
+### Step 5: Execute Work
+- Implement the required changes
+- Run tests to verify
+- Commit your changes with meaningful messages
+
+### Step 6: Record Progress
+```bash
+track scrap add "Completed feature X, test Y passing"
+```
+
+### Step 7: Complete TODO
+```bash
+track todo done <index>
+```
+
+### Step 8: Repeat
+Continue with the next pending TODO until all are complete.
+
+---
+
 ## Overview
 
 `track` is a CLI tool for managing development tasks, TODOs, and git worktrees.
@@ -1094,31 +1156,36 @@ This guide explains the standard workflow for completing tasks.
 
 ### Phase 2: Task Execution (LLM or Human)
 
-6. **Sync Repositories**: `track sync`
+6. **Sync Repositories**: `track sync` **(MANDATORY FIRST STEP)**
    - Creates task branch on all registered repos.
+   - Checks out the task branch.
    - Creates worktrees for TODOs that requested them.
-   - Run this from any registered repository.
+   - **You MUST run this before making any code changes.**
 
-7. **Check Current State**: `track status`
+7. **Verify Branch**: `git branch --show-current`
+   - **STOP if output is main/master/develop. Run `track sync` again.**
+
+8. **Check Current State**: `track status`
    - Shows current task, TODOs, worktrees, and recent scraps.
    - Use `track status --json` for structured output.
 
-8. **Execute TODOs**:
+9. **Execute TODOs**:
    - Navigate to worktree path if applicable (shown in `track status`).
    - Implement the required changes.
    - Run tests to verify.
    - Use `track scrap add "<note>"` to record findings, decisions, or progress.
 
-9. **Complete TODO**: `track todo done <index>`
-   - Marks the TODO as done.
-   - If worktree exists: merges changes to task branch and removes worktree.
+10. **Complete TODO**: `track todo done <index>`
+    - Marks the TODO as done.
+    - If worktree exists: merges changes to task branch and removes worktree.
 
-10. **Repeat** until all TODOs are complete.
+11. **Repeat** until all TODOs are complete.
 
 ## Key Commands Reference
 
 | Command | Description |
 |---------|-------------|
+| `track sync` | **MANDATORY FIRST STEP** - Sync branches and create worktrees |
 | `track status` | Show current task, TODOs, worktrees |
 | `track status --json` | JSON output for programmatic access |
 | `track new "<name>"` | Create new task |
@@ -1133,7 +1200,6 @@ This guide explains the standard workflow for completing tasks.
 | `track todo add "<text>" --worktree` | Add TODO with worktree |
 | `track todo list` | List TODOs |
 | `track todo done <index>` | Complete TODO |
-| `track sync` | Sync branches and create worktrees |
 | `track scrap add "<note>"` | Record work note |
 | `track scrap list` | List all scraps |
 
@@ -1171,19 +1237,10 @@ When a ticket is linked, `track sync` automatically uses the ticket ID in branch
 
 This makes it easy to correlate branches with tickets in your issue tracker.
 
-## LLM Agent Quick Start
-
-When you start working on a task:
-
-1. Run `track status` to understand the current state.
-2. Identify the next pending TODO.
-3. If worktree paths are shown, navigate to the appropriate one.
-4. Implement changes and run tests.
-5. Record progress with `track scrap add`.
-6. Complete with `track todo done <index>`.
-
 ## Important Notes
 
+- **ALWAYS run `track sync` before making code changes.**
+- **ALWAYS verify you are on the task branch, not main/master/develop.**
 - TODO indices (1, 2, 3...) are **task-scoped**, not global.
 - `track todo done` automatically merges and removes associated worktrees.
 - Always register repos with `track repo add` before running `track sync`.

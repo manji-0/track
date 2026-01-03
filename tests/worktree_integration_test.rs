@@ -240,7 +240,7 @@ fn test_remove_git_worktree_actually_removes() {
 #[test]
 fn test_merge_branch_actually_merges() {
     let db = Database::new_in_memory().unwrap();
-    let worktree_service = WorktreeService::new(&db);
+    let _worktree_service = WorktreeService::new(&db);
 
     // Setup git repo
     let temp_dir = tempfile::tempdir().unwrap();

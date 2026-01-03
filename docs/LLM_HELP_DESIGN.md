@@ -7,6 +7,7 @@ The `llm-help` subcommand is designed to assist LLM Agents in understanding how 
 - Provide a clear, concise guide for LLM Agents.
 - Document the standard development workflow using `track`.
 - Describe key commands and their purposes.
+- **ENFORCE the correct workflow to prevent common mistakes (e.g., working on base branch).**
 
 ## Command Specification
 - **Command:** `track llm-help`
@@ -14,10 +15,32 @@ The `llm-help` subcommand is designed to assist LLM Agents in understanding how 
 
 ## Content Structure
 
-### 1. Introduction
+### 0. MANDATORY Section (Top of Output)
+
+The output starts with a prominent warning section that emphasizes:
+1. **`track sync` must be run before any code changes**
+2. **Branch verification is required**
+3. **Consequences of not following the workflow** (commits on wrong branch, merge conflicts, etc.)
+
+This section is placed at the very top to ensure LLM agents see it first.
+
+### 1. LLM Agent Quick Start (MANDATORY STEPS)
+
+**This is the primary section for LLM Agents.** It provides step-by-step instructions with explicit ordering:
+
+1. **Step 1: Sync (REQUIRED)** - `track sync` - Creates and checks out task branch
+2. **Step 2: Verify Branch** - `git branch --show-current` - Confirms correct branch
+3. **Step 3: Check Status** - `track status` - Understands current state
+4. **Step 4: Navigate to Worktree** - If applicable
+5. **Step 5: Execute Work** - Implement changes
+6. **Step 6: Record Progress** - `track scrap add`
+7. **Step 7: Complete TODO** - `track todo done <index>`
+8. **Step 8: Repeat** - Continue with next TODO
+
+### 2. Introduction
 Briefly explain that `track` is a CLI for managing development tasks, TODOs, and git worktrees.
 
-### 2. Complete Task Workflow
+### 3. Complete Task Workflow
 
 The workflow is divided into two phases: **Task Setup** (typically done by a human) and **Task Execution** (performed by LLM or human).
 
@@ -28,15 +51,17 @@ The workflow is divided into two phases: **Task Setup** (typically done by a hum
 4. **`track todo add "<content>" [--worktree]`** - Add TODOs. Use `--worktree` to schedule worktree creation.
 
 #### Phase 2: Task Execution (LLM or Human)
-5. **`track sync`** - Create task branch and worktrees on all registered repos.
-6. **Execute TODOs** - Work on the TODOs. Use `track scrap add "<note>"` to record findings.
-7. **`track todo done <index>`** - Mark TODO as complete. Worktrees are automatically merged to the base branch.
-8. **Repeat until all TODOs are complete.**
+5. **`track sync`** - **(MANDATORY FIRST STEP)** Create task branch and worktrees on all registered repos.
+6. **Verify Branch** - `git branch --show-current` - Confirm you are on task branch.
+7. **Execute TODOs** - Work on the TODOs. Use `track scrap add "<note>"` to record findings.
+8. **`track todo done <index>`** - Mark TODO as complete. Worktrees are automatically merged to the base branch.
+9. **Repeat until all TODOs are complete.**
 
-### 3. Key Commands
+### 4. Key Commands
 
 | Command | Description |
 |---------|-------------|
+| `track sync` | **MANDATORY FIRST STEP** - Sync branches and create worktrees |
 | `track status` | Show current task context (task, TODOs, worktrees) |
 | `track status --json` | Output task context in JSON format |
 | `track new <name>` | Create a new task |
@@ -52,11 +77,10 @@ The workflow is divided into two phases: **Task Setup** (typically done by a hum
 | `track todo add "<text>" --worktree` | Add TODO with scheduled worktree |
 | `track todo list` | List all TODOs |
 | `track todo done <index>` | Complete a TODO (merges worktree if exists) |
-| `track sync` | Sync task branch and create pending worktrees |
 | `track scrap add "<note>"` | Add a work note/finding |
 | `track scrap list` | List all scraps |
 
-### 4. Ticket Integration
+### 5. Ticket Integration
 
 #### Linking Tickets
 Tasks can be linked to external tickets (Jira, GitHub Issues, GitLab Issues):
@@ -73,21 +97,10 @@ When a ticket is linked, `track sync` uses the ticket ID in branch names:
 - **With ticket**: `task/PROJ-123` (and `task/PROJ-123-todo-1` for TODO worktrees)
 - **Without ticket**: `task/task-42` (and `task/task-42-todo-1` for TODO worktrees)
 
-
-
-### 5. For LLM Agents
-
-When starting work on a task, follow this pattern:
-
-1. **Read Context**: Run `track status` to understand the current task and pending TODOs.
-2. **Check Worktrees**: If worktrees exist, navigate to the appropriate worktree path.
-3. **Execute TODO**: Implement the required changes and run tests.
-4. **Record Progress**: Use `track scrap add` to document findings, decisions, and progress.
-5. **Complete TODO**: Run `track todo done <index>` when finished.
-6. **Repeat**: Continue with the next pending TODO.
-
 ### 6. Important Notes
 
+- **ALWAYS run `track sync` before making code changes.**
+- **ALWAYS verify you are on the task branch, not main/master/develop.**
 - **Task-Scoped TODOs**: TODO indices (1, 2, 3...) are scoped to each task, not global.
 - **Worktree Lifecycle**: When `track todo done` is called, associated worktrees are automatically merged into the task base branch and removed.
 - **Scraps**: Use scraps to record intermediate findings, questions, or decisions during work. These are timestamped and preserved with the task.
@@ -96,6 +109,7 @@ When starting work on a task, follow this pattern:
 
 ### 7. Implementation Details
 - The command is implemented as a subcommand in `src/cli/mod.rs` and handled by `handle_llm_help()` in `src/cli/handler.rs`.
+
 ### 8. Detailed Specifications
 
 #### Worktree Location

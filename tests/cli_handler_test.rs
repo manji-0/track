@@ -186,7 +186,7 @@ fn test_todo_delete_force() {
     let todo_service = TodoService::new(db);
 
     let task = task_service.create_task("Task", None, None, None).unwrap();
-    let todo = todo_service.add_todo(task.id, "To Delete", false).unwrap();
+    let _todo = todo_service.add_todo(task.id, "To Delete", false).unwrap();
 
     // Test delete with force=true
     // Should NOT prompt. So valid even with empty stdin.
@@ -652,7 +652,6 @@ fn test_handle_sync_failed_branch_create() {
     assert!(result.is_ok());
 }
 
-#[test]
 #[test]
 fn test_worktree_complete_with_base_only() {
     use track::services::{TodoService, WorktreeService};
