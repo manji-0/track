@@ -15,6 +15,7 @@ pub enum SseEvent {
     /// A TODO was deleted
     TodoDeleted { todo_id: i64 },
     /// A TODO status changed
+    #[allow(dead_code)]
     TodoUpdated { todo_id: i64 },
     /// A new scrap was added
     ScrapAdded { id: i64 },

@@ -11,6 +11,7 @@ pub struct Templates {
 
 impl Templates {
     /// Create new template engine with templates from the given directory
+    #[allow(dead_code)]
     pub fn new(template_dir: PathBuf) -> Self {
         let mut env = Environment::new();
         env.set_loader(path_loader(template_dir));
