@@ -620,13 +620,22 @@
         const maxReconnectAttempts = 5;
 
         function connect() {
+            // Close existing connection if any
+            if (eventSource) {
+                eventSource.close();
+                eventSource = null;
+            }
+
             eventSource = new EventSource('/api/sse');
 
             eventSource.onopen = function () {
                 reconnectAttempts = 0;
                 const status = document.getElementById('connection-status');
-                status.className = 'connection-status connected';
-                status.querySelector('.status-text').textContent = 'Live';
+                if (status) {
+                    status.className = 'connection-status connected';
+                    const textEl = status.querySelector('.status-text');
+                    if (textEl) textEl.textContent = 'Live';
+                }
             };
 
             eventSource.addEventListener('update', function (e) {
@@ -639,14 +648,22 @@
 
             eventSource.onerror = function () {
                 const status = document.getElementById('connection-status');
-                status.className = 'connection-status disconnected';
-                status.querySelector('.status-text').textContent = 'Disconnected';
+                if (status) {
+                    status.className = 'connection-status disconnected';
+                    const textEl = status.querySelector('.status-text');
+                    if (textEl) textEl.textContent = 'Disconnected';
+                }
 
-                eventSource.close();
+                if (eventSource) {
+                    eventSource.close();
+                    eventSource = null;
+                }
 
                 if (reconnectAttempts < maxReconnectAttempts) {
                     reconnectAttempts++;
-                    setTimeout(connect, 2000 * reconnectAttempts);
+                    const delay = 2000 * reconnectAttempts;
+                    console.log(`Reconnecting in ${delay}ms (attempt ${reconnectAttempts}/${maxReconnectAttempts})`);
+                    setTimeout(connect, delay);
                 }
             };
         }
