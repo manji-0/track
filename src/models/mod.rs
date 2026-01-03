@@ -19,6 +19,7 @@ pub struct Task {
     pub status: String,
     pub ticket_id: Option<String>,
     pub ticket_url: Option<String>,
+    pub alias: Option<String>,
     pub created_at: DateTime<Utc>,
 }
 

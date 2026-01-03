@@ -1,4 +1,6 @@
-use crate::cli::{Commands, LinkCommands, RepoCommands, ScrapCommands, TodoCommands};
+use crate::cli::{
+    AliasCommands, Commands, LinkCommands, RepoCommands, ScrapCommands, TodoCommands,
+};
 use crate::db::Database;
 use crate::services::{
     LinkService, RepoService, ScrapService, TaskService, TodoService, WorktreeService,
@@ -37,11 +39,13 @@ impl CommandHandler {
                 description,
                 ticket,
                 ticket_url,
+                template,
             } => self.handle_new(
                 &name,
                 description.as_deref(),
                 ticket.as_deref(),
                 ticket_url.as_deref(),
+                template.as_deref(),
             ),
             Commands::List { all } => self.handle_list(all),
             Commands::Switch { task_ref } => self.handle_switch(&task_ref),
@@ -58,6 +62,7 @@ impl CommandHandler {
             Commands::Scrap(cmd) => self.handle_scrap(cmd),
             Commands::Sync => self.handle_sync(),
             Commands::Repo(cmd) => self.handle_repo(cmd),
+            Commands::Alias(cmd) => self.handle_alias(cmd),
             Commands::LlmHelp => self.handle_llm_help(),
             // Webui is handled directly in main.rs with async runtime
             Commands::Webui { .. } => unreachable!("Webui command is handled in main.rs"),
@@ -70,6 +75,7 @@ impl CommandHandler {
         description: Option<&str>,
         ticket: Option<&str>,
         ticket_url: Option<&str>,
+        template: Option<&str>,
     ) -> Result<()> {
         let task_service = TaskService::new(&self.db);
         let task = task_service.create_task(name, description, ticket, ticket_url)?;
@@ -83,6 +89,38 @@ impl CommandHandler {
             println!();
         }
         println!("Switched to task #{}", task.id);
+
+        // If template is specified, copy TODOs from template task
+        if let Some(template_ref) = template {
+            let template_task_id = task_service.resolve_task_id(template_ref)?;
+            let template_task = task_service.get_task(template_task_id)?;
+
+            let todo_service = TodoService::new(&self.db);
+            let template_todos = todo_service.list_todos(template_task_id)?;
+
+            if template_todos.is_empty() {
+                println!(
+                    "Warning: Template task '{}' has no TODOs",
+                    template_task.name
+                );
+            } else {
+                println!(
+                    "\nCopying {} TODOs from template task '{}'...",
+                    template_todos.len(),
+                    template_task.name
+                );
+
+                for template_todo in &template_todos {
+                    todo_service.add_todo(
+                        task.id,
+                        &template_todo.content,
+                        template_todo.worktree_requested,
+                    )?;
+                }
+
+                println!("Successfully copied {} TODOs", template_todos.len());
+            }
+        }
 
         Ok(())
     }
@@ -973,6 +1011,50 @@ impl CommandHandler {
             RepoCommands::Remove { id } => {
                 repo_service.remove_repo(id)?;
                 println!("Removed repository #{}", id);
+            }
+        }
+
+        Ok(())
+    }
+
+    fn handle_alias(&self, command: AliasCommands) -> Result<()> {
+        let task_service = TaskService::new(&self.db);
+
+        match command {
+            AliasCommands::Set { alias, task } => {
+                let task_id = match task {
+                    Some(id) => id,
+                    None => self
+                        .db
+                        .get_current_task_id()?
+                        .ok_or(TrackError::NoActiveTask)?,
+                };
+
+                task_service.set_alias(task_id, &alias)?;
+                let task = task_service.get_task(task_id)?;
+                println!("Set alias '{}' for task #{}: {}", alias, task.id, task.name);
+            }
+            AliasCommands::Remove { task } => {
+                let task_id = match task {
+                    Some(id) => id,
+                    None => self
+                        .db
+                        .get_current_task_id()?
+                        .ok_or(TrackError::NoActiveTask)?,
+                };
+
+                let task = task_service.get_task(task_id)?;
+                if task.alias.is_none() {
+                    println!("Task #{} has no alias", task_id);
+                    return Ok(());
+                }
+
+                let removed_alias = task.alias.clone().unwrap();
+                task_service.remove_alias(task_id)?;
+                println!(
+                    "Removed alias '{}' from task #{}: {}",
+                    removed_alias, task.id, task.name
+                );
             }
         }
 

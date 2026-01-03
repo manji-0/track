@@ -86,7 +86,7 @@ impl<'a> TaskService<'a> {
     pub fn get_task(&self, task_id: i64) -> Result<Task> {
         let conn = self.db.get_connection();
         let mut stmt = conn.prepare(
-            "SELECT id, name, description, status, ticket_id, ticket_url, created_at FROM tasks WHERE id = ?1"
+            "SELECT id, name, description, status, ticket_id, ticket_url, alias, created_at FROM tasks WHERE id = ?1"
         )?;
 
         let task = stmt
@@ -98,7 +98,8 @@ impl<'a> TaskService<'a> {
                     status: row.get(3)?,
                     ticket_id: row.get(4)?,
                     ticket_url: row.get(5)?,
-                    created_at: row.get::<_, String>(6)?.parse().unwrap(),
+                    alias: row.get(6)?,
+                    created_at: row.get::<_, String>(7)?.parse().unwrap(),
                 })
             })
             .map_err(|_| TrackError::TaskNotFound(task_id))?;
@@ -118,9 +119,9 @@ impl<'a> TaskService<'a> {
     pub fn list_tasks(&self, include_archived: bool) -> Result<Vec<Task>> {
         let conn = self.db.get_connection();
         let query = if include_archived {
-            "SELECT id, name, description, status, ticket_id, ticket_url, created_at FROM tasks ORDER BY created_at DESC"
+            "SELECT id, name, description, status, ticket_id, ticket_url, alias, created_at FROM tasks ORDER BY created_at DESC"
         } else {
-            "SELECT id, name, description, status, ticket_id, ticket_url, created_at FROM tasks WHERE status = 'active' ORDER BY created_at DESC"
+            "SELECT id, name, description, status, ticket_id, ticket_url, alias, created_at FROM tasks WHERE status = 'active' ORDER BY created_at DESC"
         };
 
         let mut stmt = conn.prepare(query)?;
@@ -133,7 +134,8 @@ impl<'a> TaskService<'a> {
                     status: row.get(3)?,
                     ticket_id: row.get(4)?,
                     ticket_url: row.get(5)?,
-                    created_at: row.get::<_, String>(6)?.parse().unwrap(),
+                    alias: row.get(6)?,
+                    created_at: row.get::<_, String>(7)?.parse().unwrap(),
                 })
             })?
             .collect::<std::result::Result<Vec<_>, _>>()?;
@@ -253,11 +255,11 @@ impl<'a> TaskService<'a> {
 
     /// Resolves a task reference to a task ID.
     ///
-    /// Accepts either a numeric task ID or a ticket reference prefixed with "t:".
+    /// Accepts a numeric task ID, a ticket reference prefixed with "t:", or an alias.
     ///
     /// # Arguments
     ///
-    /// * `reference` - Either a task ID (e.g., "1") or ticket reference (e.g., "t:PROJ-123")
+    /// * `reference` - Either a task ID (e.g., "1"), ticket reference (e.g., "t:PROJ-123"), or alias (e.g., "daily-work")
     ///
     /// # Returns
     ///
@@ -267,17 +269,140 @@ impl<'a> TaskService<'a> {
     ///
     /// Returns an error if the reference is invalid or no matching task is found.
     pub fn resolve_task_id(&self, reference: &str) -> Result<i64> {
-        // If it starts with "t:", it's a ticket reference
+        // Priority 1: If it starts with "t:", it's a ticket reference
         if let Some(ticket_id) = reference.strip_prefix("t:") {
-            self.find_task_by_ticket(ticket_id)?.ok_or_else(|| {
+            return self.find_task_by_ticket(ticket_id)?.ok_or_else(|| {
                 TrackError::Other(format!("No task found with ticket '{}'", ticket_id))
-            })
-        } else {
-            // Otherwise, parse as task ID
-            reference
-                .parse::<i64>()
-                .map_err(|_| TrackError::Other(format!("Invalid task reference: {}", reference)))
+            });
         }
+
+        // Priority 2: Try to parse as numeric task ID
+        if let Ok(task_id) = reference.parse::<i64>() {
+            return Ok(task_id);
+        }
+
+        // Priority 3: Try to find by alias
+        if let Some(task_id) = self.get_task_by_alias(reference)? {
+            return Ok(task_id);
+        }
+
+        Err(TrackError::Other(format!(
+            "No task found with reference '{}'",
+            reference
+        )))
+    }
+
+    /// Sets an alias for a task.
+    ///
+    /// # Arguments
+    ///
+    /// * `task_id` - The ID of the task to set the alias for
+    /// * `alias` - The alias to set (must be unique and valid)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The alias format is invalid
+    /// - The alias is already in use by another task
+    /// - The task does not exist
+    pub fn set_alias(&self, task_id: i64, alias: &str) -> Result<()> {
+        self.validate_alias(alias)?;
+
+        // Check if alias is already in use
+        if let Some(existing_id) = self.get_task_by_alias(alias)? {
+            if existing_id != task_id {
+                return Err(TrackError::Other(format!(
+                    "Alias '{}' is already in use by task #{}",
+                    alias, existing_id
+                )));
+            }
+        }
+
+        let conn = self.db.get_connection();
+        conn.execute(
+            "UPDATE tasks SET alias = ?1 WHERE id = ?2",
+            params![alias, task_id],
+        )?;
+
+        Ok(())
+    }
+
+    /// Removes the alias from a task.
+    ///
+    /// # Arguments
+    ///
+    /// * `task_id` - The ID of the task to remove the alias from
+    pub fn remove_alias(&self, task_id: i64) -> Result<()> {
+        let conn = self.db.get_connection();
+        conn.execute(
+            "UPDATE tasks SET alias = NULL WHERE id = ?1",
+            params![task_id],
+        )?;
+        Ok(())
+    }
+
+    /// Finds a task ID by its alias.
+    ///
+    /// # Arguments
+    ///
+    /// * `alias` - The alias to search for
+    ///
+    /// # Returns
+    ///
+    /// `Some(task_id)` if a task with the alias exists, `None` otherwise.
+    fn get_task_by_alias(&self, alias: &str) -> Result<Option<i64>> {
+        let conn = self.db.get_connection();
+        let mut stmt = conn.prepare("SELECT id FROM tasks WHERE alias = ?1")?;
+        let result = stmt
+            .query_row(params![alias], |row| row.get(0))
+            .optional()?;
+        Ok(result)
+    }
+
+    /// Validates an alias format.
+    ///
+    /// # Arguments
+    ///
+    /// * `alias` - The alias to validate
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The alias is empty or too long (max 50 characters)
+    /// - The alias contains invalid characters (only alphanumeric, hyphens, and underscores allowed)
+    /// - The alias is a reserved word
+    fn validate_alias(&self, alias: &str) -> Result<()> {
+        // Check length
+        if alias.is_empty() || alias.len() > 50 {
+            return Err(TrackError::Other(
+                "Alias must be between 1 and 50 characters".to_string(),
+            ));
+        }
+
+        // Check format: only alphanumeric, hyphens, and underscores
+        if !alias
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+        {
+            return Err(TrackError::Other(
+                "Alias can only contain alphanumeric characters, hyphens, and underscores"
+                    .to_string(),
+            ));
+        }
+
+        // Check for reserved words
+        let reserved = vec![
+            "new", "list", "current", "status", "switch", "archive", "sync", "todo", "scrap",
+            "link", "repo", "desc", "ticket", "alias", "help", "webui",
+        ];
+        if reserved.contains(&alias.to_lowercase().as_str()) {
+            return Err(TrackError::Other(format!(
+                "Alias '{}' is a reserved word",
+                alias
+            )));
+        }
+
+        Ok(())
     }
 
     fn find_task_by_ticket(&self, ticket_id: &str) -> Result<Option<i64>> {
@@ -618,5 +743,123 @@ mod tests {
             service.validate_ticket_format("PROJ123"),
             Err(TrackError::InvalidTicketFormat(_))
         ));
+    }
+
+    #[test]
+    fn test_set_alias() {
+        let db = setup_db();
+        let service = TaskService::new(&db);
+
+        let task = service.create_task("Task 1", None, None, None).unwrap();
+        service.set_alias(task.id, "my-alias").unwrap();
+
+        let updated = service.get_task(task.id).unwrap();
+        assert_eq!(updated.alias, Some("my-alias".to_string()));
+    }
+
+    #[test]
+    fn test_remove_alias() {
+        let db = setup_db();
+        let service = TaskService::new(&db);
+
+        let task = service.create_task("Task 1", None, None, None).unwrap();
+        service.set_alias(task.id, "my-alias").unwrap();
+        service.remove_alias(task.id).unwrap();
+
+        let updated = service.get_task(task.id).unwrap();
+        assert!(updated.alias.is_none());
+    }
+
+    #[test]
+    fn test_resolve_task_id_by_alias() {
+        let db = setup_db();
+        let service = TaskService::new(&db);
+
+        let task = service.create_task("Task 1", None, None, None).unwrap();
+        service.set_alias(task.id, "my-alias").unwrap();
+
+        let resolved = service.resolve_task_id("my-alias").unwrap();
+        assert_eq!(resolved, task.id);
+    }
+
+    #[test]
+    fn test_resolve_task_id_priority() {
+        let db = setup_db();
+        let service = TaskService::new(&db);
+
+        // Create tasks with different reference types
+        let task1 = service.create_task("Task 1", None, None, None).unwrap();
+        let task2 = service
+            .create_task("Task 2", None, Some("PROJ-123"), None)
+            .unwrap();
+        let task3 = service.create_task("Task 3", None, None, None).unwrap();
+        service.set_alias(task3.id, "my-alias").unwrap();
+
+        // Test numeric ID (priority 1)
+        let resolved = service.resolve_task_id(&task1.id.to_string()).unwrap();
+        assert_eq!(resolved, task1.id);
+
+        // Test ticket reference (priority 2)
+        let resolved = service.resolve_task_id("t:PROJ-123").unwrap();
+        assert_eq!(resolved, task2.id);
+
+        // Test alias (priority 3)
+        let resolved = service.resolve_task_id("my-alias").unwrap();
+        assert_eq!(resolved, task3.id);
+    }
+
+    #[test]
+    fn test_duplicate_alias() {
+        let db = setup_db();
+        let service = TaskService::new(&db);
+
+        let task1 = service.create_task("Task 1", None, None, None).unwrap();
+        let task2 = service.create_task("Task 2", None, None, None).unwrap();
+
+        service.set_alias(task1.id, "my-alias").unwrap();
+        let result = service.set_alias(task2.id, "my-alias");
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_validate_alias_valid() {
+        let db = setup_db();
+        let service = TaskService::new(&db);
+
+        assert!(service.validate_alias("valid-alias").is_ok());
+        assert!(service.validate_alias("valid_alias").is_ok());
+        assert!(service.validate_alias("ValidAlias123").is_ok());
+    }
+
+    #[test]
+    fn test_validate_alias_invalid_chars() {
+        let db = setup_db();
+        let service = TaskService::new(&db);
+
+        assert!(service.validate_alias("invalid alias").is_err()); // space
+        assert!(service.validate_alias("invalid@alias").is_err()); // special char
+        assert!(service.validate_alias("invalid.alias").is_err()); // dot
+    }
+
+    #[test]
+    fn test_validate_alias_length() {
+        let db = setup_db();
+        let service = TaskService::new(&db);
+
+        assert!(service.validate_alias("").is_err()); // empty
+        assert!(service.validate_alias(&"a".repeat(51)).is_err()); // too long
+        assert!(service.validate_alias(&"a".repeat(50)).is_ok()); // max length
+    }
+
+    #[test]
+    fn test_validate_alias_reserved_words() {
+        let db = setup_db();
+        let service = TaskService::new(&db);
+
+        assert!(service.validate_alias("new").is_err());
+        assert!(service.validate_alias("list").is_err());
+        assert!(service.validate_alias("status").is_err());
+        assert!(service.validate_alias("NEW").is_err()); // case insensitive
     }
 }

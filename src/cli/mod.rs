@@ -35,6 +35,10 @@ pub enum Commands {
         /// Ticket URL
         #[arg(long)]
         ticket_url: Option<String>,
+
+        /// Template task reference (ID, ticket, or alias) to copy TODOs from
+        #[arg(long)]
+        template: Option<String>,
     },
 
     /// List tasks
@@ -111,6 +115,10 @@ pub enum Commands {
     /// Repository management
     #[command(subcommand)]
     Repo(RepoCommands),
+
+    /// Task alias management
+    #[command(subcommand)]
+    Alias(AliasCommands),
 
     /// Show help optimized for LLM agents
     LlmHelp,
@@ -220,5 +228,25 @@ pub enum RepoCommands {
     Remove {
         /// Repository ID
         id: i64,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum AliasCommands {
+    /// Set an alias for the current task
+    Set {
+        /// Alias name
+        alias: String,
+
+        /// Target task ID (defaults to current task)
+        #[arg(short, long)]
+        task: Option<i64>,
+    },
+
+    /// Remove the alias from the current task
+    Remove {
+        /// Target task ID (defaults to current task)
+        #[arg(short, long)]
+        task: Option<i64>,
     },
 }

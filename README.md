@@ -150,11 +150,14 @@ track todo done 2
 | Command | Description |
 |---------|-------------|
 | `track new <name>` | Create a new task and set it as active |
+| `track new <name> --template <task_ref>` | Create task from template (copies TODOs) |
 | `track list [--all]` | Display task list |
 | `track switch <task_id>` | Switch tasks |
 | `track status [id]` | Display detailed information about the current (or specified) task |
 | `track desc [description]` | View or set task description |
 | `track ticket <ticket_id> <url>` | Link a ticket to the task |
+| `track alias set <alias>` | Set an alias for the current task |
+| `track alias remove` | Remove alias from the current task |
 | `track archive [task_id]` | Archive a task (defaults to current task) |
 
 **Example: Task List**
@@ -242,6 +245,62 @@ track webui --port 3000 --open
 
 # Access at http://localhost:3000
 ```
+
+## Task Aliases
+
+Assign human-readable aliases to tasks for easier reference:
+
+```bash
+# Set an alias for the current task
+track alias set daily-report
+
+# Now you can reference the task by alias
+track switch daily-report
+track status daily-report
+track archive daily-report
+
+# Remove alias
+track alias remove
+```
+
+**Task Reference Priority:**
+1. Numeric ID (e.g., `3`)
+2. Ticket reference (e.g., `t:PROJ-123`)
+3. Task alias (e.g., `daily-report`)
+
+**Alias Rules:**
+- Alphanumeric characters, hyphens, and underscores only
+- 1-50 characters
+- Must be unique
+- Cannot use reserved command names (new, list, status, etc.)
+
+## Task Templates
+
+Create new tasks from existing task templates to reuse TODO lists for recurring workflows:
+
+```bash
+# Create a template task with common TODOs
+track new "Daily Report Template"
+track alias set daily-template
+track todo add "Collect metrics"
+track todo add "Analyze data"
+track todo add "Write summary"
+track todo add "Send to team"
+
+# Create new task from template
+track new "Daily Report 2026-01-04" --template daily-template
+
+# All TODOs are copied with 'pending' status
+# You can also use task ID or ticket reference
+track new "Daily Report 2026-01-05" --template 3
+track new "Daily Report 2026-01-06" --template t:TEMPLATE-001
+```
+
+**Use Cases:**
+- Daily/weekly reports
+- Release checklists
+- Code review processes
+- Onboarding workflows
 
 ## Ticket Reference
 

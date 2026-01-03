@@ -11,7 +11,7 @@
     <button class="btn-collapse" onclick="toggleMetadata()" id="collapse-btn">
         <span id="collapse-icon">▼</span> Metadata
     </button>
-    <h1>{{ task.name }}</h1>
+    <h1>{{ task.name }}{% if task.alias %} <span class="task-alias">({{ task.alias }})</span>{% endif %}</h1>
     <div class="task-meta">
         {% if task.ticket_id %}
         <span class="badge">{{ task.ticket_id }}</span>

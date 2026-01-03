@@ -389,6 +389,25 @@ impl Database {
             [],
         )?;
 
+        // Check for alias column in tasks
+        let count: i64 = self.conn.query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('tasks') WHERE name='alias'",
+            [],
+            |row| row.get(0),
+        )?;
+
+        if count == 0 {
+            // Add column without UNIQUE constraint first (SQLite limitation)
+            self.conn
+                .execute("ALTER TABLE tasks ADD COLUMN alias TEXT", [])?;
+        }
+
+        // Create UNIQUE index for alias column
+        self.conn.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_tasks_alias ON tasks(alias)",
+            [],
+        )?;
+
         Ok(())
     }
 

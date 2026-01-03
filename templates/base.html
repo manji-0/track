@@ -164,6 +164,14 @@
             font-size: 0.875rem;
         }
 
+        .task-alias {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            font-weight: 400;
+            font-style: italic;
+        }
+
+
         .btn-collapse {
             position: absolute;
             top: 0;
@@ -976,6 +984,12 @@
 
                     // Handle card-specific events
                     switch (event.type) {
+                        case 'header':
+                            console.log('Updating task header');
+                            // Reload the entire page to update header
+                            window.location.reload();
+                            break;
+
                         case 'description':
                             console.log('Updating description section');
                             htmx.ajax('GET', '/api/card/description', {

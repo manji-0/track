@@ -9,6 +9,8 @@ use tokio::sync::{broadcast, Mutex};
 #[derive(Clone, Debug, serde::Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum SseEvent {
+    /// Task header (name, alias) was updated
+    Header,
     /// Description was updated
     Description,
     /// Ticket was updated
@@ -24,8 +26,10 @@ pub enum SseEvent {
 /// Database state snapshot for change detection
 #[derive(Clone, Debug, PartialEq)]
 struct DbSnapshot {
+    current_task_id: Option<i64>,
     task_count: i64,
     todo_count: i64,
+    todo_status_hash: String,
     scrap_count: i64,
     link_count: i64,
     task_modified: Option<String>,
@@ -78,7 +82,7 @@ impl AppState {
         // Get current task's last modification info
         let task_modified: Option<String> = if let Ok(Some(task_id)) = db.get_current_task_id() {
             conn.query_row(
-                "SELECT ticket_id || ':' || COALESCE(description, '') FROM tasks WHERE id = ?1",
+                "SELECT COALESCE(ticket_id, '') || ':' || COALESCE(description, '') || ':' || COALESCE(alias, '') FROM tasks WHERE id = ?1",
                 [task_id],
                 |row| row.get(0),
             )
@@ -87,9 +91,23 @@ impl AppState {
             None
         };
 
+        // Get hash of TODO statuses for current task to detect status changes
+        let todo_status_hash: String = if let Ok(Some(task_id)) = db.get_current_task_id() {
+            conn.query_row(
+                "SELECT GROUP_CONCAT(id || ':' || status, ',') FROM todos WHERE task_id = ?1 ORDER BY id",
+                [task_id],
+                |row| row.get(0),
+            )
+            .unwrap_or_else(|_| String::new())
+        } else {
+            String::new()
+        };
+
         Ok(DbSnapshot {
+            current_task_id: db.get_current_task_id()?,
             task_count,
             todo_count,
+            todo_status_hash,
             scrap_count,
             link_count,
             task_modified,
@@ -116,23 +134,37 @@ impl AppState {
             let mut last = self.last_snapshot.lock().await;
 
             if let Some(ref prev) = *last {
-                // Check each field and broadcast specific events
-                if current.task_modified != prev.task_modified {
-                    // Task metadata changed (description or ticket)
+                // Check if current task changed (task switch or new task)
+                if current.current_task_id != prev.current_task_id {
+                    // Task switched - reload entire page
+                    self.broadcast(SseEvent::Header);
                     self.broadcast(SseEvent::Description);
                     self.broadcast(SseEvent::Ticket);
-                }
-
-                if current.link_count != prev.link_count {
                     self.broadcast(SseEvent::Links);
-                }
-
-                if current.todo_count != prev.todo_count {
                     self.broadcast(SseEvent::Todos);
-                }
-
-                if current.scrap_count != prev.scrap_count {
                     self.broadcast(SseEvent::Scraps);
+                } else {
+                    // Same task - check for specific changes
+                    if current.task_modified != prev.task_modified {
+                        // Task metadata changed (description, ticket, or alias)
+                        self.broadcast(SseEvent::Header);
+                        self.broadcast(SseEvent::Description);
+                        self.broadcast(SseEvent::Ticket);
+                    }
+
+                    if current.link_count != prev.link_count {
+                        self.broadcast(SseEvent::Links);
+                    }
+
+                    if current.todo_count != prev.todo_count
+                        || current.todo_status_hash != prev.todo_status_hash
+                    {
+                        self.broadcast(SseEvent::Todos);
+                    }
+
+                    if current.scrap_count != prev.scrap_count {
+                        self.broadcast(SseEvent::Scraps);
+                    }
                 }
             }
 
