@@ -4,14 +4,34 @@
     </div>
 
     <!-- Add Scrap Form -->
-    <form hx-post="/api/scrap" hx-swap="none" hx-on::after-request="this.reset()" style="margin-bottom: 1rem;">
+    <form id="scrap-form" hx-post="/api/scrap" hx-swap="none" hx-on::after-request="this.reset()"
+        style="margin-bottom: 1rem;">
         <div class="input-group">
-            <input type="text" name="content" placeholder="Add a note or scrap..." required autocomplete="off">
+            <textarea name="content" id="scrap-input" placeholder="Add a note or scrap... (Shift+Enter for newline)"
+                required autocomplete="off" rows="1" style="resize: vertical; min-height: 2.5rem;"></textarea>
             <button type="submit">
                 <span>📌</span> Add
             </button>
         </div>
     </form>
+    <script>
+        // Scrap input: Enter to submit, Shift+Enter for newline
+        (function () {
+            const scrapInput = document.getElementById('scrap-input');
+            const scrapForm = document.getElementById('scrap-form');
+            if (scrapInput && scrapForm) {
+                scrapInput.addEventListener('keydown', function (e) {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        if (scrapInput.value.trim()) {
+                            htmx.trigger(scrapForm, 'submit');
+                        }
+                    }
+                    // Shift+Enter allows default behavior (newline)
+                });
+            }
+        })();
+    </script>
 
     <!-- Scrap List -->
     {% if scraps and scraps|length > 0 %}

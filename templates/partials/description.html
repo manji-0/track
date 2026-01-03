@@ -10,11 +10,26 @@
     {% endif %}
     <form id="desc-edit-form" style="display: none;" hx-post="/api/description" hx-target="#description-section"
         hx-swap="none">
-        <textarea name="description" rows="4"
-            placeholder="Enter task description...">{{ task.description or '' }}</textarea>
+        <textarea name="description" id="desc-textarea" rows="4"
+            placeholder="Enter task description... (Ctrl+Enter to save)">{{ task.description or '' }}</textarea>
         <div class="form-actions">
             <button type="submit" class="btn-primary">💾 Save</button>
             <button type="button" class="btn-secondary" onclick="toggleDescEdit()">✖ Cancel</button>
         </div>
     </form>
+    <script>
+        // Description textarea: Ctrl+Enter to submit
+        (function () {
+            const descTextarea = document.getElementById('desc-textarea');
+            const descForm = document.getElementById('desc-edit-form');
+            if (descTextarea && descForm) {
+                descTextarea.addEventListener('keydown', function (e) {
+                    if (e.key === 'Enter' && e.ctrlKey) {
+                        e.preventDefault();
+                        htmx.trigger(descForm, 'submit');
+                    }
+                });
+            }
+        })();
+    </script>
 </div>
