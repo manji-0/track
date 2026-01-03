@@ -36,6 +36,7 @@ pub async fn start_server(port: u16, open_browser: bool) -> anyhow::Result<()> {
         .route("/api/todo/:id", delete(routes::delete_todo))
         .route("/api/scrap", post(routes::add_scrap))
         .route("/api/description", post(routes::update_description))
+        .route("/api/ticket", post(routes::update_ticket))
         // SSE endpoint
         .route("/api/sse", get(sse_handler))
         // Static files (CSS, JS)

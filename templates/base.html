@@ -132,6 +132,39 @@
             font-style: italic;
         }
 
+        /* Ticket Information */
+        .ticket-info {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .ticket-id {
+            background: var(--accent-light);
+            color: var(--accent);
+            padding: 0.5rem 1rem;
+            border-radius: var(--border-radius-sm);
+            font-weight: 600;
+            font-size: 1rem;
+            font-family: 'JetBrains Mono', 'Fira Code', monospace;
+        }
+
+        .ticket-url {
+            color: var(--accent);
+            text-decoration: none;
+            font-size: 0.875rem;
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+            transition: var(--transition);
+        }
+
+        .ticket-url:hover {
+            color: var(--accent-hover);
+            text-decoration: underline;
+        }
+
         /* Form styles */
         .input-group {
             display: flex;

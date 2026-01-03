@@ -73,6 +73,13 @@ pub struct UpdateDescriptionForm {
     pub description: String,
 }
 
+/// Form data for updating ticket
+#[derive(Deserialize)]
+pub struct UpdateTicketForm {
+    pub ticket_id: String,
+    pub ticket_url: Option<String>,
+}
+
 /// Main dashboard page
 pub async fn index(State(state): State<WebState>) -> Result<Html<String>, AppError> {
     let db = state.app.db.lock().await;
@@ -336,4 +343,38 @@ fn format_scraps(scraps: &[crate::models::Scrap]) -> Vec<serde_json::Value> {
             })
         })
         .collect()
+}
+
+/// Update task ticket
+pub async fn update_ticket(
+    State(state): State<WebState>,
+    Form(form): Form<UpdateTicketForm>,
+) -> Result<Html<String>, AppError> {
+    let db = state.app.db.lock().await;
+
+    let current_task_id = db.get_current_task_id()?.ok_or(TrackError::NoActiveTask)?;
+
+    let task_service = TaskService::new(&db);
+    
+    // Clean up ticket_url if empty
+    let ticket_url = form.ticket_url.filter(|url| !url.trim().is_empty());
+    let ticket_url_str = ticket_url.as_deref().unwrap_or("");
+    
+    task_service.link_ticket(current_task_id, &form.ticket_id, ticket_url_str)?;
+
+    // Get updated task
+    let task = task_service.get_task(current_task_id)?;
+
+    // Broadcast SSE event
+    state.app.broadcast(SseEvent::StatusUpdate);
+
+    // Return updated ticket section
+    let html = state.templates.render(
+        "partials/ticket.html",
+        serde_json::json!({
+            "task": task,
+        }),
+    )?;
+
+    Ok(Html(html))
 }

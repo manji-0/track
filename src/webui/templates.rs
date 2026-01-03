@@ -43,6 +43,11 @@ impl Templates {
             include_str!("../../templates/partials/description.html"),
         )
         .expect("Failed to add description.html template");
+        env.add_template(
+            "partials/ticket.html",
+            include_str!("../../templates/partials/ticket.html"),
+        )
+        .expect("Failed to add ticket.html template");
 
         Self { env }
     }
