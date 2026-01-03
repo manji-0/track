@@ -8,16 +8,16 @@
 {% if task %}
 <!-- Task Header -->
 <header class="task-header">
+    <button class="btn-collapse" onclick="toggleMetadata()" id="collapse-btn">
+        <span id="collapse-icon">▼</span> Metadata
+    </button>
     <h1>{{ task.name }}</h1>
     <div class="task-meta">
         {% if task.ticket_id %}
         <span class="badge">{{ task.ticket_id }}</span>
         {% else %}
-        Task #{{ task.id }}
+        <span class="task-id">Task #{{ task.id }}</span>
         {% endif %}
-        <button class="btn-collapse" onclick="toggleMetadata()" id="collapse-btn">
-            <span id="collapse-icon">▼</span> Metadata
-        </button>
     </div>
 </header>
 
