@@ -207,7 +207,7 @@ fn test_list_repo_links_manual() {
     let db = Database::new_in_memory().unwrap();
     let worktree_service = WorktreeService::new(&db);
 
-    // Insert dummy git_item
+    // Insert dummy worktree
     let conn = db.get_connection();
     conn.execute(
         "INSERT INTO tasks (name, status, created_at) VALUES ('T', 'active', 'now')",
@@ -217,18 +217,18 @@ fn test_list_repo_links_manual() {
     let task_id = conn.last_insert_rowid();
 
     conn.execute(
-        "INSERT INTO git_items (task_id, path, branch, status, created_at) VALUES (?1, 'p', 'b', 'active', 'now')",
+        "INSERT INTO worktrees (task_id, path, branch, status, created_at) VALUES (?1, 'p', 'b', 'active', 'now')",
         params![task_id]
     ).unwrap();
-    let git_item_id = conn.last_insert_rowid();
+    let worktree_id = conn.last_insert_rowid();
 
     // Manually insert repo_link
     conn.execute(
-        "INSERT INTO repo_links (git_item_id, url, kind, created_at) VALUES (?1, 'http://url', 'github', ?2)",
-        params![git_item_id, Utc::now().to_rfc3339()]
+        "INSERT INTO repo_links (worktree_id, url, kind, created_at) VALUES (?1, 'http://url', 'github', ?2)",
+        params![worktree_id, Utc::now().to_rfc3339()]
     ).unwrap();
 
-    let links = worktree_service.list_repo_links(git_item_id).unwrap();
+    let links = worktree_service.list_repo_links(worktree_id).unwrap();
     assert_eq!(links.len(), 1);
     assert_eq!(links[0].url, "http://url");
 }

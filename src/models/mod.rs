@@ -79,12 +79,12 @@ pub struct Scrap {
     pub created_at: DateTime<Utc>,
 }
 
-/// Represents a Git worktree or repository associated with a task.
+/// Represents a Git worktree associated with a task or TODO.
 ///
-/// GitItems track both base repositories and TODO-specific worktrees,
+/// Worktrees track both base repositories and TODO-specific worktrees,
 /// including their paths, branches, and relationships.
 #[derive(Debug, Clone, Serialize)]
-pub struct GitItem {
+pub struct Worktree {
     pub id: i64,
     pub task_id: i64,
     pub path: String,
@@ -100,7 +100,7 @@ pub struct GitItem {
     pub is_base: bool,
 }
 
-/// Represents a remote repository link for a Git item.
+/// Represents a remote repository link for a worktree.
 ///
 /// RepoLinks store URLs to remote repositories (e.g., GitHub, GitLab)
 /// and their types (e.g., "origin", "upstream").
@@ -109,7 +109,7 @@ pub struct RepoLink {
     #[allow(dead_code)]
     pub id: i64,
     #[allow(dead_code)]
-    pub git_item_id: i64,
+    pub worktree_id: i64,
     pub url: String,
     pub kind: String,
     #[allow(dead_code)]

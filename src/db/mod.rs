@@ -109,7 +109,7 @@ impl Database {
                 FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
             );
 
-            CREATE TABLE IF NOT EXISTS git_items (
+            CREATE TABLE IF NOT EXISTS worktrees (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 task_id INTEGER NOT NULL,
                 path TEXT NOT NULL,
@@ -125,11 +125,11 @@ impl Database {
 
             CREATE TABLE IF NOT EXISTS repo_links (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                git_item_id INTEGER NOT NULL,
+                worktree_id INTEGER NOT NULL,
                 url TEXT NOT NULL,
                 kind TEXT NOT NULL,
                 created_at TEXT NOT NULL,
-                FOREIGN KEY (git_item_id) REFERENCES git_items(id) ON DELETE CASCADE
+                FOREIGN KEY (worktree_id) REFERENCES worktrees(id) ON DELETE CASCADE
             );
 
             CREATE TABLE IF NOT EXISTS task_repos (
@@ -144,8 +144,7 @@ impl Database {
             CREATE INDEX IF NOT EXISTS idx_todos_task_id ON todos(task_id);
             CREATE INDEX IF NOT EXISTS idx_links_task_id ON links(task_id);
             CREATE INDEX IF NOT EXISTS idx_scraps_task_id ON scraps(task_id);
-            CREATE INDEX IF NOT EXISTS idx_git_items_task_id ON git_items(task_id);
-            CREATE INDEX IF NOT EXISTS idx_repo_links_git_item_id ON repo_links(git_item_id);
+            CREATE INDEX IF NOT EXISTS idx_worktrees_task_id ON worktrees(task_id);
             CREATE INDEX IF NOT EXISTS idx_task_repos_task_id ON task_repos(task_id);
             "#,
         )?;
@@ -156,31 +155,98 @@ impl Database {
     }
 
     fn migrate_schema(&self) -> Result<()> {
-        // Check for todo_id column in git_items
+        // Migrate git_items table to worktrees (for existing databases)
+        let git_items_exists: i64 = self.conn.query_row(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='git_items'",
+            [],
+            |row| row.get(0),
+        )?;
+
+        if git_items_exists > 0 {
+            // Drop old indexes before renaming table
+            self.conn
+                .execute("DROP INDEX IF EXISTS idx_git_items_task_id", [])?;
+            self.conn
+                .execute("DROP INDEX IF EXISTS idx_git_items_todo_id", [])?;
+
+            // Rename git_items table to worktrees
+            self.conn
+                .execute("ALTER TABLE git_items RENAME TO worktrees", [])?;
+
+            // Create new indexes with correct names
+            self.conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_worktrees_task_id ON worktrees(task_id)",
+                [],
+            )?;
+            self.conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_worktrees_todo_id ON worktrees(todo_id)",
+                [],
+            )?;
+        }
+
+        // Migrate repo_links.git_item_id to worktree_id (for existing databases)
+        let git_item_id_exists: i64 = self.conn.query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('repo_links') WHERE name='git_item_id'",
+            [],
+            |row| row.get(0),
+        )?;
+
+        if git_item_id_exists > 0 {
+            // SQLite doesn't support renaming columns directly in older versions
+            // We need to recreate the table
+            self.conn.execute_batch(
+                r#"
+                -- Create new repo_links table with worktree_id
+                CREATE TABLE repo_links_new (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    worktree_id INTEGER NOT NULL,
+                    url TEXT NOT NULL,
+                    kind TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    FOREIGN KEY (worktree_id) REFERENCES worktrees(id) ON DELETE CASCADE
+                );
+
+                -- Copy data from old table
+                INSERT INTO repo_links_new (id, worktree_id, url, kind, created_at)
+                SELECT id, git_item_id, url, kind, created_at FROM repo_links;
+
+                -- Drop old table
+                DROP TABLE repo_links;
+
+                -- Rename new table to repo_links
+                ALTER TABLE repo_links_new RENAME TO repo_links;
+
+                -- Recreate index
+                CREATE INDEX IF NOT EXISTS idx_repo_links_worktree_id ON repo_links(worktree_id);
+                "#,
+            )?;
+        }
+
+        // Check for todo_id column in worktrees
         let count: i64 = self.conn.query_row(
-            "SELECT COUNT(*) FROM pragma_table_info('git_items') WHERE name='todo_id'",
+            "SELECT COUNT(*) FROM pragma_table_info('worktrees') WHERE name='todo_id'",
             [],
             |row| row.get(0),
         )?;
 
         if count == 0 {
-            self.conn.execute("ALTER TABLE git_items ADD COLUMN todo_id INTEGER REFERENCES todos(id) ON DELETE SET NULL", [])?;
+            self.conn.execute("ALTER TABLE worktrees ADD COLUMN todo_id INTEGER REFERENCES todos(id) ON DELETE SET NULL", [])?;
         }
         self.conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_git_items_todo_id ON git_items(todo_id)",
+            "CREATE INDEX IF NOT EXISTS idx_worktrees_todo_id ON worktrees(todo_id)",
             [],
         )?;
 
-        // Check for is_base column in git_items
+        // Check for is_base column in worktrees
         let count: i64 = self.conn.query_row(
-            "SELECT COUNT(*) FROM pragma_table_info('git_items') WHERE name='is_base'",
+            "SELECT COUNT(*) FROM pragma_table_info('worktrees') WHERE name='is_base'",
             [],
             |row| row.get(0),
         )?;
 
         if count == 0 {
             self.conn.execute(
-                "ALTER TABLE git_items ADD COLUMN is_base INTEGER DEFAULT 0",
+                "ALTER TABLE worktrees ADD COLUMN is_base INTEGER DEFAULT 0",
                 [],
             )?;
         }
@@ -317,6 +383,12 @@ impl Database {
             )?;
         }
 
+        // Ensure repo_links index exists (for both new and migrated databases)
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_repo_links_worktree_id ON repo_links(worktree_id)",
+            [],
+        )?;
+
         Ok(())
     }
 
@@ -441,7 +513,7 @@ mod tests {
             "todos",
             "links",
             "scraps",
-            "git_items",
+            "worktrees",
             "repo_links",
         ];
         for table in tables {

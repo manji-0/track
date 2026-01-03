@@ -200,9 +200,9 @@ impl CommandHandler {
                     obj.remove("is_base");
                     obj.remove("task_id");
 
-                    let task_scoped_id = wt.todo_id.and_then(|id| {
-                        todos.iter().find(|t| t.id == id).map(|t| t.task_index)
-                    });
+                    let task_scoped_id = wt
+                        .todo_id
+                        .and_then(|id| todos.iter().find(|t| t.id == id).map(|t| t.task_index));
                     obj.insert(
                         "todo_id".to_string(),
                         serde_json::to_value(task_scoped_id).unwrap_or(serde_json::Value::Null),
@@ -213,7 +213,9 @@ impl CommandHandler {
 
             // Add pending worktrees (requested in TODOs but not yet created via sync)
             for todo in &todos {
-                if todo.worktree_requested && !worktrees.iter().any(|wt| wt.todo_id == Some(todo.id)) {
+                if todo.worktree_requested
+                    && !worktrees.iter().any(|wt| wt.todo_id == Some(todo.id))
+                {
                     let branch_name = worktree_service
                         .get_todo_branch_name(
                             current_task_id,

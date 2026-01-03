@@ -1,5 +1,5 @@
 use crate::db::Database;
-use crate::models::{GitItem, RepoLink};
+use crate::models::{RepoLink, Worktree};
 use crate::utils::{Result, TrackError};
 use chrono::Utc;
 use rusqlite::{params, OptionalExtension};
@@ -23,7 +23,7 @@ impl<'a> WorktreeService<'a> {
         ticket_id: Option<&str>,
         todo_id: Option<i64>,
         is_base: bool,
-    ) -> Result<GitItem> {
+    ) -> Result<Worktree> {
         // Verify it's a git repository
         if !self.is_git_repository(repo_path)? {
             return Err(TrackError::NotGitRepository(repo_path.to_string()));
@@ -66,24 +66,24 @@ impl<'a> WorktreeService<'a> {
         let conn = self.db.get_connection();
 
         conn.execute(
-            "INSERT INTO git_items (task_id, path, branch, base_repo, status, created_at, todo_id, is_base) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            "INSERT INTO worktrees (task_id, path, branch, base_repo, status, created_at, todo_id, is_base) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
             params![task_id, worktree_path, branch_name, repo_path, "active", now, todo_id, is_base as i32],
         )?;
 
-        let git_item_id = conn.last_insert_rowid();
-        self.get_git_item(git_item_id)
+        let worktree_id = conn.last_insert_rowid();
+        self.get_worktree(worktree_id)
     }
 
-    pub fn get_git_item(&self, git_item_id: i64) -> Result<GitItem> {
+    pub fn get_worktree(&self, worktree_id: i64) -> Result<Worktree> {
         let conn = self.db.get_connection();
         let mut stmt = conn.prepare(
-            "SELECT id, task_id, path, branch, base_repo, status, created_at, todo_id, is_base FROM git_items WHERE id = ?1"
+            "SELECT id, task_id, path, branch, base_repo, status, created_at, todo_id, is_base FROM worktrees WHERE id = ?1"
         )?;
 
-        let git_item = stmt
-            .query_row(params![git_item_id], |row| {
+        let worktree = stmt
+            .query_row(params![worktree_id], |row| {
                 let is_base: i32 = row.get(8).unwrap_or(0);
-                Ok(GitItem {
+                Ok(Worktree {
                     id: row.get(0)?,
                     task_id: row.get(1)?,
                     path: row.get(2)?,
@@ -95,21 +95,21 @@ impl<'a> WorktreeService<'a> {
                     is_base: is_base != 0,
                 })
             })
-            .map_err(|_| TrackError::WorktreeNotFound(git_item_id))?;
+            .map_err(|_| TrackError::WorktreeNotFound(worktree_id))?;
 
-        Ok(git_item)
+        Ok(worktree)
     }
 
-    pub fn list_worktrees(&self, task_id: i64) -> Result<Vec<GitItem>> {
+    pub fn list_worktrees(&self, task_id: i64) -> Result<Vec<Worktree>> {
         let conn = self.db.get_connection();
         let mut stmt = conn.prepare(
-            "SELECT id, task_id, path, branch, base_repo, status, created_at, todo_id, is_base FROM git_items WHERE task_id = ?1 ORDER BY created_at ASC"
+            "SELECT id, task_id, path, branch, base_repo, status, created_at, todo_id, is_base FROM worktrees WHERE task_id = ?1 ORDER BY created_at ASC"
         )?;
 
-        let git_items = stmt
+        let worktrees = stmt
             .query_map(params![task_id], |row| {
                 let is_base: i32 = row.get(8).unwrap_or(0);
-                Ok(GitItem {
+                Ok(Worktree {
                     id: row.get(0)?,
                     task_id: row.get(1)?,
                     path: row.get(2)?,
@@ -123,20 +123,20 @@ impl<'a> WorktreeService<'a> {
             })?
             .collect::<std::result::Result<Vec<_>, _>>()?;
 
-        Ok(git_items)
+        Ok(worktrees)
     }
 
-    pub fn list_repo_links(&self, git_item_id: i64) -> Result<Vec<RepoLink>> {
+    pub fn list_repo_links(&self, worktree_id: i64) -> Result<Vec<RepoLink>> {
         let conn = self.db.get_connection();
         let mut stmt = conn.prepare(
-            "SELECT id, git_item_id, url, kind, created_at FROM repo_links WHERE git_item_id = ?1 ORDER BY created_at ASC"
+            "SELECT id, worktree_id, url, kind, created_at FROM repo_links WHERE worktree_id = ?1 ORDER BY created_at ASC"
         )?;
 
         let repo_links = stmt
-            .query_map(params![git_item_id], |row| {
+            .query_map(params![worktree_id], |row| {
                 Ok(RepoLink {
                     id: row.get(0)?,
-                    git_item_id: row.get(1)?,
+                    worktree_id: row.get(1)?,
                     url: row.get(2)?,
                     kind: row.get(3)?,
                     created_at: row.get::<_, String>(4)?.parse().unwrap(),
@@ -147,19 +147,19 @@ impl<'a> WorktreeService<'a> {
         Ok(repo_links)
     }
 
-    pub fn remove_worktree(&self, git_item_id: i64, keep_files: bool) -> Result<()> {
-        let git_item = self.get_git_item(git_item_id)?;
+    pub fn remove_worktree(&self, worktree_id: i64, keep_files: bool) -> Result<()> {
+        let worktree = self.get_worktree(worktree_id)?;
 
         if !keep_files {
             // Remove git worktree
-            if let Some(base_repo) = &git_item.base_repo {
-                self.remove_git_worktree(base_repo, &git_item.path)?;
+            if let Some(base_repo) = &worktree.base_repo {
+                self.remove_git_worktree(base_repo, &worktree.path)?;
             }
         }
 
         // Remove from database
         let conn = self.db.get_connection();
-        conn.execute("DELETE FROM git_items WHERE id = ?1", params![git_item_id])?;
+        conn.execute("DELETE FROM worktrees WHERE id = ?1", params![worktree_id])?;
 
         Ok(())
     }
@@ -293,16 +293,16 @@ impl<'a> WorktreeService<'a> {
         Ok(Some(wt.branch))
     }
 
-    fn get_worktree_by_todo(&self, todo_id: i64) -> Result<Option<GitItem>> {
+    fn get_worktree_by_todo(&self, todo_id: i64) -> Result<Option<Worktree>> {
         let conn = self.db.get_connection();
         let mut stmt = conn.prepare(
-            "SELECT id, task_id, path, branch, base_repo, status, created_at, todo_id, is_base FROM git_items WHERE todo_id = ?1"
+            "SELECT id, task_id, path, branch, base_repo, status, created_at, todo_id, is_base FROM worktrees WHERE todo_id = ?1"
         )?;
 
         let result = stmt
             .query_row(params![todo_id], |row| {
                 let is_base: i32 = row.get(8).unwrap_or(0);
-                Ok(GitItem {
+                Ok(Worktree {
                     id: row.get(0)?,
                     task_id: row.get(1)?,
                     path: row.get(2)?,
@@ -319,16 +319,16 @@ impl<'a> WorktreeService<'a> {
         Ok(result)
     }
 
-    fn get_base_worktree(&self, task_id: i64) -> Result<Option<GitItem>> {
+    fn get_base_worktree(&self, task_id: i64) -> Result<Option<Worktree>> {
         let conn = self.db.get_connection();
         let mut stmt = conn.prepare(
-            "SELECT id, task_id, path, branch, base_repo, status, created_at, todo_id, is_base FROM git_items WHERE task_id = ?1 AND is_base = 1"
+            "SELECT id, task_id, path, branch, base_repo, status, created_at, todo_id, is_base FROM worktrees WHERE task_id = ?1 AND is_base = 1"
         )?;
 
         let result = stmt
             .query_row(params![task_id], |row| {
                 let is_base: i32 = row.get(8).unwrap_or(0);
-                Ok(GitItem {
+                Ok(Worktree {
                     id: row.get(0)?,
                     task_id: row.get(1)?,
                     path: row.get(2)?,
@@ -568,7 +568,7 @@ mod tests {
         assert!(worktree.is_base);
 
         // Get worktree by ID
-        let retrieved = service.get_git_item(worktree.id).unwrap();
+        let retrieved = service.get_worktree(worktree.id).unwrap();
         assert_eq!(retrieved.id, worktree.id);
         assert_eq!(retrieved.branch, "task/PROJ-100");
     }
@@ -707,8 +707,8 @@ mod tests {
         let worktrees_after = service.list_worktrees(task.id).unwrap();
         assert_eq!(worktrees_after.len(), 0);
 
-        // Verify get_git_item returns error
-        let result = service.get_git_item(worktree.id);
+        // Verify get_worktree returns error
+        let result = service.get_worktree(worktree.id);
         assert!(result.is_err());
     }
 
