@@ -45,7 +45,8 @@ track status
 
 | Command | Purpose |
 |---------|---------|
-| `track status` | View current task and TODOs |
+| `track status [id]` | View current (or specified) task and TODOs |
+| `track status --all` | Show all scraps instead of recent |
 | `track new "<name>"` | Create new task |
 | `track todo add "<text>"` | Add TODO |
 | `track todo done <index>` | Complete TODO |

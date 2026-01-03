@@ -243,7 +243,7 @@ track sync
 # When TODO #1 has --worktree flag:
 track todo add "Implement login" --worktree
 track sync
-# → Creates branch: PROJ-123-todo-1 (TODO work branch)
+# → Creates branch: task/PROJ-123-todo-1 (TODO work branch)
 ```
 
 ## Usage Examples
