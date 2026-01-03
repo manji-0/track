@@ -10,67 +10,77 @@
 <header class="task-header">
     <h1>{{ task.name }}</h1>
     <div class="task-meta">
-        Task #{{ task.id }}
         {% if task.ticket_id %}
         <span class="badge">{{ task.ticket_id }}</span>
+        {% else %}
+        Task #{{ task.id }}
         {% endif %}
+        <button class="btn-collapse" onclick="toggleMetadata()" id="collapse-btn">
+            <span id="collapse-icon">▼</span> Metadata
+        </button>
     </div>
 </header>
 
-<!-- Description -->
-<div class="card" id="description-section">
-    <div class="card-header">
-        <h2 class="card-title"><span class="icon">📝</span> Description</h2>
-        <button class="btn-edit" onclick="toggleDescEdit()">✏️ Edit</button>
-    </div>
-    {% if task.description %}
-    <div class="description" id="desc-display">{{ task.description }}</div>
-    {% else %}
-    <div class="description text-muted" id="desc-display">No description set.</div>
-    {% endif %}
-    <form id="desc-edit-form" style="display: none;" hx-post="/api/description" hx-target="#description-section"
-        hx-swap="outerHTML">
-        <textarea name="description" rows="4"
-            placeholder="Enter task description...">{{ task.description or '' }}</textarea>
-        <div class="form-actions">
-            <button type="submit" class="btn-primary">💾 Save</button>
-            <button type="button" class="btn-secondary" onclick="toggleDescEdit()">✖ Cancel</button>
-        </div>
-    </form>
-</div>
-
-<!-- 2-Pane Layout for Ticket and Repositories -->
-<div class="two-pane-layout">
-    <!-- Ticket Section (Left) -->
-    <div class="card" id="ticket-section">
-        {% include "partials/ticket.html" %}
-    </div>
-
-    <!-- Repositories Section (Right) -->
-    <div class="card">
-        <div class="card-header">
-            <h2 class="card-title"><span class="icon">📁</span> Repositories</h2>
-        </div>
-        {% if repos and repos|length > 0 %}
-        <div class="repo-list">
-            {% for repo in repos %}
-            <div class="repo-item">
-                <span class="repo-path">{{ repo.repo_path }}</span>
-                {% if repo.base_branch %}
-                <span class="todo-status pending">{{ repo.base_branch }}</span>
-                {% endif %}
+<!-- Collapsible Metadata Section -->
+<div id="metadata-section">
+    <!-- 2-Pane Layout for Description and Ticket -->
+    <div class="two-pane-layout">
+        <!-- Description Section (Left) -->
+        <div class="card" id="description-section">
+            <div class="card-header">
+                <h2 class="card-title"><span class="icon">📝</span> Description</h2>
+                <button class="btn-edit" onclick="toggleDescEdit()">✏️ Edit</button>
             </div>
-            {% endfor %}
+            {% if task.description %}
+            <div class="description" id="desc-display">{{ task.description }}</div>
+            {% else %}
+            <div class="description text-muted" id="desc-display">No description set.</div>
+            {% endif %}
+            <form id="desc-edit-form" style="display: none;" hx-post="/api/description" hx-target="#description-section"
+                hx-swap="outerHTML">
+                <textarea name="description" rows="4"
+                    placeholder="Enter task description...">{{ task.description or '' }}</textarea>
+                <div class="form-actions">
+                    <button type="submit" class="btn-primary">💾 Save</button>
+                    <button type="button" class="btn-secondary" onclick="toggleDescEdit()">✖ Cancel</button>
+                </div>
+            </form>
         </div>
-        {% else %}
-        <div class="text-muted">No repositories registered.</div>
-        {% endif %}
-    </div>
-</div>
 
-<!-- Links Section -->
-<div class="card" id="links-section">
-    {% include "partials/links.html" %}
+        <!-- Ticket Section (Right) -->
+        <div class="card" id="ticket-section">
+            {% include "partials/ticket.html" %}
+        </div>
+    </div>
+
+    <!-- 2-Pane Layout for Repositories and Links -->
+    <div class="two-pane-layout">
+        <!-- Repositories Section (Left) -->
+        <div class="card">
+            <div class="card-header">
+                <h2 class="card-title"><span class="icon">📁</span> Repositories</h2>
+            </div>
+            {% if repos and repos|length > 0 %}
+            <div class="repo-list">
+                {% for repo in repos %}
+                <div class="repo-item">
+                    <span class="repo-path">{{ repo.repo_path }}</span>
+                    {% if repo.base_branch %}
+                    <span class="todo-status pending">{{ repo.base_branch }}</span>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="text-muted">No repositories registered.</div>
+            {% endif %}
+        </div>
+
+        <!-- Links Section (Right) -->
+        <div class="card" id="links-section">
+            {% include "partials/links.html" %}
+        </div>
+    </div>
 </div>
 
 <!-- 2-Pane Layout for TODOs and Scraps -->
@@ -123,5 +133,33 @@
             form.style.display = 'none';
         }
     }
+
+    function toggleMetadata() {
+        const section = document.getElementById('metadata-section');
+        const icon = document.getElementById('collapse-icon');
+
+        if (section.style.display === 'none') {
+            section.style.display = 'block';
+            icon.textContent = '▼';
+            localStorage.setItem('metadataCollapsed', 'false');
+        } else {
+            section.style.display = 'none';
+            icon.textContent = '▶';
+            localStorage.setItem('metadataCollapsed', 'true');
+        }
+    }
+
+    // Initialize metadata section state from localStorage
+    document.addEventListener('DOMContentLoaded', function () {
+        const collapsed = localStorage.getItem('metadataCollapsed') === 'true';
+        if (collapsed) {
+            const section = document.getElementById('metadata-section');
+            const icon = document.getElementById('collapse-icon');
+            if (section && icon) {
+                section.style.display = 'none';
+                icon.textContent = '▶';
+            }
+        }
+    });
 </script>
 {% endblock %}
