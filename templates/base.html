@@ -976,7 +976,7 @@
 
                     // Handle card-specific events
                     switch (event.type) {
-                        case 'description_updated':
+                        case 'description':
                             console.log('Updating description section');
                             htmx.ajax('GET', '/api/card/description', {
                                 target: '#description-section',
@@ -984,7 +984,7 @@
                             });
                             break;
 
-                        case 'ticket_updated':
+                        case 'ticket':
                             console.log('Updating ticket section');
                             htmx.ajax('GET', '/api/card/ticket', {
                                 target: '#ticket-section',
@@ -992,7 +992,7 @@
                             });
                             break;
 
-                        case 'links_updated':
+                        case 'links':
                             console.log('Updating links section');
                             htmx.ajax('GET', '/api/card/links', {
                                 target: '#links-section',
@@ -1000,7 +1000,7 @@
                             });
                             break;
 
-                        case 'todos_updated':
+                        case 'todos':
                             console.log('Updating todos section');
                             htmx.ajax('GET', '/api/card/todos', {
                                 target: '#todos-section',
@@ -1008,7 +1008,7 @@
                             });
                             break;
 
-                        case 'scraps_updated':
+                        case 'scraps':
                             console.log('Updating scraps section');
                             htmx.ajax('GET', '/api/card/scraps', {
                                 target: '#scraps-section',

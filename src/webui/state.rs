@@ -2,23 +2,23 @@
 
 use crate::db::Database;
 use std::sync::Arc;
-use tokio::sync::{broadcast, Mutex};
 use std::time::Duration;
+use tokio::sync::{broadcast, Mutex};
 
 /// Event types broadcast via SSE
 #[derive(Clone, Debug, serde::Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum SseEvent {
     /// Description was updated
-    DescriptionUpdated,
+    Description,
     /// Ticket was updated
-    TicketUpdated,
+    Ticket,
     /// Links were updated
-    LinksUpdated,
+    Links,
     /// TODOs were updated
-    TodosUpdated,
+    Todos,
     /// Scraps were updated
-    ScrapsUpdated,
+    Scraps,
 }
 
 /// Database state snapshot for change detection
@@ -66,29 +66,14 @@ impl AppState {
         let db = self.db.lock().await;
         let conn = db.get_connection();
 
-        let task_count: i64 = conn.query_row(
-            "SELECT COUNT(*) FROM tasks",
-            [],
-            |row| row.get(0),
-        )?;
+        let task_count: i64 = conn.query_row("SELECT COUNT(*) FROM tasks", [], |row| row.get(0))?;
 
-        let todo_count: i64 = conn.query_row(
-            "SELECT COUNT(*) FROM todos",
-            [],
-            |row| row.get(0),
-        )?;
+        let todo_count: i64 = conn.query_row("SELECT COUNT(*) FROM todos", [], |row| row.get(0))?;
 
-        let scrap_count: i64 = conn.query_row(
-            "SELECT COUNT(*) FROM scraps",
-            [],
-            |row| row.get(0),
-        )?;
+        let scrap_count: i64 =
+            conn.query_row("SELECT COUNT(*) FROM scraps", [], |row| row.get(0))?;
 
-        let link_count: i64 = conn.query_row(
-            "SELECT COUNT(*) FROM links",
-            [],
-            |row| row.get(0),
-        )?;
+        let link_count: i64 = conn.query_row("SELECT COUNT(*) FROM links", [], |row| row.get(0))?;
 
         // Get current task's last modification info
         let task_modified: Option<String> = if let Ok(Some(task_id)) = db.get_current_task_id() {
@@ -96,7 +81,8 @@ impl AppState {
                 "SELECT ticket_id || ':' || COALESCE(description, '') FROM tasks WHERE id = ?1",
                 [task_id],
                 |row| row.get(0),
-            ).ok()
+            )
+            .ok()
         } else {
             None
         };
@@ -113,7 +99,7 @@ impl AppState {
     /// Start background task to detect database changes
     pub async fn start_change_detection(&self) {
         let mut interval = tokio::time::interval(Duration::from_secs(1));
-        
+
         loop {
             interval.tick().await;
 
@@ -128,25 +114,25 @@ impl AppState {
 
             // Compare with last snapshot and broadcast specific events
             let mut last = self.last_snapshot.lock().await;
-            
+
             if let Some(ref prev) = *last {
                 // Check each field and broadcast specific events
                 if current.task_modified != prev.task_modified {
                     // Task metadata changed (description or ticket)
-                    self.broadcast(SseEvent::DescriptionUpdated);
-                    self.broadcast(SseEvent::TicketUpdated);
+                    self.broadcast(SseEvent::Description);
+                    self.broadcast(SseEvent::Ticket);
                 }
-                
+
                 if current.link_count != prev.link_count {
-                    self.broadcast(SseEvent::LinksUpdated);
+                    self.broadcast(SseEvent::Links);
                 }
-                
+
                 if current.todo_count != prev.todo_count {
-                    self.broadcast(SseEvent::TodosUpdated);
+                    self.broadcast(SseEvent::Todos);
                 }
-                
+
                 if current.scrap_count != prev.scrap_count {
-                    self.broadcast(SseEvent::ScrapsUpdated);
+                    self.broadcast(SseEvent::Scraps);
                 }
             }
 
