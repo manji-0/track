@@ -270,6 +270,34 @@ mod tests {
         ));
     }
 
+    #[test]
+    fn test_delete_link_success() {
+        let db = setup_db();
+        let task_id = create_test_task(&db);
+        let service = LinkService::new(&db);
+
+        let link = service
+            .add_link(task_id, "https://example.com", Some("Example"))
+            .unwrap();
+
+        // Delete the link
+        service.delete_link(link.id).unwrap();
+
+        // Verify it's deleted
+        let links = service.list_links(task_id).unwrap();
+        assert_eq!(links.len(), 0);
+    }
+
+    #[test]
+    fn test_delete_link_not_found() {
+        let db = setup_db();
+        let service = LinkService::new(&db);
+
+        // Try to delete non-existent link
+        let result = service.delete_link(999);
+        assert!(result.is_err());
+    }
+
     // ScrapService tests
     #[test]
     fn test_add_scrap_success() {

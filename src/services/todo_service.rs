@@ -235,6 +235,24 @@ mod tests {
 
         let updated = service.get_todo(todo.id).unwrap();
         assert_eq!(updated.status, "done");
+        assert!(updated.completed_at.is_some());
+    }
+
+    #[test]
+    fn test_update_status_pending_no_completed_at() {
+        let db = setup_db();
+        let task_id = create_test_task(&db);
+        let service = TodoService::new(&db);
+
+        let todo = service.add_todo(task_id, "Test TODO", false).unwrap();
+        service.update_status(todo.id, "done").unwrap();
+
+        // Change back to pending
+        service.update_status(todo.id, "pending").unwrap();
+
+        let updated = service.get_todo(todo.id).unwrap();
+        assert_eq!(updated.status, "pending");
+        assert!(updated.completed_at.is_none());
     }
 
     #[test]

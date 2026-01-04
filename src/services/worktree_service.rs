@@ -848,6 +848,90 @@ mod tests {
     }
 
     #[test]
+    fn test_get_worktree_by_todo_not_found() {
+        use crate::services::{TaskService, TodoService};
+
+        let db = setup_db();
+        let task_service = TaskService::new(&db);
+        let todo_service = TodoService::new(&db);
+        let service = WorktreeService::new(&db);
+
+        let task = task_service
+            .create_task("Test Task", None, Some("PROJ-501"), None)
+            .unwrap();
+
+        let todo = todo_service.add_todo(task.id, "Test TODO", true).unwrap();
+
+        // Don't create any worktree for this TODO
+        // Try to get worktree by TODO
+        let retrieved = service.get_worktree_by_todo(todo.id).unwrap();
+        assert!(retrieved.is_none());
+    }
+
+    #[test]
+    fn test_get_worktree_by_todo_is_base_field() {
+        use crate::services::{TaskService, TodoService};
+        use std::fs;
+        use std::process::Command;
+
+        let db = setup_db();
+        let task_service = TaskService::new(&db);
+        let todo_service = TodoService::new(&db);
+        let service = WorktreeService::new(&db);
+
+        let task = task_service
+            .create_task("Test Task", None, Some("PROJ-502"), None)
+            .unwrap();
+
+        let todo = todo_service.add_todo(task.id, "Test TODO", true).unwrap();
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        let repo_path = temp_dir.path().to_str().unwrap();
+
+        Command::new("git")
+            .args(["init", repo_path])
+            .output()
+            .unwrap();
+
+        Command::new("git")
+            .args(["-C", repo_path, "config", "user.email", "test@example.com"])
+            .output()
+            .unwrap();
+        Command::new("git")
+            .args(["-C", repo_path, "config", "user.name", "Test User"])
+            .output()
+            .unwrap();
+
+        fs::write(temp_dir.path().join("README.md"), "# Test").unwrap();
+        Command::new("git")
+            .args(["-C", repo_path, "add", "."])
+            .output()
+            .unwrap();
+        Command::new("git")
+            .args(["-C", repo_path, "commit", "-m", "Initial commit"])
+            .output()
+            .unwrap();
+
+        // Add TODO worktree (not base)
+        service
+            .add_worktree(
+                task.id,
+                repo_path,
+                None,
+                Some("PROJ-502"),
+                Some(todo.id),
+                false, // is_base = false
+            )
+            .unwrap();
+
+        // Get worktree by TODO and verify is_base is false
+        let retrieved = service.get_worktree_by_todo(todo.id).unwrap();
+        assert!(retrieved.is_some());
+        let wt = retrieved.unwrap();
+        assert_eq!(wt.is_base, false);
+    }
+
+    #[test]
     fn test_add_worktree_with_invalid_todo_id() {
         use crate::utils::TrackError;
         let db = setup_db();

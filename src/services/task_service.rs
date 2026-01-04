@@ -761,6 +761,37 @@ mod tests {
     }
 
     #[test]
+    fn test_set_alias_duplicate() {
+        let db = setup_db();
+        let service = TaskService::new(&db);
+
+        let task1 = service.create_task("Task 1", None, None, None).unwrap();
+        let task2 = service.create_task("Task 2", None, None, None).unwrap();
+
+        service.set_alias(task1.id, "my-alias").unwrap();
+
+        // Try to set the same alias on a different task
+        let result = service.set_alias(task2.id, "my-alias");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_set_alias_same_task_twice() {
+        let db = setup_db();
+        let service = TaskService::new(&db);
+
+        let task = service.create_task("Task 1", None, None, None).unwrap();
+
+        service.set_alias(task.id, "my-alias").unwrap();
+
+        // Setting the same alias on the same task should succeed
+        service.set_alias(task.id, "my-alias").unwrap();
+
+        let updated = service.get_task(task.id).unwrap();
+        assert_eq!(updated.alias, Some("my-alias".to_string()));
+    }
+
+    #[test]
     fn test_remove_alias() {
         let db = setup_db();
         let service = TaskService::new(&db);
