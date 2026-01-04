@@ -1375,4 +1375,21 @@ mod tests {
         let result = handler.handle_llm_help();
         assert!(result.is_ok());
     }
+
+    #[test]
+    fn test_completion() {
+        let db = Database::new_in_memory().unwrap();
+        let handler = CommandHandler::from_db(db);
+
+        // Test that completion handler runs without error for each shell
+        for shell in [
+            clap_complete::Shell::Bash,
+            clap_complete::Shell::Zsh,
+            clap_complete::Shell::Fish,
+            clap_complete::Shell::PowerShell,
+        ] {
+            let result = handler.handle_completion(shell);
+            assert!(result.is_ok(), "Completion generation failed for {:?}", shell);
+        }
+    }
 }
