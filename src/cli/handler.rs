@@ -65,7 +65,7 @@ impl CommandHandler {
             Commands::Repo(cmd) => self.handle_repo(cmd),
             Commands::Alias(cmd) => self.handle_alias(cmd),
             Commands::LlmHelp => self.handle_llm_help(),
-            Commands::Completion { shell } => self.handle_completion(shell),
+            Commands::Completion { shell, dynamic } => self.handle_completion(shell, dynamic),
             Commands::Complete { completion_type } => self.handle_complete(completion_type),
             // Webui is handled directly in main.rs with async runtime
             Commands::Webui { .. } => unreachable!("Webui command is handled in main.rs"),
@@ -1064,15 +1064,36 @@ impl CommandHandler {
         Ok(())
     }
 
-    fn handle_completion(&self, shell: clap_complete::Shell) -> Result<()> {
+    fn handle_completion(&self, shell: clap_complete::Shell, dynamic: bool) -> Result<()> {
         use clap::CommandFactory;
         use clap_complete::generate;
         use std::io;
 
-        let mut cmd = crate::cli::Cli::command();
-        let bin_name = cmd.get_name().to_string();
-
-        generate(shell, &mut cmd, bin_name, &mut io::stdout());
+        if dynamic {
+            // Output dynamic completion script
+            let script = match shell {
+                clap_complete::Shell::Bash => {
+                    include_str!("../../completions/track.bash.dynamic")
+                }
+                clap_complete::Shell::Zsh => {
+                    include_str!("../../completions/_track.dynamic")
+                }
+                _ => {
+                    eprintln!("Dynamic completions are only available for bash and zsh.");
+                    eprintln!("Falling back to static completions for {:?}.", shell);
+                    let mut cmd = crate::cli::Cli::command();
+                    let bin_name = cmd.get_name().to_string();
+                    generate(shell, &mut cmd, bin_name, &mut io::stdout());
+                    return Ok(());
+                }
+            };
+            print!("{}", script);
+        } else {
+            // Generate static completion using clap_complete
+            let mut cmd = crate::cli::Cli::command();
+            let bin_name = cmd.get_name().to_string();
+            generate(shell, &mut cmd, bin_name, &mut io::stdout());
+        }
 
         Ok(())
     }

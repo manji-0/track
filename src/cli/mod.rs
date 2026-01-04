@@ -141,6 +141,10 @@ pub enum Commands {
         /// Shell to generate completions for
         #[arg(value_enum)]
         shell: clap_complete::Shell,
+
+        /// Generate dynamic completion script (with real-time data)
+        #[arg(short, long)]
+        dynamic: bool,
     },
 
     /// Output completion candidates (hidden, for shell completion scripts)

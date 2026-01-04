@@ -135,14 +135,14 @@ The Web UI provides a modern, browser-based interface with real-time updates via
 **Quick Install (Dynamic - Recommended):**
 
 ```bash
-# Bash
+# Bash (dynamic)
 mkdir -p ~/.local/share/bash-completion/completions
-cp completions/track.bash.dynamic ~/.local/share/bash-completion/completions/track
+track completion bash --dynamic > ~/.local/share/bash-completion/completions/track
 source ~/.local/share/bash-completion/completions/track
 
-# Zsh
+# Zsh (dynamic)
 mkdir -p ~/.zsh/completions
-cp completions/_track.dynamic ~/.zsh/completions/_track
+track completion zsh --dynamic > ~/.zsh/completions/_track
 # Add to ~/.zshrc: fpath=(~/.zsh/completions $fpath)
 # Then: exec zsh
 
