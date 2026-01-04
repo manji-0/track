@@ -1,0 +1,487 @@
+#compdef track
+
+# Dynamic completion helper functions for track CLI
+# These functions call 'track _complete' to get dynamic data
+
+_track_tasks() {
+    local -a tasks
+    local line
+    while IFS=: read -r id rest; do
+        tasks+=("$id:$rest")
+    done < <(track _complete tasks 2>/dev/null)
+    _describe 'task' tasks
+}
+
+_track_todos() {
+    local -a todos
+    local line
+    while IFS=: read -r id content; do
+        todos+=("$id:$content")
+    done < <(track _complete todos 2>/dev/null)
+    _describe 'todo' todos
+}
+
+_track_links() {
+    local -a links
+    local line
+    while IFS=: read -r id title url; do
+        links+=("$id:$title")
+    done < <(track _complete links 2>/dev/null)
+    _describe 'link' links
+}
+
+_track_repos() {
+    local -a repos
+    local line
+    while IFS=: read -r id path; do
+        repos+=("$id:$path")
+    done < <(track _complete repos 2>/dev/null)
+    _describe 'repository' repos
+}
+
+# Main completion function
+autoload -U is-at-least
+
+_track() {
+    typeset -A opt_args
+    typeset -a _arguments_options
+    local ret=1
+
+    if is-at-least 5.2; then
+        _arguments_options=(-s -S -C)
+    else
+        _arguments_options=(-s -C)
+    fi
+
+    local context curcontext="$curcontext" state line
+    _arguments "${_arguments_options[@]}" : \
+'-h[Print help]' \
+'--help[Print help]' \
+":: :_track_commands" \
+"*::: :->track" \
+&& ret=0
+    case $state in
+    (track)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:track-command-$line[1]:"
+        case $line[1] in
+            (new)
+_arguments "${_arguments_options[@]}" : \
+'-d+[Task description]:DESCRIPTION:_default' \
+'--description=[Task description]:DESCRIPTION:_default' \
+'-t+[Ticket ID]:TICKET:_default' \
+'--ticket=[Ticket ID]:TICKET:_default' \
+'--ticket-url=[Ticket URL]:TICKET_URL:_default' \
+'--template=[Template task reference]:TEMPLATE:_track_tasks' \
+'-h[Print help]' \
+'--help[Print help]' \
+':name -- Task name:_default' \
+&& ret=0
+;;
+(list)
+_arguments "${_arguments_options[@]}" : \
+'-a[Include archived tasks]' \
+'--all[Include archived tasks]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(switch)
+_arguments "${_arguments_options[@]}" : \
+'-h[Print help]' \
+'--help[Print help]' \
+':task_ref -- Task ID or reference:_track_tasks' \
+&& ret=0
+;;
+(status)
+_arguments "${_arguments_options[@]}" : \
+'-j[Output in JSON format]' \
+'--json[Output in JSON format]' \
+'-a[Show all scraps]' \
+'--all[Show all scraps]' \
+'-h[Print help]' \
+'--help[Print help]' \
+'::id -- Task ID or reference:_track_tasks' \
+&& ret=0
+;;
+(desc)
+_arguments "${_arguments_options[@]}" : \
+'-t+[Target task ID]:TASK:_default' \
+'--task=[Target task ID]:TASK:_default' \
+'-h[Print help]' \
+'--help[Print help]' \
+'::description:_default' \
+&& ret=0
+;;
+(ticket)
+_arguments "${_arguments_options[@]}" : \
+'--task=[Target task ID]:TASK:_default' \
+'-h[Print help]' \
+'--help[Print help]' \
+':ticket_id:_default' \
+':url:_default' \
+&& ret=0
+;;
+(archive)
+_arguments "${_arguments_options[@]}" : \
+'-h[Print help]' \
+'--help[Print help]' \
+'::task_ref:_track_tasks' \
+&& ret=0
+;;
+(todo)
+_arguments "${_arguments_options[@]}" : \
+'-h[Print help]' \
+'--help[Print help]' \
+":: :_track__todo_commands" \
+"*::: :->todo" \
+&& ret=0
+
+case $state in
+    (todo)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:track-todo-command-$line[1]:"
+        case $line[1] in
+            (add)
+_arguments "${_arguments_options[@]}" : \
+'-w[Create worktrees for this TODO]' \
+'--worktree[Create worktrees for this TODO]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':text -- TODO content:_default' \
+&& ret=0
+;;
+            (list)
+_arguments "${_arguments_options[@]}" : \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+            (update)
+_arguments "${_arguments_options[@]}" : \
+'-h[Print help]' \
+'--help[Print help]' \
+':id -- TODO ID:_track_todos' \
+':status -- New status:_default' \
+&& ret=0
+;;
+            (done)
+_arguments "${_arguments_options[@]}" : \
+'-h[Print help]' \
+'--help[Print help]' \
+':id -- TODO ID:_track_todos' \
+&& ret=0
+;;
+            (delete)
+_arguments "${_arguments_options[@]}" : \
+'-f[Skip confirmation]' \
+'--force[Skip confirmation]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':id -- TODO ID:_track_todos' \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+(link)
+_arguments "${_arguments_options[@]}" : \
+'-h[Print help]' \
+'--help[Print help]' \
+":: :_track__link_commands" \
+"*::: :->link" \
+&& ret=0
+
+case $state in
+    (link)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:track-link-command-$line[1]:"
+        case $line[1] in
+            (add)
+_arguments "${_arguments_options[@]}" : \
+'-h[Print help]' \
+'--help[Print help]' \
+':url:_default' \
+'::title:_default' \
+&& ret=0
+;;
+            (list)
+_arguments "${_arguments_options[@]}" : \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+            (delete)
+_arguments "${_arguments_options[@]}" : \
+'-h[Print help]' \
+'--help[Print help]' \
+':index -- Link index:_track_links' \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+(scrap)
+_arguments "${_arguments_options[@]}" : \
+'-h[Print help]' \
+'--help[Print help]' \
+":: :_track__scrap_commands" \
+"*::: :->scrap" \
+&& ret=0
+
+case $state in
+    (scrap)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:track-scrap-command-$line[1]:"
+        case $line[1] in
+            (add)
+_arguments "${_arguments_options[@]}" : \
+'-h[Print help]' \
+'--help[Print help]' \
+':content:_default' \
+&& ret=0
+;;
+            (list)
+_arguments "${_arguments_options[@]}" : \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+(sync)
+_arguments "${_arguments_options[@]}" : \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(repo)
+_arguments "${_arguments_options[@]}" : \
+'-h[Print help]' \
+'--help[Print help]' \
+":: :_track__repo_commands" \
+"*::: :->repo" \
+&& ret=0
+
+case $state in
+    (repo)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:track-repo-command-$line[1]:"
+        case $line[1] in
+            (add)
+_arguments "${_arguments_options[@]}" : \
+'-b+[Base branch]:BASE:_default' \
+'--base=[Base branch]:BASE:_default' \
+'-h[Print help]' \
+'--help[Print help]' \
+'::path:_files -/' \
+&& ret=0
+;;
+            (list)
+_arguments "${_arguments_options[@]}" : \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+            (remove)
+_arguments "${_arguments_options[@]}" : \
+'-h[Print help]' \
+'--help[Print help]' \
+':id -- Repository ID:_track_repos' \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+(alias)
+_arguments "${_arguments_options[@]}" : \
+'-h[Print help]' \
+'--help[Print help]' \
+":: :_track__alias_commands" \
+"*::: :->alias" \
+&& ret=0
+
+case $state in
+    (alias)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:track-alias-command-$line[1]:"
+        case $line[1] in
+            (set)
+_arguments "${_arguments_options[@]}" : \
+'-t+[Target task ID]:TASK:_default' \
+'--task=[Target task ID]:TASK:_default' \
+'-h[Print help]' \
+'--help[Print help]' \
+':alias:_default' \
+&& ret=0
+;;
+            (remove)
+_arguments "${_arguments_options[@]}" : \
+'-t+[Target task ID]:TASK:_default' \
+'--task=[Target task ID]:TASK:_default' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+(llm-help)
+_arguments "${_arguments_options[@]}" : \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(completion)
+_arguments "${_arguments_options[@]}" : \
+'-h[Print help]' \
+'--help[Print help]' \
+':shell:(bash zsh fish powershell)' \
+&& ret=0
+;;
+(webui)
+_arguments "${_arguments_options[@]}" : \
+'-p+[Port]:PORT:_default' \
+'--port=[Port]:PORT:_default' \
+'-o[Open browser]' \
+'--open[Open browser]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+":: :_track__help_commands" \
+"*::: :->help" \
+&& ret=0
+
+case $state in
+    (help)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:track-help-command-$line[1]:"
+        case $line[1] in
+            (new|list|switch|status|desc|ticket|archive|todo|link|scrap|sync|repo|alias|llm-help|completion|webui|help)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+        esac
+    ;;
+esac
+}
+
+(( $+functions[_track_commands] )) ||
+_track_commands() {
+    local commands; commands=(
+'new:Create a new task and switch to it' \
+'list:List tasks' \
+'switch:Switch to a different task' \
+'status:Show detailed information about the current task' \
+'desc:View or set task description' \
+'ticket:Link a ticket to a task' \
+'archive:Archive a task' \
+'todo:TODO management' \
+'link:Link management' \
+'scrap:Scrap (work notes) management' \
+'sync:Sync repositories and setup task branches' \
+'repo:Repository management' \
+'alias:Task alias management' \
+'llm-help:Show help optimized for LLM agents' \
+'completion:Generate shell completion script' \
+'webui:Start web-based user interface' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'track commands' commands "$@"
+}
+
+(( $+functions[_track__todo_commands] )) ||
+_track__todo_commands() {
+    local commands; commands=(
+'add:Add a new TODO' \
+'list:List TODOs' \
+'update:Update TODO status' \
+'done:Complete a TODO' \
+'delete:Delete a TODO' \
+    )
+    _describe -t commands 'track todo commands' commands "$@"
+}
+
+(( $+functions[_track__link_commands] )) ||
+_track__link_commands() {
+    local commands; commands=(
+'add:Add a new link' \
+'list:List links' \
+'delete:Delete a link' \
+    )
+    _describe -t commands 'track link commands' commands "$@"
+}
+
+(( $+functions[_track__scrap_commands] )) ||
+_track__scrap_commands() {
+    local commands; commands=(
+'add:Add a new scrap' \
+'list:List scraps' \
+    )
+    _describe -t commands 'track scrap commands' commands "$@"
+}
+
+(( $+functions[_track__repo_commands] )) ||
+_track__repo_commands() {
+    local commands; commands=(
+'add:Add a repository' \
+'list:List repositories' \
+'remove:Remove a repository' \
+    )
+    _describe -t commands 'track repo commands' commands "$@"
+}
+
+(( $+functions[_track__alias_commands] )) ||
+_track__alias_commands() {
+    local commands; commands=(
+'set:Set an alias for the current task' \
+'remove:Remove the alias from the current task' \
+    )
+    _describe -t commands 'track alias commands' commands "$@"
+}
+
+(( $+functions[_track__help_commands] )) ||
+_track__help_commands() {
+    local commands; commands=(
+'new:Create a new task and switch to it' \
+'list:List tasks' \
+'switch:Switch to a different task' \
+'status:Show detailed information' \
+'desc:View or set task description' \
+'ticket:Link a ticket to a task' \
+'archive:Archive a task' \
+'todo:TODO management' \
+'link:Link management' \
+'scrap:Scrap management' \
+'sync:Sync repositories' \
+'repo:Repository management' \
+'alias:Task alias management' \
+'llm-help:Show LLM help' \
+'completion:Generate completion script' \
+'webui:Start web UI' \
+'help:Print help' \
+    )
+    _describe -t commands 'help commands' commands "$@"
+}
+
+_track "$@"

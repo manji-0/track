@@ -6,7 +6,20 @@
 
 pub mod handler;
 
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
+
+/// Types of completion data that can be output
+#[derive(Debug, Clone, ValueEnum)]
+pub enum CompletionType {
+    /// Task IDs and names for 'track switch'
+    Tasks,
+    /// TODO IDs and content for current task
+    Todos,
+    /// Link IDs and URLs for current task
+    Links,
+    /// Repository IDs and paths for current task
+    Repos,
+}
 
 /// Main CLI structure for the track application.
 #[derive(Parser)]
@@ -122,6 +135,22 @@ pub enum Commands {
 
     /// Show help optimized for LLM agents
     LlmHelp,
+
+    /// Generate shell completion script
+    Completion {
+        /// Shell to generate completions for
+        #[arg(value_enum)]
+        shell: clap_complete::Shell,
+    },
+
+    /// Output completion candidates (hidden, for shell completion scripts)
+    #[command(hide = true)]
+    #[command(name = "_complete")]
+    Complete {
+        /// Type of completion data to output
+        #[arg(value_enum)]
+        completion_type: CompletionType,
+    },
 
     /// Start web-based user interface
     Webui {

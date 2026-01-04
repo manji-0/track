@@ -1,0 +1,139 @@
+# Bash completion script for track with dynamic data support
+# Source this file or copy to /etc/bash_completion.d/track
+
+# Helper function to get dynamic completion data
+_track_complete_tasks() {
+    track _complete tasks 2>/dev/null | cut -d: -f1
+}
+
+_track_complete_todos() {
+    track _complete todos 2>/dev/null | cut -d: -f1
+}
+
+_track_complete_links() {
+    track _complete links 2>/dev/null | cut -d: -f1
+}
+
+_track_complete_repos() {
+    track _complete repos 2>/dev/null | cut -d: -f1
+}
+
+_track() {
+    local cur prev words cword
+    _init_completion || return
+
+    local commands="new list switch status desc ticket archive todo link scrap sync repo alias llm-help completion webui help"
+    local todo_commands="add list update done delete"
+    local link_commands="add list delete"
+    local scrap_commands="add list"
+    local repo_commands="add list remove"
+    local alias_commands="set remove"
+
+    # Handle subcommands
+    if [[ $cword -eq 1 ]]; then
+        COMPREPLY=($(compgen -W "$commands" -- "$cur"))
+        return
+    fi
+
+    local command="${words[1]}"
+    
+    case "$command" in
+        switch)
+            if [[ $cword -eq 2 ]]; then
+                COMPREPLY=($(compgen -W "$(_track_complete_tasks)" -- "$cur"))
+            fi
+            ;;
+        archive)
+            if [[ $cword -eq 2 ]]; then
+                COMPREPLY=($(compgen -W "$(_track_complete_tasks)" -- "$cur"))
+            fi
+            ;;
+        status)
+            if [[ $cword -eq 2 ]] && [[ "$cur" != -* ]]; then
+                COMPREPLY=($(compgen -W "$(_track_complete_tasks)" -- "$cur"))
+            else
+                COMPREPLY=($(compgen -W "--json --all --help" -- "$cur"))
+            fi
+            ;;
+        new)
+            case "$prev" in
+                --template)
+                    COMPREPLY=($(compgen -W "$(_track_complete_tasks)" -- "$cur"))
+                    ;;
+                *)
+                    COMPREPLY=($(compgen -W "--description --ticket --ticket-url --template --help" -- "$cur"))
+                    ;;
+            esac
+            ;;
+        todo)
+            if [[ $cword -eq 2 ]]; then
+                COMPREPLY=($(compgen -W "$todo_commands" -- "$cur"))
+            elif [[ $cword -ge 3 ]]; then
+                local subcmd="${words[2]}"
+                case "$subcmd" in
+                    done|delete|update)
+                        if [[ $cword -eq 3 ]]; then
+                            COMPREPLY=($(compgen -W "$(_track_complete_todos)" -- "$cur"))
+                        elif [[ "$subcmd" == "update" ]] && [[ $cword -eq 4 ]]; then
+                            COMPREPLY=($(compgen -W "pending done cancelled" -- "$cur"))
+                        fi
+                        ;;
+                    add)
+                        COMPREPLY=($(compgen -W "--worktree --help" -- "$cur"))
+                        ;;
+                esac
+            fi
+            ;;
+        link)
+            if [[ $cword -eq 2 ]]; then
+                COMPREPLY=($(compgen -W "$link_commands" -- "$cur"))
+            elif [[ $cword -eq 3 ]] && [[ "${words[2]}" == "delete" ]]; then
+                COMPREPLY=($(compgen -W "$(_track_complete_links)" -- "$cur"))
+            fi
+            ;;
+        scrap)
+            if [[ $cword -eq 2 ]]; then
+                COMPREPLY=($(compgen -W "$scrap_commands" -- "$cur"))
+            fi
+            ;;
+        repo)
+            if [[ $cword -eq 2 ]]; then
+                COMPREPLY=($(compgen -W "$repo_commands" -- "$cur"))
+            elif [[ $cword -eq 3 ]] && [[ "${words[2]}" == "remove" ]]; then
+                COMPREPLY=($(compgen -W "$(_track_complete_repos)" -- "$cur"))
+            elif [[ "${words[2]}" == "add" ]]; then
+                case "$prev" in
+                    --base)
+                        # No completion for branch names
+                        ;;
+                    *)
+                        COMPREPLY=($(compgen -W "--base --help" -- "$cur"))
+                        ;;
+                esac
+            fi
+            ;;
+        alias)
+            if [[ $cword -eq 2 ]]; then
+                COMPREPLY=($(compgen -W "$alias_commands" -- "$cur"))
+            fi
+            ;;
+        completion)
+            if [[ $cword -eq 2 ]]; then
+                COMPREPLY=($(compgen -W "bash zsh fish powershell" -- "$cur"))
+            fi
+            ;;
+        list)
+            COMPREPLY=($(compgen -W "--all --help" -- "$cur"))
+            ;;
+        desc|ticket|sync|llm-help|webui)
+            COMPREPLY=($(compgen -W "--help" -- "$cur"))
+            ;;
+        help)
+            if [[ $cword -eq 2 ]]; then
+                COMPREPLY=($(compgen -W "$commands" -- "$cur"))
+            fi
+            ;;
+    esac
+}
+
+complete -F _track track
