@@ -3,53 +3,14 @@
   <h1>Track</h1>
 </div>
 
-
-**A lightweight CLI tool for managing development tasks with integrated Git worktree support.**
-
-Track helps developers organize their work by managing tasks, TODOs, and notes in a context-aware way. It seamlessly integrates with issue trackers (Jira, GitHub, GitLab) and automatically manages Git worktrees for parallel development.
-
-Perfect for developers who want to:
-- 📋 Keep track of multiple tasks and their progress
-- 🌳 Work on multiple features simultaneously without branch switching
-- 🎫 Link work directly to tickets in your issue tracker
-- 📝 Document decisions and findings as you work
-- ⚡ Stay focused with a simple, intuitive CLI
-
+A lightweight CLI tool for managing development tasks with integrated Git worktree support.
 
 ## Features
 
-### 🎯 Context-based Task Management
-Manage TODOs, notes, and repositories without specifying IDs each time. Simply switch to a task and all operations apply to it automatically.
-
-```bash
-track new "Feature X"        # Create and switch to task
-track todo add "Step 1"      # Automatically added to current task
-track scrap add "Note..."    # Automatically linked to current task
-```
-
-### 🎫 Ticket Integration
-Seamlessly integrate with Jira, GitHub Issues, and GitLab Issues. Ticket IDs are automatically used in branch names for easy correlation.
-
-```bash
-track new "Fix bug" --ticket PROJ-123
-track sync  # Creates branch: task/PROJ-123
-track switch t:PROJ-123  # Reference by ticket ID
-```
-
-### 🌳 Git Worktree Management
-Automatically create and manage isolated working directories for each TODO, enabling parallel development without branch switching.
-
-```bash
-track todo add "Refactor auth" --worktree
-track sync  # Creates: /repo/task/PROJ-123-todo-1
-# Work in isolation, then merge automatically with:
-track todo done 1
-```
-
-### ⚡ Simple & Fast
-- **Intuitive CLI**: Natural command structure that's easy to remember
-- **Single binary**: No dependencies, just download and run
-- **Fast execution**: Built with Rust for maximum performance
+- **Context-based Task Management**: Switch to a task and all operations apply automatically
+- **Ticket Integration**: Seamlessly integrate with Jira, GitHub Issues, and GitLab Issues
+- **Git Worktree Management**: Automatically manage isolated working directories for parallel development
+- **Web UI**: Modern browser-based interface with real-time updates
 
 
 ## Installation
@@ -65,85 +26,26 @@ cargo install --path .
 ## Quick Start
 
 ```bash
-# 1. Create a new task with ticket integration
+# Create a new task
 track new "Implement User Authentication" \
-  --description "Add JWT-based authentication system with login/logout endpoints" \
   --ticket AUTH-456 \
   --ticket-url https://jira.example.com/browse/AUTH-456
 
-# 2. Add TODOs (use --worktree to schedule worktree creation)
-track todo add "Design database schema for users table"
-track todo add "Implement JWT token generation and validation" --worktree
-track todo add "Create login endpoint"
+# Add TODOs
+track todo add "Design database schema"
+track todo add "Implement JWT token generation" --worktree
 
-# 3. Add reference links
+# Add reference links
 track link add https://jwt.io/introduction "JWT Documentation"
-track link add https://github.com/example/auth-spec "Auth Specification"
 
-# 4. Record work notes as you progress
-track scrap add "Decided to use bcrypt for password hashing"
-track scrap add "JWT expiry set to 24 hours for security"
+# Record work notes
+track scrap add "Using bcrypt for password hashing"
 
-# 5. Mark TODOs as complete
+# Mark TODO as complete
 track todo done 1
 
-# 6. View current task status
+# View current task status
 track status
-```
-
-### Sample Output
-
-Running `track status` displays a comprehensive overview of your current task:
-
-```
-# Task #12: Implement User Authentication
-
-**Created:** 2026-01-01 17:20:43
-**Ticket:** [AUTH-456](https://jira.example.com/browse/AUTH-456)
-
-## Description
-
-Add JWT-based authentication system with login/logout endpoints
-
-## TODOs
-
-- [x] **[1]** Design database schema for users table
-- [ ] **[2]** Implement JWT token generation and validation
-- [ ] **[3]** Create login endpoint
-
-## Links
-
-- [JWT Documentation](https://jwt.io/introduction)
-- [Auth Specification](https://github.com/example/auth-spec)
-
-## Recent Scraps
-
-### [17:20]
-
-JWT expiry set to 24 hours for security
-
-### [17:21]
-
-Decided to use bcrypt for password hashing
-```
-
-### Workflow with Git Worktrees
-
-```bash
-# Register repository and sync (creates task branches and worktrees)
-track repo add /path/to/repo
-track sync
-
-# This creates:
-# - Branch: task/AUTH-456 (base task branch)
-# - Worktree: /path/to/repo/task/AUTH-456-todo-2 (for TODO #2)
-
-# Navigate to worktree and work on TODO
-cd /path/to/repo/task/AUTH-456-todo-2
-# ... make changes, commit ...
-
-# Complete TODO (automatically merges and cleans up worktree)
-track todo done 2
 ```
 
 
@@ -157,41 +59,20 @@ track todo done 2
 | `track new <name> --template <task_ref>` | Create task from template (copies TODOs) |
 | `track list [--all]` | Display task list |
 | `track switch <task_id>` | Switch tasks |
-| `track status [id]` | Display detailed information about the current (or specified) task |
+| `track status [id]` | Display task information |
 | `track desc [description]` | View or set task description |
 | `track ticket <ticket_id> <url>` | Link a ticket to the task |
 | `track alias set <alias>` | Set an alias for the current task |
 | `track alias remove` | Remove alias from the current task |
-| `track archive [task_id]` | Archive a task (defaults to current task) |
-
-**Example: Task List**
-
-```bash
-$ track list
-```
-
-```
-+---+----+----------+---------------------------+--------+---------------------+
-|   | ID | Ticket   | Name                      | Status | Created             |
-+---+----+----------+---------------------------+--------+---------------------+
-| * | 14 | -        | Add dark mode             | active | 2026-01-01 17:21:39 |
-|   | 12 | AUTH-456 | Implement Authentication  | active | 2026-01-01 17:20:43 |
-|   | 10 | PROJ-123 | API Implementation        | active | 2026-01-01 15:14:54 |
-+---+----+----------+---------------------------+--------+---------------------+
-```
-
-The `*` marker indicates the current active task. Use `--all` to include archived tasks.
-
+| `track archive [task_id]` | Archive a task |
 
 ### TODO Management
-
-TODOs are numbered sequentially within each task (1, 2, 3...). All TODO commands operate on the current task.
 
 | Command | Description |
 |---------|-------------|
 | `track todo add <text> [--worktree]` | Add a TODO (optionally create worktrees) |
-| `track todo list` | Display TODO list with task-scoped indices |
-| `track todo update <index> <status>` | Update TODO status (index: 1, 2, 3...) |
+| `track todo list` | Display TODO list |
+| `track todo update <index> <status>` | Update TODO status |
 | `track todo done <index>` | Complete a TODO (merges and removes worktrees) |
 | `track todo delete <index>` | Delete a TODO |
 
@@ -224,8 +105,6 @@ TODOs are numbered sequentially within each task (1, 2, 3...). All TODO commands
 |---------|-------------|
 | `track sync` | Sync repositories and setup task branches |
 
-**Note**: The `track sync` command creates task branches in all registered repositories and sets up worktrees for TODOs that have `--worktree` flag.
-
 ### Web UI
 
 <img width="2520" height="2001" alt="de5e316bf86187756a01c867ddb199df" src="https://github.com/user-attachments/assets/49c5ce74-2eac-4448-87d7-1eadb4214743" />
@@ -236,193 +115,17 @@ TODOs are numbered sequentially within each task (1, 2, 3...). All TODO commands
 | `track webui --port 8080` | Start on custom port |
 | `track webui --open` | Start and open browser automatically |
 
-The Web UI provides a modern, browser-based interface for task management:
+The Web UI provides a modern, browser-based interface with real-time updates via Server-Sent Events (SSE).
 
-- **Real-time Updates**: Changes sync instantly across all connected browser tabs and CLI sessions via Server-Sent Events (SSE)
-- **Todo Management**: Add and delete todos directly from the browser
-- **Scrap Recording**: Add work notes through the web interface
-- **Modern Design**: Dark theme with glassmorphism, gradients, and micro-animations
+## Additional Features
 
-```bash
-# Start the web UI
-track webui --port 3000 --open
+For detailed information on the following features, see [docs/USAGE_EXAMPLES.md](docs/USAGE_EXAMPLES.md):
 
-# Access at http://localhost:3000
-```
-
-## Task Aliases
-
-Assign human-readable aliases to tasks for easier reference:
-
-```bash
-# Set an alias for the current task
-track alias set daily-report
-
-# Now you can reference the task by alias
-track switch daily-report
-track status daily-report
-track archive daily-report
-
-# Remove alias
-track alias remove
-```
-
-**Task Reference Priority:**
-1. Numeric ID (e.g., `3`)
-2. Ticket reference (e.g., `t:PROJ-123`)
-3. Task alias (e.g., `daily-report`)
-
-**Alias Rules:**
-- Alphanumeric characters, hyphens, and underscores only
-- 1-50 characters
-- Must be unique
-- Cannot use reserved command names (new, list, status, etc.)
-
-## Task Templates
-
-Create new tasks from existing task templates to reuse TODO lists for recurring workflows:
-
-```bash
-# Create a template task with common TODOs
-track new "Daily Report Template"
-track alias set daily-template
-track todo add "Collect metrics"
-track todo add "Analyze data"
-track todo add "Write summary"
-track todo add "Send to team"
-
-# Create new task from template
-track new "Daily Report 2026-01-04" --template daily-template
-
-# All TODOs are copied with 'pending' status
-# You can also use task ID or ticket reference
-track new "Daily Report 2026-01-05" --template 3
-track new "Daily Report 2026-01-06" --template t:TEMPLATE-001
-```
-
-**Use Cases:**
-- Daily/weekly reports
-- Release checklists
-- Code review processes
-- Onboarding workflows
-
-## Ticket Reference
-
-You can reference tasks by ticket ID instead of task ID:
-
-```bash
-# Switch task by ticket ID
-track switch t:PROJ-123
-
-# Archive by ticket ID
-track archive t:PROJ-123
-```
-
-## Branch Naming Convention
-
-For tasks with registered tickets, the ticket ID is automatically used in branch names:
-
-```bash
-# When ticket PROJ-123 is registered and sync is run:
-track sync
-# → Creates branch: task/PROJ-123 (base task branch)
-
-# When TODO #1 has --worktree flag:
-track todo add "Implement login" --worktree
-track sync
-# → Creates branch: task/PROJ-123-todo-1 (TODO work branch)
-```
-
-## Usage Examples
-
-### Example 1: Bug Fix Workflow
-
-```bash
-# 1. Create task for bug fix
-track new "Fix authentication timeout" \
-  --ticket BUG-456 \
-  --ticket-url https://github.com/myorg/myrepo/issues/456
-
-# 2. Add investigation notes
-track scrap add "Issue occurs after 30 minutes of inactivity"
-track scrap add "Likely related to JWT expiration handling"
-
-# 3. Add TODO with worktree for isolated work
-track todo add "Fix token refresh logic" --worktree
-
-# 4. Setup worktree
-track repo add .
-track sync
-
-# 5. Work in isolation
-cd task/BUG-456-todo-1
-# ... make changes, test, commit ...
-
-# 6. Complete and merge
-track todo done 1  # Automatically merges and cleans up
-
-# 7. Archive when done
-track archive t:BUG-456
-```
-
-### Example 2: Feature Development with Multiple TODOs
-
-```bash
-# 1. Create feature task
-track new "Add user profile page" --ticket FEAT-789
-
-# 2. Break down into TODOs
-track todo add "Design profile UI mockup"
-track todo add "Implement backend API" --worktree
-track todo add "Create frontend components" --worktree
-track todo add "Write tests"
-
-# 3. Add reference materials
-track link add https://figma.com/design/profile "UI Design"
-track link add https://api-docs.example.com "API Spec"
-
-# 4. Work through TODOs
-track todo done 1  # Complete design
-track sync         # Create worktrees for #2 and #3
-
-# Work on backend
-cd task/FEAT-789-todo-2
-# ... implement API ...
-track scrap add "Using PostgreSQL for user data storage"
-track todo done 2
-
-# Work on frontend
-cd ../task/FEAT-789-todo-3
-# ... build components ...
-track todo done 3
-
-# 5. Check progress
-track status
-```
-
-### Example 3: Managing Multiple Tasks
-
-```bash
-# Create multiple tasks
-track new "Refactor authentication module" --ticket TECH-101
-track new "Update documentation" --ticket DOC-202
-track new "Performance optimization" --ticket PERF-303
-
-# View all tasks
-track list
-
-# Switch between tasks
-track switch t:TECH-101
-track todo add "Extract auth logic to separate service"
-track scrap add "Current code is in src/auth/legacy.rs"
-
-track switch t:DOC-202
-track todo add "Update API documentation"
-track link add https://swagger.io "Swagger Editor"
-
-# Check current task
-track status
-```
+- **Task Aliases**: Assign human-readable aliases to tasks
+- **Task Templates**: Create new tasks from existing task templates
+- **Ticket Reference**: Reference tasks by ticket ID
+- **Branch Naming Convention**: Automatic branch naming based on ticket IDs
+- **Git Worktree Workflows**: Detailed workflows for parallel development
 
 ## Database
 
@@ -454,67 +157,8 @@ See [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md) for details.
 - [DESIGN.md](DESIGN.md) - Design specification
 - [docs/FUNCTIONAL_SPEC.md](docs/FUNCTIONAL_SPEC.md) - Functional specification
 - [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md) - Project structure
-
-## For LLM Agents
-
-Track provides **Agent Skills** following the [official Agent Skills specification](https://github.com/anthropics/skills) for LLM agents (Claude Code, Cline, Cursor, etc.).
-
-### Quick Start for Agents
-
-```bash
-# Always start with status
-track status
-
-# Reference the main skill
-skills/track-task-management/SKILL.md
-```
-
-Skills use progressive disclosure:
-- **SKILL.md**: Quick start and overview (~1000 tokens)
-- **references/**: Detailed guides loaded only when needed
-
-### Main Skill: track-task-management
-
-**Purpose**: Manages development tasks with integrated Git worktrees.
-
-**Use when**: Creating tasks, adding TODOs, working through task lists, or managing development workflows.
-
-**Quick commands:**
-```bash
-track new "<task>"              # Create task
-track todo add "<item>"         # Add TODO  
-track todo done <index>         # Complete TODO
-track scrap add "<note>"        # Record progress
-track status                    # Check state
-```
-
-### Detailed References
-
-The main skill references detailed guides for specific workflows:
-
-| Reference | When to Use |
-|-----------|-------------|
-| [creating-tasks.md](skills/track-task-management/references/creating-tasks.md) | Setting up new tasks |
-| [executing-tasks.md](skills/track-task-management/references/executing-tasks.md) | Working through TODOs |
-| [advanced-workflows.md](skills/track-task-management/references/advanced-workflows.md) | Multi-repo, parallel work |
-
-### LLM Help Command
-
-For quick CLI reference:
-
-```bash
-track llm-help
-```
-
-Outputs comprehensive guide with commands, ticket integration, and worktree details.
-
-### Installation
-
-**No setup required** - Skills auto-detected in workspace.
-
-For agent-specific configuration, see [skills/INSTALL.md](skills/INSTALL.md).
-
-Full skill documentation: [skills/README.md](skills/README.md)
+- [docs/USAGE_EXAMPLES.md](docs/USAGE_EXAMPLES.md) - Detailed usage examples
+- [docs/LLM_INTEGRATION.md](docs/LLM_INTEGRATION.md) - LLM agent integration guide
 
 ## License
 
