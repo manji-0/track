@@ -164,7 +164,7 @@ _arguments "${_arguments_options[@]}" : \
 '-h[Print help]' \
 '--help[Print help]' \
 ':id -- TODO ID:_track_todos' \
-':status -- New status:_default' \
+':status -- New status:(pending done cancelled)' \
 && ret=0
 ;;
             (done)
