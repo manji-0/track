@@ -64,6 +64,7 @@ impl CommandHandler {
             Commands::Repo(cmd) => self.handle_repo(cmd),
             Commands::Alias(cmd) => self.handle_alias(cmd),
             Commands::LlmHelp => self.handle_llm_help(),
+            Commands::Completion { shell } => self.handle_completion(shell),
             // Webui is handled directly in main.rs with async runtime
             Commands::Webui { .. } => unreachable!("Webui command is handled in main.rs"),
         }
@@ -1058,6 +1059,19 @@ impl CommandHandler {
             }
         }
 
+        Ok(())
+    }
+
+    fn handle_completion(&self, shell: clap_complete::Shell) -> Result<()> {
+        use clap::CommandFactory;
+        use clap_complete::generate;
+        use std::io;
+
+        let mut cmd = crate::cli::Cli::command();
+        let bin_name = cmd.get_name().to_string();
+        
+        generate(shell, &mut cmd, bin_name, &mut io::stdout());
+        
         Ok(())
     }
 

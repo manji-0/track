@@ -123,6 +123,13 @@ pub enum Commands {
     /// Show help optimized for LLM agents
     LlmHelp,
 
+    /// Generate shell completion script
+    Completion {
+        /// Shell to generate completions for
+        #[arg(value_enum)]
+        shell: clap_complete::Shell,
+    },
+
     /// Start web-based user interface
     Webui {
         /// Port to listen on
