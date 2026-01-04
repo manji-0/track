@@ -1,5 +1,6 @@
 use crate::cli::{
-    AliasCommands, Commands, LinkCommands, RepoCommands, ScrapCommands, TodoCommands,
+    AliasCommands, Commands, CompletionType, LinkCommands, RepoCommands, ScrapCommands,
+    TodoCommands,
 };
 use crate::db::Database;
 use crate::services::{
@@ -65,6 +66,7 @@ impl CommandHandler {
             Commands::Alias(cmd) => self.handle_alias(cmd),
             Commands::LlmHelp => self.handle_llm_help(),
             Commands::Completion { shell } => self.handle_completion(shell),
+            Commands::Complete { completion_type } => self.handle_complete(completion_type),
             // Webui is handled directly in main.rs with async runtime
             Commands::Webui { .. } => unreachable!("Webui command is handled in main.rs"),
         }
@@ -1071,6 +1073,69 @@ impl CommandHandler {
         let bin_name = cmd.get_name().to_string();
 
         generate(shell, &mut cmd, bin_name, &mut io::stdout());
+
+        Ok(())
+    }
+
+    fn handle_complete(&self, completion_type: CompletionType) -> Result<()> {
+        match completion_type {
+            CompletionType::Tasks => {
+                // Output task IDs and names for 'track switch'
+                let task_service = TaskService::new(&self.db);
+                let tasks = task_service.list_tasks(false)?; // Don't include archived
+
+                for task in tasks {
+                    // Format: ID:Name (or ID:Ticket:Name if ticket exists)
+                    if let Some(ticket) = &task.ticket_id {
+                        println!("{}:{}:{}", task.id, ticket, task.name);
+                    } else {
+                        println!("{}:{}", task.id, task.name);
+                    }
+                }
+            }
+            CompletionType::Todos => {
+                // Output TODO IDs and content for current task
+                let current_task_id = self.db.get_current_task_id()?;
+                if let Some(task_id) = current_task_id {
+                    let todo_service = TodoService::new(&self.db);
+                    let todos = todo_service.list_todos(task_id)?;
+
+                    for todo in todos {
+                        // Only show pending todos
+                        if todo.status == "pending" {
+                            // Format: ID:Content
+                            println!("{}:{}", todo.task_index, todo.content);
+                        }
+                    }
+                }
+            }
+            CompletionType::Links => {
+                // Output link IDs and URLs for current task
+                let current_task_id = self.db.get_current_task_id()?;
+                if let Some(task_id) = current_task_id {
+                    let link_service = LinkService::new(&self.db);
+                    let links = link_service.list_links(task_id)?;
+
+                    for link in links {
+                        // Format: ID:Title:URL
+                        println!("{}:{}:{}", link.task_index, link.title, link.url);
+                    }
+                }
+            }
+            CompletionType::Repos => {
+                // Output repo IDs and paths for current task
+                let current_task_id = self.db.get_current_task_id()?;
+                if let Some(task_id) = current_task_id {
+                    let repo_service = RepoService::new(&self.db);
+                    let repos = repo_service.list_repos(task_id)?;
+
+                    for repo in repos {
+                        // Format: ID:Path
+                        println!("{}:{}", repo.task_index, repo.repo_path);
+                    }
+                }
+            }
+        }
 
         Ok(())
     }
