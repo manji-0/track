@@ -147,6 +147,18 @@ mkdir -p ~/.config/fish/completions
 track completion fish > ~/.config/fish/completions/track.fish
 ```
 
+**Dynamic Completions (Zsh/Bash):**
+
+The completion scripts include intelligent, context-aware suggestions:
+
+```bash
+track switch <TAB>              # Shows your actual task IDs and names
+track todo done <TAB>            # Shows pending TODO IDs with content
+track link delete <TAB>          # Shows link IDs with titles
+track repo remove <TAB>          # Shows repository IDs with paths
+track new --template <TAB>       # Shows task IDs for templates
+```
+
 For detailed installation instructions and troubleshooting, see [completions/README.md](completions/README.md).
 
 ## Additional Features
