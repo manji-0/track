@@ -429,6 +429,74 @@ impl Database {
             [],
         )?;
 
+        // Check for task_index column in links
+        let count: i64 = self.conn.query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('links') WHERE name='task_index'",
+            [],
+            |row| row.get(0),
+        )?;
+
+        if count == 0 {
+            // Add task_index column
+            self.conn
+                .execute("ALTER TABLE links ADD COLUMN task_index INTEGER", [])?;
+
+            // Populate task_index for existing links based on creation order
+            self.conn.execute_batch(
+                r#"
+                WITH numbered_links AS (
+                    SELECT id, task_id, 
+                           ROW_NUMBER() OVER (PARTITION BY task_id ORDER BY created_at) as idx
+                    FROM links
+                )
+                UPDATE links 
+                SET task_index = (
+                    SELECT idx FROM numbered_links WHERE numbered_links.id = links.id
+                )
+                "#,
+            )?;
+
+            // Create unique index on (task_id, task_index)
+            self.conn.execute(
+                "CREATE UNIQUE INDEX idx_links_task_index ON links(task_id, task_index)",
+                [],
+            )?;
+        }
+
+        // Check for task_index column in task_repos
+        let count: i64 = self.conn.query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('task_repos') WHERE name='task_index'",
+            [],
+            |row| row.get(0),
+        )?;
+
+        if count == 0 {
+            // Add task_index column
+            self.conn
+                .execute("ALTER TABLE task_repos ADD COLUMN task_index INTEGER", [])?;
+
+            // Populate task_index for existing repos based on creation order
+            self.conn.execute_batch(
+                r#"
+                WITH numbered_repos AS (
+                    SELECT id, task_id, 
+                           ROW_NUMBER() OVER (PARTITION BY task_id ORDER BY created_at) as idx
+                    FROM task_repos
+                )
+                UPDATE task_repos 
+                SET task_index = (
+                    SELECT idx FROM numbered_repos WHERE numbered_repos.id = task_repos.id
+                )
+                "#,
+            )?;
+
+            // Create unique index on (task_id, task_index)
+            self.conn.execute(
+                "CREATE UNIQUE INDEX idx_task_repos_task_index ON task_repos(task_id, task_index)",
+                [],
+            )?;
+        }
+
         Ok(())
     }
 

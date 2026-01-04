@@ -20,9 +20,16 @@ impl<'a> LinkService<'a> {
         let now = Utc::now().to_rfc3339();
         let conn = self.db.get_connection();
 
+        // Get the next task_index for this task
+        let next_index: i64 = conn.query_row(
+            "SELECT COALESCE(MAX(task_index), 0) + 1 FROM links WHERE task_id = ?1",
+            params![task_id],
+            |row| row.get(0),
+        )?;
+
         conn.execute(
-            "INSERT INTO links (task_id, url, title, created_at) VALUES (?1, ?2, ?3, ?4)",
-            params![task_id, url, title, now],
+            "INSERT INTO links (task_id, task_index, url, title, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![task_id, next_index, url, title, now],
         )?;
 
         let link_id = conn.last_insert_rowid();
@@ -32,16 +39,18 @@ impl<'a> LinkService<'a> {
 
     pub fn get_link(&self, link_id: i64) -> Result<Link> {
         let conn = self.db.get_connection();
-        let mut stmt =
-            conn.prepare("SELECT id, task_id, url, title, created_at FROM links WHERE id = ?1")?;
+        let mut stmt = conn.prepare(
+            "SELECT id, task_id, task_index, url, title, created_at FROM links WHERE id = ?1",
+        )?;
 
         let link = stmt.query_row(params![link_id], |row| {
             Ok(Link {
                 id: row.get(0)?,
                 task_id: row.get(1)?,
-                url: row.get(2)?,
-                title: row.get(3)?,
-                created_at: row.get::<_, String>(4)?.parse().unwrap(),
+                task_index: row.get(2)?,
+                url: row.get(3)?,
+                title: row.get(4)?,
+                created_at: row.get::<_, String>(5)?.parse().unwrap(),
             })
         })?;
 
@@ -51,7 +60,7 @@ impl<'a> LinkService<'a> {
     pub fn list_links(&self, task_id: i64) -> Result<Vec<Link>> {
         let conn = self.db.get_connection();
         let mut stmt = conn.prepare(
-            "SELECT id, task_id, url, title, created_at FROM links WHERE task_id = ?1 ORDER BY created_at ASC"
+            "SELECT id, task_id, task_index, url, title, created_at FROM links WHERE task_id = ?1 ORDER BY task_index ASC"
         )?;
 
         let links = stmt
@@ -59,9 +68,10 @@ impl<'a> LinkService<'a> {
                 Ok(Link {
                     id: row.get(0)?,
                     task_id: row.get(1)?,
-                    url: row.get(2)?,
-                    title: row.get(3)?,
-                    created_at: row.get::<_, String>(4)?.parse().unwrap(),
+                    task_index: row.get(2)?,
+                    url: row.get(3)?,
+                    title: row.get(4)?,
+                    created_at: row.get::<_, String>(5)?.parse().unwrap(),
                 })
             })?
             .collect::<std::result::Result<Vec<_>, _>>()?;

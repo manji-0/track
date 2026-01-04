@@ -593,10 +593,10 @@ pub async fn add_link(
     Ok(Html(html))
 }
 
-/// Delete a link by index (1-based, display order)
+/// Delete a link by task-scoped index
 pub async fn delete_link(
     State(state): State<WebState>,
-    Path(link_index): Path<usize>,
+    Path(link_index): Path<i64>,
 ) -> Result<Html<String>, AppError> {
     let db = state.app.db.lock().await;
 
@@ -605,12 +605,11 @@ pub async fn delete_link(
     let link_service = LinkService::new(&db);
     let links = link_service.list_links(current_task_id)?;
 
-    // Get link by index (1-based)
-    if link_index == 0 || link_index > links.len() {
-        return Err(TrackError::Other("Link not found".to_string()).into());
-    }
-
-    let link = &links[link_index - 1];
+    // Find link by task_index
+    let link = links
+        .iter()
+        .find(|l| l.task_index == link_index)
+        .ok_or_else(|| TrackError::Other(format!("Link #{} not found", link_index)))?;
 
     // Delete link via service
     link_service.delete_link(link.id)?;

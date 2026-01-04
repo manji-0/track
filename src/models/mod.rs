@@ -52,12 +52,18 @@ pub struct Todo {
 /// Links are URLs with titles that provide context or reference material for a task.
 #[derive(Debug, Clone, Serialize)]
 pub struct Link {
+    #[serde(skip)]
     #[allow(dead_code)]
     pub id: i64,
+    #[serde(skip)]
     #[allow(dead_code)]
     pub task_id: i64,
+    /// Task-scoped sequential ID for this link
+    #[serde(rename = "link_id")]
+    pub task_index: i64,
     pub url: String,
     pub title: String,
+    #[serde(skip)]
     #[allow(dead_code)]
     pub created_at: DateTime<Utc>,
 }
@@ -138,12 +144,18 @@ pub struct RepoLink {
 /// to be managed within a single task context.
 #[derive(Debug, Clone, Serialize)]
 pub struct TaskRepo {
+    #[serde(skip)]
     pub id: i64,
+    #[serde(skip)]
     #[allow(dead_code)]
     pub task_id: i64,
+    /// Task-scoped sequential ID for this repository
+    #[serde(rename = "repo_id")]
+    pub task_index: i64,
     pub repo_path: String,
     pub base_branch: Option<String>,
     pub base_commit_hash: Option<String>,
+    #[serde(skip)]
     #[allow(dead_code)]
     pub created_at: DateTime<Utc>,
 }

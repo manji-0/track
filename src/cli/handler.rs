@@ -694,7 +694,7 @@ impl CommandHandler {
         match command {
             LinkCommands::Add { url, title } => {
                 let link = link_service.add_link(current_task_id, &url, title.as_deref())?;
-                println!("Added link #{}: {}", link.id, link.title);
+                println!("Added link #{}: {}", link.task_index, link.title);
             }
             LinkCommands::List => {
                 let links = link_service.list_links(current_task_id)?;
@@ -708,7 +708,7 @@ impl CommandHandler {
 
                 for link in links {
                     table.add_row(Row::new(vec![
-                        Cell::new(&link.id.to_string()),
+                        Cell::new(&link.task_index.to_string()),
                         Cell::new(&link.title),
                         Cell::new(&link.url),
                     ]));
@@ -719,15 +719,11 @@ impl CommandHandler {
             LinkCommands::Delete { index } => {
                 let links = link_service.list_links(current_task_id)?;
 
-                if index == 0 || index > links.len() {
-                    return Err(TrackError::Other(format!(
-                        "Link #{} not found. Valid range: 1-{}",
-                        index,
-                        links.len()
-                    )));
-                }
-
-                let link = &links[index - 1];
+                // Find link by task_index
+                let link = links
+                    .iter()
+                    .find(|l| l.task_index == index as i64)
+                    .ok_or_else(|| TrackError::Other(format!("Link #{} not found", index)))?;
 
                 // Delete link via service
                 link_service.delete_link(link.id)?;
@@ -997,7 +993,7 @@ impl CommandHandler {
 
                 for repo in repos {
                     table.add_row(Row::new(vec![
-                        Cell::new(&repo.id.to_string()),
+                        Cell::new(&repo.task_index.to_string()),
                         Cell::new(&repo.repo_path),
                     ]));
                 }
@@ -1005,7 +1001,15 @@ impl CommandHandler {
                 table.printstd();
             }
             RepoCommands::Remove { id } => {
-                repo_service.remove_repo(id)?;
+                let repos = repo_service.list_repos(current_task_id)?;
+
+                // Find repo by task_index
+                let repo = repos
+                    .iter()
+                    .find(|r| r.task_index == id)
+                    .ok_or_else(|| TrackError::Other(format!("Repository #{} not found", id)))?;
+
+                repo_service.remove_repo(repo.id)?;
                 println!("Removed repository #{}", id);
             }
         }

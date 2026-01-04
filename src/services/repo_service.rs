@@ -54,9 +54,17 @@ impl<'a> RepoService<'a> {
 
         // Insert the repository
         let created_at = Utc::now().to_rfc3339();
+
+        // Get the next task_index for this task
+        let next_index: i64 = self.db.get_connection().query_row(
+            "SELECT COALESCE(MAX(task_index), 0) + 1 FROM task_repos WHERE task_id = ?1",
+            params![task_id],
+            |row| row.get(0),
+        )?;
+
         self.db.get_connection().execute(
-            "INSERT INTO task_repos (task_id, repo_path, base_branch, base_commit_hash, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
-            params![task_id, path_str, base_branch, base_commit_hash, created_at],
+            "INSERT INTO task_repos (task_id, task_index, repo_path, base_branch, base_commit_hash, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![task_id, next_index, path_str, base_branch, base_commit_hash, created_at],
         )?;
 
         let id = self.db.get_connection().last_insert_rowid();
@@ -65,6 +73,7 @@ impl<'a> RepoService<'a> {
         Ok(TaskRepo {
             id,
             task_id,
+            task_index: next_index,
             repo_path: path_str,
             base_branch,
             base_commit_hash,
@@ -75,7 +84,7 @@ impl<'a> RepoService<'a> {
     /// List all repositories for a task
     pub fn list_repos(&self, task_id: i64) -> Result<Vec<TaskRepo>> {
         let mut stmt = self.db.get_connection().prepare(
-            "SELECT id, task_id, repo_path, base_branch, base_commit_hash, created_at FROM task_repos WHERE task_id = ?1 ORDER BY created_at"
+            "SELECT id, task_id, task_index, repo_path, base_branch, base_commit_hash, created_at FROM task_repos WHERE task_id = ?1 ORDER BY task_index"
         )?;
 
         let repos = stmt
@@ -83,11 +92,12 @@ impl<'a> RepoService<'a> {
                 Ok(TaskRepo {
                     id: row.get(0)?,
                     task_id: row.get(1)?,
-                    repo_path: row.get(2)?,
-                    base_branch: row.get(3)?,
-                    base_commit_hash: row.get(4)?,
+                    task_index: row.get(2)?,
+                    repo_path: row.get(3)?,
+                    base_branch: row.get(4)?,
+                    base_commit_hash: row.get(5)?,
                     created_at: row
-                        .get::<_, String>(5)?
+                        .get::<_, String>(6)?
                         .parse()
                         .unwrap_or_else(|_| Utc::now()),
                 })
