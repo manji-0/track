@@ -132,28 +132,31 @@ The Web UI provides a modern, browser-based interface with real-time updates via
 | `track completion fish` | Generate fish completion script |
 | `track completion powershell` | Generate PowerShell completion script |
 
-**Quick Install:**
+**Quick Install (Dynamic - Recommended):**
 
 ```bash
 # Bash
-track completion bash > ~/.local/share/bash-completion/completions/track
+mkdir -p ~/.local/share/bash-completion/completions
+cp completions/track.bash.dynamic ~/.local/share/bash-completion/completions/track
+source ~/.local/share/bash-completion/completions/track
 
 # Zsh
 mkdir -p ~/.zsh/completions
-track completion zsh > ~/.zsh/completions/_track
+cp completions/_track.dynamic ~/.zsh/completions/_track
+# Add to ~/.zshrc: fpath=(~/.zsh/completions $fpath)
+# Then: exec zsh
 
-# Fish
+# Fish (static only)
 mkdir -p ~/.config/fish/completions
 track completion fish > ~/.config/fish/completions/track.fish
 ```
 
-**Dynamic Completions (Zsh/Bash):**
-
-The completion scripts include intelligent, context-aware suggestions:
+**What you get with dynamic completions:**
 
 ```bash
 track switch <TAB>              # Shows your actual task IDs and names
 track todo done <TAB>            # Shows pending TODO IDs with content
+track todo update 6 <TAB>        # Shows status: pending, done, cancelled
 track link delete <TAB>          # Shows link IDs with titles
 track repo remove <TAB>          # Shows repository IDs with paths
 track new --template <TAB>       # Shows task IDs for templates
