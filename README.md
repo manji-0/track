@@ -60,6 +60,8 @@ track status
 | `track list [--all]` | Display task list |
 | `track switch <task_id>` | Switch tasks |
 | `track status [id]` | Display task information |
+| `track status --json` | Output in JSON format |
+| `track status --all` | Show all scraps |
 | `track desc [description]` | View or set task description |
 | `track ticket <ticket_id> <url>` | Link a ticket to the task |
 | `track alias set <alias>` | Set an alias for the current task |
@@ -75,6 +77,7 @@ track status
 | `track todo update <index> <status>` | Update TODO status |
 | `track todo done <index>` | Complete a TODO (merges and removes worktrees) |
 | `track todo delete <index>` | Delete a TODO |
+| `track todo delete <index> --force` | Delete without confirmation |
 
 ### Link Management
 
@@ -82,6 +85,7 @@ track status
 |---------|-------------|
 | `track link add <url> [title]` | Add a reference URL |
 | `track link list` | Display link list |
+| `track link delete <index>` | Delete a link |
 
 ### Scrap (Work Notes) Management
 
@@ -158,7 +162,7 @@ See [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md) for details.
 - [docs/FUNCTIONAL_SPEC.md](docs/FUNCTIONAL_SPEC.md) - Functional specification
 - [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md) - Project structure
 - [docs/USAGE_EXAMPLES.md](docs/USAGE_EXAMPLES.md) - Detailed usage examples
-- [docs/LLM_INTEGRATION.md](docs/LLM_INTEGRATION.md) - LLM agent integration guide
+- [docs/LLM_INTEGRATION.md](docs/LLM_INTEGRATION.md) - LLM agent integration guide (includes `track llm-help` command)
 
 ## License
 
