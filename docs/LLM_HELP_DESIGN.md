@@ -62,23 +62,39 @@ The workflow is divided into two phases: **Task Setup** (typically done by a hum
 | Command | Description |
 |---------|-------------|
 | `track sync` | **MANDATORY FIRST STEP** - Sync branches and create worktrees |
-| `track status` | Show current task context (task, TODOs, worktrees) |
+| `track status` | Show current task context (task, TODOs, worktrees, links) |
 | `track status --json` | Output task context in JSON format |
+| `track status --all` | Show all scraps instead of recent |
 | `track new <name>` | Create a new task |
 | `track new <name> --ticket <id> --ticket-url <url>` | Create task with ticket |
+| `track new <name> --template <ref>` | Create task from template (copies TODOs) |
+| `track list` | List all tasks |
 | `track desc [text]` | View or set task description |
 | `track ticket <ticket_id> <url>` | Link ticket to current task |
 | `track switch <id>` | Switch to another task |
 | `track switch t:<ticket_id>` | Switch by ticket reference |
+| `track switch a:<alias>` | Switch by alias |
+| `track archive [task_ref]` | Archive task (removes worktrees) |
+| `track alias set <alias>` | Set alias for current task |
+| `track alias remove` | Remove alias from current task |
 | `track repo add [path]` | Register repository (default: current directory) |
 | `track repo add --base <branch>` | Register repository with custom base branch |
 | `track repo list` | List registered repositories |
+| `track repo remove <index>` | Remove repository by task-scoped index |
 | `track todo add "<text>"` | Add a new TODO |
 | `track todo add "<text>" --worktree` | Add TODO with scheduled worktree |
 | `track todo list` | List all TODOs |
 | `track todo done <index>` | Complete a TODO (merges worktree if exists) |
+| `track todo update <index> <status>` | Update TODO status |
+| `track todo delete <index>` | Delete TODO |
+| `track link add <url>` | Add reference link |
+| `track link add <url> --title "<title>"` | Add link with custom title |
+| `track link list` | List all links |
+| `track link delete <index>` | Delete link by task-scoped index |
 | `track scrap add "<note>"` | Add a work note/finding |
 | `track scrap list` | List all scraps |
+| `track webui` | Start web-based UI (default: http://localhost:3000) |
+| `track llm-help` | Show help optimized for LLM agents |
 
 ### 5. Ticket Integration
 
@@ -101,11 +117,14 @@ When a ticket is linked, `track sync` uses the ticket ID in branch names:
 
 - **ALWAYS run `track sync` before making code changes.**
 - **ALWAYS verify you are on the task branch, not main/master/develop.**
-- **Task-Scoped TODOs**: TODO indices (1, 2, 3...) are scoped to each task, not global.
+- **Task-Scoped Indices**: TODO, Link, and Repository indices are scoped to each task, not global.
 - **Worktree Lifecycle**: When `track todo done` is called, associated worktrees are automatically merged into the task base branch and removed.
-- **Scraps**: Use scraps to record intermediate findings, questions, or decisions during work. These are timestamped and preserved with the task.
+- **Scraps**: Use scraps to record intermediate findings, questions, or decisions during work. These are timestamped and preserved with the task. Scraps support Markdown formatting.
 - **Repository Registration**: Always register repositories with `track repo add` before running `track sync`.
 - **Ticket Integration**: Ticket IDs are used in branch names when linked (e.g., `task/PROJ-123`).
+- **Template Feature**: Use `--template` when creating tasks to copy TODOs from existing tasks.
+- **Alias Support**: Set aliases for tasks to make switching easier (e.g., `track alias set feature-x`).
+- **Web UI**: Launch `track webui` for a visual interface with real-time updates, Markdown rendering, and inline editing.
 
 ### 7. Implementation Details
 - The command is implemented as a subcommand in `src/cli/mod.rs` and handled by `handle_llm_help()` in `src/cli/handler.rs`.

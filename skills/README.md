@@ -14,26 +14,34 @@ Agent Skills are structured workflow guides following the official Agent Skills 
 
 ### [track-task-management](track-task-management/SKILL.md)
 
-**Purpose**: Manages development tasks with integrated Git worktrees.
+**Purpose**: Manages development tasks with integrated Git worktrees, WebUI, and link management.
 
-**Use when**: Creating tasks, adding TODOs, working through task lists, or managing development workflows.
+**Use when**: Creating tasks, adding TODOs, working through task lists, managing references, or managing development workflows.
 
 **Key features:**
-- Task and TODO management
-- Git worktree integration
+- Task and TODO management with task-scoped indices
+- Git worktree integration for parallel development
 - Ticket integration (Jira, GitHub, GitLab)
-- Progress tracking with scraps
+- Progress tracking with Markdown-enabled scraps
+- Link management for references
+- Template support for recurring workflows
+- Alias support for easy task switching
+- Web-based UI with real-time updates
 
 **Quick start:**
 ```bash
-# Create task
-track new "Feature name" --ticket PROJ-123
+# Create task with ticket
+track new "Feature name" --ticket PROJ-123 --ticket-url <url>
 
-# Add TODOs
+# Or create from template
+track new "Sprint 2" --template t:PROJ-100
+
+# Add TODOs and links
 track todo add "Implement core logic" --worktree
 track todo add "Write tests"
+track link add https://docs.example.com/api --title "API Docs"
 
-# Work and complete
+# Sync and work
 track sync
 track todo done 1
 ```
@@ -122,23 +130,29 @@ track-task-management/
 
 ### Standard Pattern
 
-1. **Check `SKILL.md`** for overview and quick start
-2. **Identify user's goal** (creating task vs. executing vs. advanced)
-3. **Load relevant reference** only if needed:
+1. **Run `track sync`** BEFORE any code changes (MANDATORY)
+2. **Verify branch** with `git branch --show-current` (must be task branch)
+3. **Check `SKILL.md`** for overview and quick start
+4. **Identify user's goal** (creating task vs. executing vs. advanced)
+5. **Load relevant reference** only if needed:
    - Creating task → `references/creating-tasks.md`
    - Executing task → `references/executing-tasks.md`
    - Advanced use case → `references/advanced-workflows.md`
-4. **Follow workflow** step-by-step
-5. **Use examples** as templates
+6. **Follow workflow** step-by-step
+7. **Use examples** as templates
 
 ### Quick Commands
 
 Always available in `SKILL.md`:
+- `track sync` - **MANDATORY FIRST STEP** - Sync branches and create worktrees
 - `track status` - Check current state
 - `track new` - Create task
 - `track todo add` - Add TODO
 - `track todo done` - Complete TODO
+- `track link add` - Add reference link
 - `track scrap add` - Record note
+- `track webui` - Start web UI
+- `track llm-help` - Show comprehensive help
 
 ---
 

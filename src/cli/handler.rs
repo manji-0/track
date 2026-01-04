@@ -1063,7 +1063,7 @@ impl CommandHandler {
 
     fn handle_llm_help(&self) -> Result<()> {
         println!(
-            r#"# WorkTracker CLI Help for LLM Agents
+            r#"# Track CLI Help for LLM Agents
 
 ## ⚠️ MANDATORY: Read This First
 
@@ -1139,6 +1139,7 @@ This guide explains the standard workflow for completing tasks.
 1. **Create Task**: `track new "<task_name>"`
    - Creates a new task and switches to it.
    - Optionally link a ticket: `track new "<name>" --ticket PROJ-123 --ticket-url <url>`
+   - Use template: `track new "<name>" --template <task_ref>` to copy TODOs from existing task
 
 2. **Add Description**: `track desc "<description>"`
    - Provides detailed context about what needs to be done.
@@ -1149,59 +1150,99 @@ This guide explains the standard workflow for completing tasks.
 
 4. **Register Repositories**: `track repo add [path]`
    - Register working repositories (default: current directory).
+   - Optionally specify base branch: `track repo add --base <branch>`
    - Run this for each repository involved in the task.
 
 5. **Add TODOs**: `track todo add "<content>" [--worktree]`
    - Add actionable items. Use `--worktree` flag to schedule worktree creation.
 
+6. **Add Links**: `track link add <url> [--title "<title>"]`
+   - Add reference links (documentation, PRs, issues, etc.)
+
 ### Phase 2: Task Execution (LLM or Human)
 
-6. **Sync Repositories**: `track sync` **(MANDATORY FIRST STEP)**
+7. **Sync Repositories**: `track sync` **(MANDATORY FIRST STEP)**
    - Creates task branch on all registered repos.
    - Checks out the task branch.
    - Creates worktrees for TODOs that requested them.
    - **You MUST run this before making any code changes.**
 
-7. **Verify Branch**: `git branch --show-current`
+8. **Verify Branch**: `git branch --show-current`
    - **STOP if output is main/master/develop. Run `track sync` again.**
 
-8. **Check Current State**: `track status`
-   - Shows current task, TODOs, worktrees, and recent scraps.
+9. **Check Current State**: `track status`
+   - Shows current task, TODOs, worktrees, links, and recent scraps.
    - Use `track status --json` for structured output.
+   - Use `track status --all` to show all scraps instead of recent ones.
 
-9. **Execute TODOs**:
-   - Navigate to worktree path if applicable (shown in `track status`).
-   - Implement the required changes.
-   - Run tests to verify.
-   - Use `track scrap add "<note>"` to record findings, decisions, or progress.
+10. **Execute TODOs**:
+    - Navigate to worktree path if applicable (shown in `track status`).
+    - Implement the required changes.
+    - Run tests to verify.
+    - Use `track scrap add "<note>"` to record findings, decisions, or progress.
 
-10. **Complete TODO**: `track todo done <index>`
+11. **Complete TODO**: `track todo done <index>`
     - Marks the TODO as done.
     - If worktree exists: merges changes to task branch and removes worktree.
 
-11. **Repeat** until all TODOs are complete.
+12. **Repeat** until all TODOs are complete.
 
 ## Key Commands Reference
 
 | Command | Description |
 |---------|-------------|
 | `track sync` | **MANDATORY FIRST STEP** - Sync branches and create worktrees |
-| `track status` | Show current task, TODOs, worktrees |
+| `track status` | Show current task, TODOs, worktrees, links |
 | `track status --json` | JSON output for programmatic access |
+| `track status --all` | Show all scraps instead of recent |
 | `track new "<name>"` | Create new task |
 | `track new "<name>" --ticket <id> --ticket-url <url>` | Create task with ticket |
+| `track new "<name>" --template <ref>` | Create task from template (copies TODOs) |
+| `track list` | List all tasks |
 | `track desc [text]` | View or set task description |
 | `track ticket <ticket_id> <url>` | Link ticket to current task |
 | `track switch <id>` | Switch to another task |
 | `track switch t:<ticket_id>` | Switch by ticket reference |
-| `track repo add [path]` | Register repository |
+| `track switch a:<alias>` | Switch by alias |
+| `track archive [task_ref]` | Archive task (removes worktrees) |
+| `track alias set <alias>` | Set alias for current task |
+| `track alias remove` | Remove alias from current task |
+| `track repo add [path]` | Register repository (default: current dir) |
+| `track repo add --base <branch>` | Register with custom base branch |
 | `track repo list` | List registered repositories |
+| `track repo remove <index>` | Remove repository by task-scoped index |
 | `track todo add "<text>"` | Add TODO |
 | `track todo add "<text>" --worktree` | Add TODO with worktree |
 | `track todo list` | List TODOs |
-| `track todo done <index>` | Complete TODO |
+| `track todo done <index>` | Complete TODO (merges worktree if exists) |
+| `track todo update <index> <status>` | Update TODO status |
+| `track todo delete <index>` | Delete TODO |
+| `track link add <url>` | Add reference link |
+| `track link add <url> --title "<title>"` | Add link with custom title |
+| `track link list` | List all links |
+| `track link delete <index>` | Delete link by task-scoped index |
 | `track scrap add "<note>"` | Record work note |
 | `track scrap list` | List all scraps |
+| `track webui` | Start web-based UI (default: http://localhost:3000) |
+| `track llm-help` | Show this help message |
+
+## Task-Scoped Indices
+
+**Important**: TODO, Link, and Repository indices are **task-scoped**, not global.
+- Each task has its own numbering starting from 1
+- When you switch tasks, indices reset to that task's scope
+- This prevents confusion when working on multiple tasks
+
+Example:
+```bash
+# Task 1 has TODOs: 1, 2, 3
+track switch 1
+track todo list  # Shows: 1, 2, 3
+
+# Task 2 has TODOs: 1, 2 (different from Task 1's TODOs)
+track switch 2
+track todo list  # Shows: 1, 2
+```
 
 ## Ticket Integration
 
@@ -1227,6 +1268,9 @@ track switch t:PROJ-123
 
 # Archive task by ticket ID
 track archive t:PROJ-123
+
+# View status by ticket ID
+track status t:PROJ-123
 ```
 
 ### Automatic Branch Naming
@@ -1237,15 +1281,46 @@ When a ticket is linked, `track sync` automatically uses the ticket ID in branch
 
 This makes it easy to correlate branches with tickets in your issue tracker.
 
+## Template Feature
+
+Create new tasks based on existing ones:
+
+```bash
+# Create task from template (copies all TODOs)
+track new "Sprint 2 Feature" --template t:PROJ-100
+
+# TODOs are copied with status reset to 'pending'
+# Useful for recurring workflows or similar tasks
+```
+
+## Web UI
+
+Launch the web-based interface for visual task management:
+
+```bash
+track webui
+```
+
+Features:
+- Real-time task status updates via Server-Sent Events (SSE)
+- Visual TODO management with drag-and-drop
+- Markdown rendering for scraps
+- Inline editing of descriptions
+- Link management
+- Responsive design with dark mode
+
+Access at: http://localhost:3000
+
 ## Important Notes
 
 - **ALWAYS run `track sync` before making code changes.**
 - **ALWAYS verify you are on the task branch, not main/master/develop.**
-- TODO indices (1, 2, 3...) are **task-scoped**, not global.
+- TODO, Link, and Repository indices are **task-scoped**, not global.
 - `track todo done` automatically merges and removes associated worktrees.
 - Always register repos with `track repo add` before running `track sync`.
 - Use `track scrap add` to document decisions and findings during work.
 - Ticket IDs are used in branch names when linked (e.g., `task/PROJ-123`).
+- Scraps support Markdown formatting and are rendered as HTML in WebUI.
 
 ## Detailed Specifications
 
@@ -1260,6 +1335,13 @@ Executing `track todo done <index>` performs the following:
 2. **Merges** the TODO branch into the Task Base branch (in the base worktree).
 3. **Removes** the TODO worktree directory and DB record.
 4. **Updates** TODO status to 'done'.
+
+### Archive Process
+Executing `track archive` performs the following:
+1. **Checks** for uncommitted changes in all worktrees.
+2. **Prompts** for confirmation if dirty worktrees are found.
+3. **Removes** all worktrees associated with the task.
+4. **Marks** the task as archived.
 "#
         );
         Ok(())
