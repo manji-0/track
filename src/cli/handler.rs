@@ -1069,9 +1069,9 @@ impl CommandHandler {
 
         let mut cmd = crate::cli::Cli::command();
         let bin_name = cmd.get_name().to_string();
-        
+
         generate(shell, &mut cmd, bin_name, &mut io::stdout());
-        
+
         Ok(())
     }
 
@@ -1389,7 +1389,11 @@ mod tests {
             clap_complete::Shell::PowerShell,
         ] {
             let result = handler.handle_completion(shell);
-            assert!(result.is_ok(), "Completion generation failed for {:?}", shell);
+            assert!(
+                result.is_ok(),
+                "Completion generation failed for {:?}",
+                shell
+            );
         }
     }
 }
