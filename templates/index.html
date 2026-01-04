@@ -35,25 +35,8 @@
     <!-- 2-Pane Layout for Repositories and Links -->
     <div class="two-pane-layout">
         <!-- Repositories Section (Left) -->
-        <div class="card">
-            <div class="card-header">
-                <h2 class="card-title"><span class="icon">📁</span> Repositories</h2>
-            </div>
-            {% if repos and repos|length > 0 %}
-            <div class="repo-list">
-                {% for repo in repos %}
-                <div class="repo-item">
-                    <span class="repo-path">{{ repo.repo_path }}</span>
-                    {% if repo.base_branch %}
-                    <span class="todo-status pending">{{ repo.base_branch }}</span>
-                    {% endif %}
-                </div>
-                {% endfor %}
-            </div>
-            {% else %}
-            <div class="text-muted">No repositories registered.</div>
-            {% endif %}
-        </div>
+        <!-- Repositories Section (Left) -->
+        {% include "partials/repos.html" %}
 
         <!-- Links Section (Right) -->
         {% include "partials/links.html" %}

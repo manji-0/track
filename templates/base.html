@@ -259,6 +259,41 @@
             text-decoration: underline;
         }
 
+
+        /* Checkbox styles */
+        .checkbox-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--bg-input);
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius-sm);
+            padding: 0 0.75rem;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .checkbox-container:hover {
+            border-color: var(--accent);
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        [data-theme="light"] .checkbox-container:hover {
+            background: rgba(0, 0, 0, 0.05);
+        }
+
+        .checkbox-container input[type="checkbox"] {
+            margin-right: 0.5rem;
+            accent-color: var(--accent);
+            cursor: pointer;
+            width: 1.25em;
+            height: 1.25em;
+        }
+
+        .checkbox-container .icon {
+            font-size: 1.25rem;
+        }
+
         /* Form styles */
         .input-group {
             display: flex;
@@ -589,6 +624,24 @@
             color: #000;
             font-weight: 600;
         }
+
+        .todo-worktrees {
+            padding: 0 0.75rem 0.5rem 3.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+
+        .worktree-path {
+            font-family: 'JetBrains Mono', 'Fira Code', monospace;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        /* Scrap list */
 
         .todo-status.done {
             background: var(--success);

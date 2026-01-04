@@ -59,6 +59,8 @@ pub struct StatusResponse {
 #[derive(Deserialize)]
 pub struct AddTodoForm {
     pub content: String,
+    #[serde(default)]
+    pub create_worktree: bool,
 }
 
 /// Form data for adding a scrap
@@ -152,10 +154,7 @@ pub async fn api_status(State(state): State<WebState>) -> Result<Json<StatusResp
 
     Ok(Json(StatusResponse {
         task: Some(serde_json::to_value(&task)?),
-        todos: todos
-            .iter()
-            .map(|t| serde_json::to_value(t).unwrap_or_default())
-            .collect(),
+        todos: format_todos(todos, &worktrees),
         links: links
             .iter()
             .map(|l| serde_json::to_value(l).unwrap_or_default())
@@ -229,6 +228,24 @@ pub async fn get_links(State(state): State<WebState>) -> Result<Html<String>, Ap
     Ok(Html(html))
 }
 
+/// Get repos card HTML
+pub async fn get_repos(State(state): State<WebState>) -> Result<Html<String>, AppError> {
+    let db = state.app.db.lock().await;
+    let current_task_id = db.get_current_task_id()?.ok_or(TrackError::NoActiveTask)?;
+
+    let repo_service = RepoService::new(&db);
+    let repos = repo_service.list_repos(current_task_id)?;
+
+    let html = state.templates.render(
+        "partials/repos.html",
+        serde_json::json!({
+            "repos": repos,
+        }),
+    )?;
+
+    Ok(Html(html))
+}
+
 /// Get todos card HTML
 pub async fn get_todos(State(state): State<WebState>) -> Result<Html<String>, AppError> {
     let db = state.app.db.lock().await;
@@ -237,10 +254,13 @@ pub async fn get_todos(State(state): State<WebState>) -> Result<Html<String>, Ap
     let todo_service = TodoService::new(&db);
     let todos = todo_service.list_todos(current_task_id)?;
 
+    let worktree_service = WorktreeService::new(&db);
+    let worktrees = worktree_service.list_worktrees(current_task_id)?;
+
     let html = state.templates.render(
         "partials/todo_list.html",
         serde_json::json!({
-            "todos": todos,
+            "todos": format_todos(todos, &worktrees),
         }),
     )?;
 
@@ -275,17 +295,20 @@ pub async fn add_todo(
     let current_task_id = db.get_current_task_id()?.ok_or(TrackError::NoActiveTask)?;
 
     let todo_service = TodoService::new(&db);
-    let _todo = todo_service.add_todo(current_task_id, &form.content, false)?;
+    let _todo = todo_service.add_todo(current_task_id, &form.content, form.create_worktree)?;
 
     // Broadcast SSE event
     state.app.broadcast(SseEvent::Todos);
 
     // Return updated todo list partial
     let todos = todo_service.list_todos(current_task_id)?;
+    let worktree_service = WorktreeService::new(&db);
+    let worktrees = worktree_service.list_worktrees(current_task_id)?;
+
     let html = state.templates.render(
         "partials/todo_list.html",
         serde_json::json!({
-            "todos": todos,
+            "todos": format_todos(todos, &worktrees),
         }),
     )?;
 
@@ -310,10 +333,13 @@ pub async fn update_todo_status(
 
     // Return updated todo list partial
     let todos = todo_service.list_todos(current_task_id)?;
+    let worktree_service = WorktreeService::new(&db);
+    let worktrees = worktree_service.list_worktrees(current_task_id)?;
+
     let html = state.templates.render(
         "partials/todo_list.html",
         serde_json::json!({
-            "todos": todos,
+            "todos": format_todos(todos, &worktrees),
         }),
     )?;
 
@@ -338,10 +364,13 @@ pub async fn delete_todo(
 
     // Return updated todo list partial
     let todos = todo_service.list_todos(current_task_id)?;
+    let worktree_service = WorktreeService::new(&db);
+    let worktrees = worktree_service.list_worktrees(current_task_id)?;
+
     let html = state.templates.render(
         "partials/todo_list.html",
         serde_json::json!({
-            "todos": todos,
+            "todos": format_todos(todos, &worktrees),
         }),
     )?;
 
@@ -435,13 +464,42 @@ fn build_status_context(db: &Database, task_id: i64) -> anyhow::Result<serde_jso
 
     Ok(serde_json::json!({
         "task": task,
-        "todos": todos,
+        "todos": format_todos(todos, &worktrees),
         "links": links,
         "scraps": format_scraps(&scraps),
         "worktrees": worktrees,
         "repos": repos,
         "base_branch": base_branch,
     }))
+}
+
+/// Format todos with worktree information and hidden fields
+fn format_todos(todos: Vec<crate::models::Todo>, worktrees: &[crate::models::Worktree]) -> Vec<serde_json::Value> {
+    todos
+        .into_iter()
+        .map(|todo| {
+            let todo_worktrees: Vec<String> = worktrees
+                .iter()
+                .filter(|wt| wt.todo_id == Some(todo.id))
+                .map(|wt| wt.path.clone())
+                .collect();
+
+            let mut value = serde_json::to_value(&todo).unwrap_or_default();
+
+            if let Some(obj) = value.as_object_mut() {
+                // Reinject skipped fields that are needed for UI
+                obj.insert(
+                    "worktree_requested".to_string(),
+                    serde_json::Value::Bool(todo.worktree_requested),
+                );
+                obj.insert(
+                    "worktree_paths".to_string(),
+                    serde_json::json!(todo_worktrees),
+                );
+            }
+            value
+        })
+        .collect()
 }
 
 /// Format scraps with human-readable timestamps

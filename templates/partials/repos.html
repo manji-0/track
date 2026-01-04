@@ -1,0 +1,19 @@
+<div class="card" id="repos-section" hx-get="/partials/repos" hx-trigger="sse:repos" hx-swap="outerHTML">
+    <div class="card-header">
+        <h2 class="card-title"><span class="icon">📁</span> Repositories</h2>
+    </div>
+    {% if repos and repos|length > 0 %}
+    <div class="repo-list">
+        {% for repo in repos %}
+        <div class="repo-item">
+            <span class="repo-path">{{ repo.repo_path }}</span>
+            {% if repo.base_branch %}
+            <span class="todo-status pending">{{ repo.base_branch }}</span>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="text-muted">No repositories registered.</div>
+    {% endif %}
+</div>

@@ -1,4 +1,4 @@
-<div class="card" id="todos-section">
+<div class="card" id="todos-section" hx-get="/partials/todos" hx-trigger="sse:todos, sse:worktrees" hx-swap="outerHTML">
     <div class="card-header">
         <h2 class="card-title"><span class="icon">📋</span> TODOs</h2>
     </div>
@@ -7,6 +7,10 @@
     <form hx-post="/api/todo" hx-swap="none" hx-on::after-request="this.reset()" class="input-group"
         style="margin-bottom: 1rem;">
         <input type="text" name="content" placeholder="Add a new todo..." required autocomplete="off">
+        <label class="checkbox-container" title="Create a git worktree for this todo">
+            <input type="checkbox" name="create_worktree" value="true">
+            <span class="icon">🌿</span>
+        </label>
         <button type="submit">
             <span>✅</span> Add
         </button>
@@ -20,9 +24,19 @@
             <div class="todo-main" onclick="toggleTodoMenu(event, '{{ todo.todo_id }}')">
                 <span class="todo-index">{{ todo.todo_id }}</span>
                 <span class="todo-content">{{ todo.content }}</span>
+                {% if todo.worktree_requested %}
+                <span class="worktree-icon" title="Worktree requested">🌿</span>
+                {% endif %}
                 <span class="todo-status {{ todo.status }}">{{ todo.status }}</span>
                 <span class="todo-menu-indicator">⋮</span>
             </div>
+            {% if todo.worktree_paths and todo.worktree_paths|length > 0 %}
+            <div class="todo-worktrees">
+                {% for path in todo.worktree_paths %}
+                <div class="worktree-path" title="{{ path }}">📂 {{ path }}</div>
+                {% endfor %}
+            </div>
+            {% endif %}
         </li>
         {% endfor %}
     </ul>
@@ -45,8 +59,8 @@
         </button>
         {% endif %}
         {% if todo.status != 'cancelled' %}
-        <button class="menu-item btn-secondary" hx-patch="/api/todo/{{ todo.todo_id }}/cancelled"
-            hx-swap="none" onclick="event.stopPropagation()">
+        <button class="menu-item btn-secondary" hx-patch="/api/todo/{{ todo.todo_id }}/cancelled" hx-swap="none"
+            onclick="event.stopPropagation()">
             <span class="menu-icon">✕</span>
             <span class="menu-label">Cancel</span>
         </button>

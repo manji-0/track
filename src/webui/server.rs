@@ -42,6 +42,9 @@ pub async fn start_server(port: u16, open_browser: bool) -> anyhow::Result<()> {
         .route("/api/card/links", get(routes::get_links))
         .route("/api/card/todos", get(routes::get_todos))
         .route("/api/card/scraps", get(routes::get_scraps))
+        // Partial endpoints for HTMX
+        .route("/partials/todos", get(routes::get_todos))
+        .route("/partials/repos", get(routes::get_repos))
         // API endpoints
         .route("/api/status", get(routes::api_status))
         .route("/api/todo", post(routes::add_todo))

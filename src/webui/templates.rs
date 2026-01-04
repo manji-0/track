@@ -53,6 +53,11 @@ impl Templates {
             include_str!("../../templates/partials/links.html"),
         )
         .expect("Failed to add links.html template");
+        env.add_template(
+            "partials/repos.html",
+            include_str!("../../templates/partials/repos.html"),
+        )
+        .expect("Failed to add repos.html template");
 
         Self { env }
     }

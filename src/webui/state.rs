@@ -21,6 +21,10 @@ pub enum SseEvent {
     Todos,
     /// Scraps were updated
     Scraps,
+    /// Worktrees were updated
+    Worktrees,
+    /// Repositories were updated
+    Repos,
 }
 
 /// Database state snapshot for change detection
@@ -32,10 +36,12 @@ struct DbSnapshot {
     todo_status_hash: String,
     scrap_count: i64,
     link_count: i64,
+    worktree_count: i64,
+    repo_count: i64,
     task_modified: Option<String>,
 }
 
-/// Shared application state
+/// Shared argument state
 #[derive(Clone)]
 pub struct AppState {
     /// Database connection wrapped for async access
@@ -79,6 +85,12 @@ impl AppState {
 
         let link_count: i64 = conn.query_row("SELECT COUNT(*) FROM links", [], |row| row.get(0))?;
 
+        let worktree_count: i64 =
+            conn.query_row("SELECT COUNT(*) FROM worktrees", [], |row| row.get(0))?;
+
+        let repo_count: i64 =
+            conn.query_row("SELECT COUNT(*) FROM task_repos", [], |row| row.get(0))?;
+
         // Get current task's last modification info
         let task_modified: Option<String> = if let Ok(Some(task_id)) = db.get_current_task_id() {
             conn.query_row(
@@ -110,6 +122,8 @@ impl AppState {
             todo_status_hash,
             scrap_count,
             link_count,
+            worktree_count,
+            repo_count,
             task_modified,
         })
     }
@@ -143,6 +157,8 @@ impl AppState {
                     self.broadcast(SseEvent::Links);
                     self.broadcast(SseEvent::Todos);
                     self.broadcast(SseEvent::Scraps);
+                    self.broadcast(SseEvent::Repos);
+                    self.broadcast(SseEvent::Worktrees);
                 } else {
                     // Same task - check for specific changes
                     if current.task_modified != prev.task_modified {
@@ -160,6 +176,16 @@ impl AppState {
                         || current.todo_status_hash != prev.todo_status_hash
                     {
                         self.broadcast(SseEvent::Todos);
+                    }
+
+                    // Check worktree count - if changed, TODOs might need update (for worktree paths)
+                    if current.worktree_count != prev.worktree_count {
+                        self.broadcast(SseEvent::Worktrees);
+                        self.broadcast(SseEvent::Todos); // Todos show worktrees, so update them too
+                    }
+
+                    if current.repo_count != prev.repo_count {
+                        self.broadcast(SseEvent::Repos);
                     }
 
                     if current.scrap_count != prev.scrap_count {
