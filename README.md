@@ -121,6 +121,34 @@ track status
 
 The Web UI provides a modern, browser-based interface with real-time updates via Server-Sent Events (SSE).
 
+### Shell Completion
+
+`track` provides shell completion scripts for bash, zsh, fish, and powershell.
+
+| Command | Description |
+|---------|-------------|
+| `track completion bash` | Generate bash completion script |
+| `track completion zsh` | Generate zsh completion script |
+| `track completion fish` | Generate fish completion script |
+| `track completion powershell` | Generate PowerShell completion script |
+
+**Quick Install:**
+
+```bash
+# Bash
+track completion bash > ~/.local/share/bash-completion/completions/track
+
+# Zsh
+mkdir -p ~/.zsh/completions
+track completion zsh > ~/.zsh/completions/_track
+
+# Fish
+mkdir -p ~/.config/fish/completions
+track completion fish > ~/.config/fish/completions/track.fish
+```
+
+For detailed installation instructions and troubleshooting, see [completions/README.md](completions/README.md).
+
 ## Additional Features
 
 For detailed information on the following features, see [docs/USAGE_EXAMPLES.md](docs/USAGE_EXAMPLES.md):
