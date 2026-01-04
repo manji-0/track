@@ -71,6 +71,7 @@ impl<'a> WorktreeService<'a> {
         )?;
 
         let worktree_id = conn.last_insert_rowid();
+        self.db.increment_rev("worktrees")?;
         self.get_worktree(worktree_id)
     }
 
@@ -161,6 +162,7 @@ impl<'a> WorktreeService<'a> {
         let conn = self.db.get_connection();
         conn.execute("DELETE FROM worktrees WHERE id = ?1", params![worktree_id])?;
 
+        self.db.increment_rev("worktrees")?;
         Ok(())
     }
 
@@ -448,15 +450,15 @@ mod tests {
         let temp_dir = tempfile::tempdir().unwrap();
         let path = temp_dir.path().to_str().unwrap();
 
-        Command::new("git").args(&["init", path]).output().unwrap();
+        Command::new("git").args(["init", path]).output().unwrap();
 
         // Configure user for commit
         Command::new("git")
-            .args(&["-C", path, "config", "user.email", "test@example.com"])
+            .args(["-C", path, "config", "user.email", "test@example.com"])
             .output()
             .unwrap();
         Command::new("git")
-            .args(&["-C", path, "config", "user.name", "Test User"])
+            .args(["-C", path, "config", "user.name", "Test User"])
             .output()
             .unwrap();
 
@@ -473,14 +475,14 @@ mod tests {
 
         // Commit it
         Command::new("git")
-            .args(&["-C", path, "add", "."])
+            .args(["-C", path, "add", "."])
             .output()
             .unwrap();
         // Staged changes
         assert!(service.has_uncommitted_changes(path).unwrap());
 
         Command::new("git")
-            .args(&["-C", path, "commit", "-m", "init"])
+            .args(["-C", path, "commit", "-m", "init"])
             .output()
             .unwrap();
         // Clean
@@ -533,28 +535,28 @@ mod tests {
         let repo_path = temp_dir.path().to_str().unwrap();
 
         Command::new("git")
-            .args(&["init", repo_path])
+            .args(["init", repo_path])
             .output()
             .unwrap();
 
         // Configure git user
         Command::new("git")
-            .args(&["-C", repo_path, "config", "user.email", "test@example.com"])
+            .args(["-C", repo_path, "config", "user.email", "test@example.com"])
             .output()
             .unwrap();
         Command::new("git")
-            .args(&["-C", repo_path, "config", "user.name", "Test User"])
+            .args(["-C", repo_path, "config", "user.name", "Test User"])
             .output()
             .unwrap();
 
         // Create initial commit
         fs::write(temp_dir.path().join("README.md"), "# Test").unwrap();
         Command::new("git")
-            .args(&["-C", repo_path, "add", "."])
+            .args(["-C", repo_path, "add", "."])
             .output()
             .unwrap();
         Command::new("git")
-            .args(&["-C", repo_path, "commit", "-m", "Initial commit"])
+            .args(["-C", repo_path, "commit", "-m", "Initial commit"])
             .output()
             .unwrap();
 
@@ -597,26 +599,26 @@ mod tests {
         let repo_path = temp_dir.path().to_str().unwrap();
 
         Command::new("git")
-            .args(&["init", repo_path])
+            .args(["init", repo_path])
             .output()
             .unwrap();
 
         Command::new("git")
-            .args(&["-C", repo_path, "config", "user.email", "test@example.com"])
+            .args(["-C", repo_path, "config", "user.email", "test@example.com"])
             .output()
             .unwrap();
         Command::new("git")
-            .args(&["-C", repo_path, "config", "user.name", "Test User"])
+            .args(["-C", repo_path, "config", "user.name", "Test User"])
             .output()
             .unwrap();
 
         fs::write(temp_dir.path().join("README.md"), "# Test").unwrap();
         Command::new("git")
-            .args(&["-C", repo_path, "add", "."])
+            .args(["-C", repo_path, "add", "."])
             .output()
             .unwrap();
         Command::new("git")
-            .args(&["-C", repo_path, "commit", "-m", "Initial commit"])
+            .args(["-C", repo_path, "commit", "-m", "Initial commit"])
             .output()
             .unwrap();
 
@@ -669,26 +671,26 @@ mod tests {
         let repo_path = temp_dir.path().to_str().unwrap();
 
         Command::new("git")
-            .args(&["init", repo_path])
+            .args(["init", repo_path])
             .output()
             .unwrap();
 
         Command::new("git")
-            .args(&["-C", repo_path, "config", "user.email", "test@example.com"])
+            .args(["-C", repo_path, "config", "user.email", "test@example.com"])
             .output()
             .unwrap();
         Command::new("git")
-            .args(&["-C", repo_path, "config", "user.name", "Test User"])
+            .args(["-C", repo_path, "config", "user.name", "Test User"])
             .output()
             .unwrap();
 
         fs::write(temp_dir.path().join("README.md"), "# Test").unwrap();
         Command::new("git")
-            .args(&["-C", repo_path, "add", "."])
+            .args(["-C", repo_path, "add", "."])
             .output()
             .unwrap();
         Command::new("git")
-            .args(&["-C", repo_path, "commit", "-m", "Initial commit"])
+            .args(["-C", repo_path, "commit", "-m", "Initial commit"])
             .output()
             .unwrap();
 
@@ -733,26 +735,26 @@ mod tests {
         let repo_path = temp_dir.path().to_str().unwrap();
 
         Command::new("git")
-            .args(&["init", repo_path])
+            .args(["init", repo_path])
             .output()
             .unwrap();
 
         Command::new("git")
-            .args(&["-C", repo_path, "config", "user.email", "test@example.com"])
+            .args(["-C", repo_path, "config", "user.email", "test@example.com"])
             .output()
             .unwrap();
         Command::new("git")
-            .args(&["-C", repo_path, "config", "user.name", "Test User"])
+            .args(["-C", repo_path, "config", "user.name", "Test User"])
             .output()
             .unwrap();
 
         fs::write(temp_dir.path().join("README.md"), "# Test").unwrap();
         Command::new("git")
-            .args(&["-C", repo_path, "add", "."])
+            .args(["-C", repo_path, "add", "."])
             .output()
             .unwrap();
         Command::new("git")
-            .args(&["-C", repo_path, "commit", "-m", "Initial commit"])
+            .args(["-C", repo_path, "commit", "-m", "Initial commit"])
             .output()
             .unwrap();
 
@@ -802,26 +804,26 @@ mod tests {
         let repo_path = temp_dir.path().to_str().unwrap();
 
         Command::new("git")
-            .args(&["init", repo_path])
+            .args(["init", repo_path])
             .output()
             .unwrap();
 
         Command::new("git")
-            .args(&["-C", repo_path, "config", "user.email", "test@example.com"])
+            .args(["-C", repo_path, "config", "user.email", "test@example.com"])
             .output()
             .unwrap();
         Command::new("git")
-            .args(&["-C", repo_path, "config", "user.name", "Test User"])
+            .args(["-C", repo_path, "config", "user.name", "Test User"])
             .output()
             .unwrap();
 
         fs::write(temp_dir.path().join("README.md"), "# Test").unwrap();
         Command::new("git")
-            .args(&["-C", repo_path, "add", "."])
+            .args(["-C", repo_path, "add", "."])
             .output()
             .unwrap();
         Command::new("git")
-            .args(&["-C", repo_path, "commit", "-m", "Initial commit"])
+            .args(["-C", repo_path, "commit", "-m", "Initial commit"])
             .output()
             .unwrap();
 

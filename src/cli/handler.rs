@@ -729,12 +729,8 @@ impl CommandHandler {
 
                 let link = &links[index - 1];
 
-                // Delete link directly via SQL
-                let conn = self.db.get_connection();
-                conn.execute(
-                    "DELETE FROM links WHERE id = ?1",
-                    rusqlite::params![link.id],
-                )?;
+                // Delete link via service
+                link_service.delete_link(link.id)?;
 
                 println!("Deleted link #{}: {}", index, link.title);
             }

@@ -31,6 +31,7 @@ impl<'a> TodoService<'a> {
         )?;
 
         let todo_id = conn.last_insert_rowid();
+        self.db.increment_rev("todos")?;
         self.get_todo(todo_id)
     }
 
@@ -128,6 +129,7 @@ impl<'a> TodoService<'a> {
             return Err(TrackError::TodoNotFound(todo_id));
         }
 
+        self.db.increment_rev("todos")?;
         Ok(())
     }
 
@@ -139,6 +141,7 @@ impl<'a> TodoService<'a> {
             return Err(TrackError::TodoNotFound(todo_id));
         }
 
+        self.db.increment_rev("todos")?;
         Ok(())
     }
 }
@@ -170,7 +173,7 @@ mod tests {
         let todo = service.add_todo(task_id, "Test TODO", false).unwrap();
         assert_eq!(todo.content, "Test TODO");
         assert_eq!(todo.status, "pending");
-        assert_eq!(todo.worktree_requested, false);
+        assert!(!todo.worktree_requested);
     }
 
     #[test]
@@ -182,7 +185,7 @@ mod tests {
         let todo = service.add_todo(task_id, "Test TODO", true).unwrap();
         assert_eq!(todo.content, "Test TODO");
         assert_eq!(todo.status, "pending");
-        assert_eq!(todo.worktree_requested, true);
+        assert!(todo.worktree_requested);
     }
 
     #[test]

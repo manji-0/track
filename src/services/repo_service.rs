@@ -61,6 +61,7 @@ impl<'a> RepoService<'a> {
 
         let id = self.db.get_connection().last_insert_rowid();
 
+        self.db.increment_rev("repos")?;
         Ok(TaskRepo {
             id,
             task_id,
@@ -110,6 +111,7 @@ impl<'a> RepoService<'a> {
             )));
         }
 
+        self.db.increment_rev("repos")?;
         Ok(())
     }
 

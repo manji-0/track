@@ -222,6 +222,7 @@ impl<'a> TaskService<'a> {
             params![ticket_id, url, task_id],
         )?;
 
+        self.db.increment_rev("task")?;
         Ok(())
     }
 
@@ -250,6 +251,7 @@ impl<'a> TaskService<'a> {
             params![description, task_id],
         )?;
 
+        self.db.increment_rev("task")?;
         Ok(())
     }
 
@@ -324,6 +326,7 @@ impl<'a> TaskService<'a> {
             params![alias, task_id],
         )?;
 
+        self.db.increment_rev("task")?;
         Ok(())
     }
 

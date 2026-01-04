@@ -67,28 +67,28 @@ fn test_repo_worktree_workflow() {
     let repo_path = temp_dir.path().to_str().unwrap();
 
     Command::new("git")
-        .args(&["init", repo_path])
+        .args(["init", repo_path])
         .output()
         .unwrap();
 
     // Configure git user
     Command::new("git")
-        .args(&["-C", repo_path, "config", "user.email", "test@example.com"])
+        .args(["-C", repo_path, "config", "user.email", "test@example.com"])
         .output()
         .unwrap();
     Command::new("git")
-        .args(&["-C", repo_path, "config", "user.name", "Test User"])
+        .args(["-C", repo_path, "config", "user.name", "Test User"])
         .output()
         .unwrap();
 
     // Create initial commit
     fs::write(temp_dir.path().join("README.md"), "# Test Repo").unwrap();
     Command::new("git")
-        .args(&["-C", repo_path, "add", "."])
+        .args(["-C", repo_path, "add", "."])
         .output()
         .unwrap();
     Command::new("git")
-        .args(&["-C", repo_path, "commit", "-m", "Initial commit"])
+        .args(["-C", repo_path, "commit", "-m", "Initial commit"])
         .output()
         .unwrap();
 

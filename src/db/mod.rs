@@ -9,6 +9,27 @@ use directories::ProjectDirs;
 use rusqlite::{params, Connection, OptionalExtension};
 use std::path::PathBuf;
 
+/// Revision numbers for each section, used for change detection.
+///
+/// Each section has a revision number that is incremented whenever
+/// data in that section is modified. This allows efficient change
+/// detection without complex queries.
+#[derive(Clone, Debug, PartialEq, Default)]
+pub struct SectionRevs {
+    /// Task metadata (description, ticket, alias) revision
+    pub task: i64,
+    /// TODOs section revision
+    pub todos: i64,
+    /// Scraps section revision
+    pub scraps: i64,
+    /// Links section revision
+    pub links: i64,
+    /// Repositories section revision
+    pub repos: i64,
+    /// Worktrees section revision
+    pub worktrees: i64,
+}
+
 /// Database connection and management.
 ///
 /// Handles SQLite database operations including schema initialization,
@@ -461,6 +482,47 @@ impl Database {
             .execute("DELETE FROM app_state WHERE key = 'current_task_id'", [])?;
         Ok(())
     }
+
+    /// Increments the revision number for a section and returns the new value.
+    ///
+    /// # Arguments
+    ///
+    /// * `section` - The section name (e.g., "todos", "scraps", "links", "repos", "worktrees", "task")
+    pub fn increment_rev(&self, section: &str) -> Result<i64> {
+        let key = format!("rev:{}", section);
+        let current: i64 = self
+            .get_app_state(&key)?
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(0);
+        let new_rev = current + 1;
+        self.set_app_state(&key, &new_rev.to_string())?;
+        Ok(new_rev)
+    }
+
+    /// Gets the current revision number for a section.
+    ///
+    /// # Arguments
+    ///
+    /// * `section` - The section name
+    pub fn get_rev(&self, section: &str) -> Result<i64> {
+        let key = format!("rev:{}", section);
+        Ok(self
+            .get_app_state(&key)?
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(0))
+    }
+
+    /// Gets all section revision numbers at once.
+    pub fn get_all_revs(&self) -> Result<SectionRevs> {
+        Ok(SectionRevs {
+            task: self.get_rev("task")?,
+            todos: self.get_rev("todos")?,
+            scraps: self.get_rev("scraps")?,
+            links: self.get_rev("links")?,
+            repos: self.get_rev("repos")?,
+            worktrees: self.get_rev("worktrees")?,
+        })
+    }
 }
 
 #[cfg(test)]
@@ -545,5 +607,96 @@ mod tests {
                 .unwrap();
             assert_eq!(result, 1, "Table {} should exist", table);
         }
+    }
+
+    #[test]
+    fn test_increment_rev() {
+        let db = Database::new_in_memory().unwrap();
+
+        // Initially should be 0
+        let rev = db.get_rev("todos").unwrap();
+        assert_eq!(rev, 0);
+
+        // Increment should return 1
+        let new_rev = db.increment_rev("todos").unwrap();
+        assert_eq!(new_rev, 1);
+
+        // Get should return 1
+        let rev = db.get_rev("todos").unwrap();
+        assert_eq!(rev, 1);
+
+        // Increment again should return 2
+        let new_rev = db.increment_rev("todos").unwrap();
+        assert_eq!(new_rev, 2);
+    }
+
+    #[test]
+    fn test_get_rev_default() {
+        let db = Database::new_in_memory().unwrap();
+
+        // Non-existent sections should return 0
+        let rev = db.get_rev("nonexistent").unwrap();
+        assert_eq!(rev, 0);
+    }
+
+    #[test]
+    fn test_increment_rev_different_sections() {
+        let db = Database::new_in_memory().unwrap();
+
+        // Increment different sections
+        db.increment_rev("todos").unwrap();
+        db.increment_rev("todos").unwrap();
+        db.increment_rev("scraps").unwrap();
+        db.increment_rev("links").unwrap();
+        db.increment_rev("links").unwrap();
+        db.increment_rev("links").unwrap();
+
+        // Verify each section has independent rev
+        assert_eq!(db.get_rev("todos").unwrap(), 2);
+        assert_eq!(db.get_rev("scraps").unwrap(), 1);
+        assert_eq!(db.get_rev("links").unwrap(), 3);
+        assert_eq!(db.get_rev("repos").unwrap(), 0);
+    }
+
+    #[test]
+    fn test_get_all_revs() {
+        let db = Database::new_in_memory().unwrap();
+
+        // Initially all should be 0
+        let revs = db.get_all_revs().unwrap();
+        assert_eq!(revs.task, 0);
+        assert_eq!(revs.todos, 0);
+        assert_eq!(revs.scraps, 0);
+        assert_eq!(revs.links, 0);
+        assert_eq!(revs.repos, 0);
+        assert_eq!(revs.worktrees, 0);
+
+        // Increment some sections
+        db.increment_rev("task").unwrap();
+        db.increment_rev("todos").unwrap();
+        db.increment_rev("todos").unwrap();
+        db.increment_rev("worktrees").unwrap();
+
+        // Verify get_all_revs returns correct values
+        let revs = db.get_all_revs().unwrap();
+        assert_eq!(revs.task, 1);
+        assert_eq!(revs.todos, 2);
+        assert_eq!(revs.scraps, 0);
+        assert_eq!(revs.links, 0);
+        assert_eq!(revs.repos, 0);
+        assert_eq!(revs.worktrees, 1);
+    }
+
+    #[test]
+    fn test_section_revs_equality() {
+        let db = Database::new_in_memory().unwrap();
+
+        let revs1 = db.get_all_revs().unwrap();
+        let revs2 = db.get_all_revs().unwrap();
+        assert_eq!(revs1, revs2);
+
+        db.increment_rev("todos").unwrap();
+        let revs3 = db.get_all_revs().unwrap();
+        assert_ne!(revs1, revs3);
     }
 }

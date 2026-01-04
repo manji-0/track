@@ -1,6 +1,6 @@
 //! Application state shared across handlers.
 
-use crate::db::Database;
+use crate::db::{Database, SectionRevs};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::{broadcast, Mutex};
@@ -27,18 +27,11 @@ pub enum SseEvent {
     Repos,
 }
 
-/// Database state snapshot for change detection
+/// State snapshot for change detection using revision numbers
 #[derive(Clone, Debug, PartialEq)]
-struct DbSnapshot {
+struct ChangeState {
     current_task_id: Option<i64>,
-    task_count: i64,
-    todo_count: i64,
-    todo_status_hash: String,
-    scrap_count: i64,
-    link_count: i64,
-    worktree_count: i64,
-    repo_count: i64,
-    task_modified: Option<String>,
+    revs: SectionRevs,
 }
 
 /// Shared argument state
@@ -48,8 +41,8 @@ pub struct AppState {
     pub db: Arc<Mutex<Database>>,
     /// Broadcast channel for SSE events
     pub sse_tx: broadcast::Sender<SseEvent>,
-    /// Last known database state for change detection
-    last_snapshot: Arc<Mutex<Option<DbSnapshot>>>,
+    /// Last known state for change detection
+    last_state: Arc<Mutex<Option<ChangeState>>>,
 }
 
 impl AppState {
@@ -61,7 +54,7 @@ impl AppState {
         Ok(Self {
             db: Arc::new(Mutex::new(db)),
             sse_tx,
-            last_snapshot: Arc::new(Mutex::new(None)),
+            last_state: Arc::new(Mutex::new(None)),
         })
     }
 
@@ -71,130 +64,95 @@ impl AppState {
         let _ = self.sse_tx.send(event);
     }
 
-    /// Get current database snapshot
-    async fn get_snapshot(&self) -> anyhow::Result<DbSnapshot> {
+    /// Get current change state (task ID and all revision numbers)
+    async fn get_change_state(&self) -> anyhow::Result<ChangeState> {
         let db = self.db.lock().await;
-        let conn = db.get_connection();
+        let current_task_id = db.get_current_task_id()?;
+        let revs = db.get_all_revs()?;
 
-        let task_count: i64 = conn.query_row("SELECT COUNT(*) FROM tasks", [], |row| row.get(0))?;
-
-        let todo_count: i64 = conn.query_row("SELECT COUNT(*) FROM todos", [], |row| row.get(0))?;
-
-        let scrap_count: i64 =
-            conn.query_row("SELECT COUNT(*) FROM scraps", [], |row| row.get(0))?;
-
-        let link_count: i64 = conn.query_row("SELECT COUNT(*) FROM links", [], |row| row.get(0))?;
-
-        let worktree_count: i64 =
-            conn.query_row("SELECT COUNT(*) FROM worktrees", [], |row| row.get(0))?;
-
-        let repo_count: i64 =
-            conn.query_row("SELECT COUNT(*) FROM task_repos", [], |row| row.get(0))?;
-
-        // Get current task's last modification info
-        let task_modified: Option<String> = if let Ok(Some(task_id)) = db.get_current_task_id() {
-            conn.query_row(
-                "SELECT COALESCE(ticket_id, '') || ':' || COALESCE(description, '') || ':' || COALESCE(alias, '') FROM tasks WHERE id = ?1",
-                [task_id],
-                |row| row.get(0),
-            )
-            .ok()
-        } else {
-            None
-        };
-
-        // Get hash of TODO statuses for current task to detect status changes
-        let todo_status_hash: String = if let Ok(Some(task_id)) = db.get_current_task_id() {
-            conn.query_row(
-                "SELECT GROUP_CONCAT(id || ':' || status, ',') FROM todos WHERE task_id = ?1 ORDER BY id",
-                [task_id],
-                |row| row.get(0),
-            )
-            .unwrap_or_else(|_| String::new())
-        } else {
-            String::new()
-        };
-
-        Ok(DbSnapshot {
-            current_task_id: db.get_current_task_id()?,
-            task_count,
-            todo_count,
-            todo_status_hash,
-            scrap_count,
-            link_count,
-            worktree_count,
-            repo_count,
-            task_modified,
+        Ok(ChangeState {
+            current_task_id,
+            revs,
         })
+    }
+
+    /// Broadcast all section events (used on task switch)
+    fn broadcast_all(&self) {
+        self.broadcast(SseEvent::Header);
+        self.broadcast(SseEvent::Description);
+        self.broadcast(SseEvent::Ticket);
+        self.broadcast(SseEvent::Links);
+        self.broadcast(SseEvent::Todos);
+        self.broadcast(SseEvent::Scraps);
+        self.broadcast(SseEvent::Repos);
+        self.broadcast(SseEvent::Worktrees);
     }
 
     /// Start background task to detect database changes
     pub async fn start_change_detection(&self) {
         let mut interval = tokio::time::interval(Duration::from_secs(1));
 
+        // Initialize with current state
+        {
+            let mut last = self.last_state.lock().await;
+            if last.is_none() {
+                if let Ok(initial_state) = self.get_change_state().await {
+                    *last = Some(initial_state);
+                }
+            }
+        }
+
         loop {
             interval.tick().await;
 
-            // Get current snapshot
-            let current = match self.get_snapshot().await {
-                Ok(snapshot) => snapshot,
+            // Get current state
+            let current = match self.get_change_state().await {
+                Ok(state) => state,
                 Err(e) => {
-                    eprintln!("Error getting database snapshot: {}", e);
+                    eprintln!("Error getting change state: {}", e);
                     continue;
                 }
             };
 
-            // Compare with last snapshot and broadcast specific events
-            let mut last = self.last_snapshot.lock().await;
+            // Compare with last state and broadcast specific events
+            let mut last = self.last_state.lock().await;
 
             if let Some(ref prev) = *last {
                 // Check if current task changed (task switch or new task)
                 if current.current_task_id != prev.current_task_id {
-                    // Task switched - reload entire page
-                    self.broadcast(SseEvent::Header);
-                    self.broadcast(SseEvent::Description);
-                    self.broadcast(SseEvent::Ticket);
-                    self.broadcast(SseEvent::Links);
-                    self.broadcast(SseEvent::Todos);
-                    self.broadcast(SseEvent::Scraps);
-                    self.broadcast(SseEvent::Repos);
-                    self.broadcast(SseEvent::Worktrees);
+                    // Task switched - reload all sections
+                    self.broadcast_all();
                 } else {
-                    // Same task - check for specific changes
-                    if current.task_modified != prev.task_modified {
+                    // Same task - check for specific rev changes
+                    if current.revs.task != prev.revs.task {
                         // Task metadata changed (description, ticket, or alias)
                         self.broadcast(SseEvent::Header);
                         self.broadcast(SseEvent::Description);
                         self.broadcast(SseEvent::Ticket);
                     }
 
-                    if current.link_count != prev.link_count {
+                    if current.revs.links != prev.revs.links {
                         self.broadcast(SseEvent::Links);
                     }
 
-                    if current.todo_count != prev.todo_count
-                        || current.todo_status_hash != prev.todo_status_hash
+                    // TODOs are affected by both todos and worktrees revisions
+                    if current.revs.todos != prev.revs.todos
+                        || current.revs.worktrees != prev.revs.worktrees
                     {
                         self.broadcast(SseEvent::Todos);
                     }
 
-                    // Check worktree count - if changed, TODOs might need update (for worktree paths)
-                    if current.worktree_count != prev.worktree_count {
-                        self.broadcast(SseEvent::Worktrees);
-                        self.broadcast(SseEvent::Todos); // Todos show worktrees, so update them too
-                    }
-
-                    if current.repo_count != prev.repo_count {
+                    if current.revs.repos != prev.revs.repos {
                         self.broadcast(SseEvent::Repos);
                     }
 
-                    if current.scrap_count != prev.scrap_count {
+                    if current.revs.scraps != prev.revs.scraps {
                         self.broadcast(SseEvent::Scraps);
                     }
                 }
             }
 
-            // Update last snapshot
+            // Update last state
             *last = Some(current);
         }
     }

@@ -26,6 +26,7 @@ impl<'a> LinkService<'a> {
         )?;
 
         let link_id = conn.last_insert_rowid();
+        self.db.increment_rev("links")?;
         self.get_link(link_id)
     }
 
@@ -75,6 +76,19 @@ impl<'a> LinkService<'a> {
             Err(TrackError::InvalidUrl(url.to_string()))
         }
     }
+
+    /// Delete a link by its ID
+    pub fn delete_link(&self, link_id: i64) -> Result<()> {
+        let conn = self.db.get_connection();
+        let affected = conn.execute("DELETE FROM links WHERE id = ?1", params![link_id])?;
+
+        if affected == 0 {
+            return Err(TrackError::Other(format!("Link #{} not found", link_id)));
+        }
+
+        self.db.increment_rev("links")?;
+        Ok(())
+    }
 }
 
 pub struct ScrapService<'a> {
@@ -103,6 +117,7 @@ impl<'a> ScrapService<'a> {
         )?;
 
         let scrap_id = conn.last_insert_rowid();
+        self.db.increment_rev("scraps")?;
         self.get_scrap(scrap_id)
     }
 

@@ -1233,6 +1233,14 @@
                             });
                             break;
 
+                        case 'repos':
+                            console.log('Updating repos section');
+                            htmx.ajax('GET', '/partials/repos', {
+                                target: '#repos-section',
+                                swap: 'outerHTML'
+                            });
+                            break;
+
                         default:
                             console.warn('Unknown SSE event type:', event.type);
                     }

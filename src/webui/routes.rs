@@ -474,7 +474,10 @@ fn build_status_context(db: &Database, task_id: i64) -> anyhow::Result<serde_jso
 }
 
 /// Format todos with worktree information and hidden fields
-fn format_todos(todos: Vec<crate::models::Todo>, worktrees: &[crate::models::Worktree]) -> Vec<serde_json::Value> {
+fn format_todos(
+    todos: Vec<crate::models::Todo>,
+    worktrees: &[crate::models::Worktree],
+) -> Vec<serde_json::Value> {
     todos
         .into_iter()
         .map(|todo| {
@@ -609,12 +612,8 @@ pub async fn delete_link(
 
     let link = &links[link_index - 1];
 
-    // Delete link directly via SQL
-    let conn = db.get_connection();
-    conn.execute(
-        "DELETE FROM links WHERE id = ?1",
-        rusqlite::params![link.id],
-    )?;
+    // Delete link via service
+    link_service.delete_link(link.id)?;
 
     // Broadcast SSE event
     state.app.broadcast(SseEvent::Links);
