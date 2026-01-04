@@ -34,50 +34,51 @@ impl<'a> RepoService<'a> {
         }
 
         let path_str = abs_path.to_string_lossy().to_string();
-
-        // Check if already registered
-        let existing: Option<i64> = self
-            .db
-            .get_connection()
-            .query_row(
-                "SELECT id FROM task_repos WHERE task_id = ?1 AND repo_path = ?2",
-                params![task_id, path_str],
-                |row| row.get(0),
-            )
-            .optional()?;
-
-        if existing.is_some() {
-            return Err(TrackError::Other(
-                "Repository already registered for this task".to_string(),
-            ));
-        }
-
-        // Insert the repository
         let created_at = Utc::now().to_rfc3339();
 
-        // Get the next task_index for this task
-        let next_index: i64 = self.db.get_connection().query_row(
-            "SELECT COALESCE(MAX(task_index), 0) + 1 FROM task_repos WHERE task_id = ?1",
-            params![task_id],
-            |row| row.get(0),
-        )?;
+        // Use transaction to make duplicate check + SELECT MAX + INSERT atomic
+        self.db.with_transaction(|| {
+            // Check if already registered
+            let existing: Option<i64> = self
+                .db
+                .get_connection()
+                .query_row(
+                    "SELECT id FROM task_repos WHERE task_id = ?1 AND repo_path = ?2",
+                    params![task_id, path_str],
+                    |row| row.get(0),
+                )
+                .optional()?;
 
-        self.db.get_connection().execute(
-            "INSERT INTO task_repos (task_id, task_index, repo_path, base_branch, base_commit_hash, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-            params![task_id, next_index, path_str, base_branch, base_commit_hash, created_at],
-        )?;
+            if existing.is_some() {
+                return Err(TrackError::Other(
+                    "Repository already registered for this task".to_string(),
+                ));
+            }
 
-        let id = self.db.get_connection().last_insert_rowid();
+            // Get the next task_index for this task
+            let next_index: i64 = self.db.get_connection().query_row(
+                "SELECT COALESCE(MAX(task_index), 0) + 1 FROM task_repos WHERE task_id = ?1",
+                params![task_id],
+                |row| row.get(0),
+            )?;
 
-        self.db.increment_rev("repos")?;
-        Ok(TaskRepo {
-            id,
-            task_id,
-            task_index: next_index,
-            repo_path: path_str,
-            base_branch,
-            base_commit_hash,
-            created_at: Utc::now(),
+            self.db.get_connection().execute(
+                "INSERT INTO task_repos (task_id, task_index, repo_path, base_branch, base_commit_hash, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                params![task_id, next_index, path_str, base_branch, base_commit_hash, created_at],
+            )?;
+
+            let id = self.db.get_connection().last_insert_rowid();
+
+            self.db.increment_rev("repos")?;
+            Ok(TaskRepo {
+                id,
+                task_id,
+                task_index: next_index,
+                repo_path: path_str.clone(),
+                base_branch,
+                base_commit_hash,
+                created_at: Utc::now(),
+            })
         })
     }
 

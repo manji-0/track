@@ -16,25 +16,30 @@ impl<'a> LinkService<'a> {
     pub fn add_link(&self, task_id: i64, url: &str, title: Option<&str>) -> Result<Link> {
         self.validate_url(url)?;
 
-        let title = title.unwrap_or(url);
+        let title = title.unwrap_or(url).to_string();
+        let url = url.to_string();
         let now = Utc::now().to_rfc3339();
-        let conn = self.db.get_connection();
 
-        // Get the next task_index for this task
-        let next_index: i64 = conn.query_row(
-            "SELECT COALESCE(MAX(task_index), 0) + 1 FROM links WHERE task_id = ?1",
-            params![task_id],
-            |row| row.get(0),
-        )?;
+        // Use transaction to make SELECT MAX + INSERT atomic
+        self.db.with_transaction(|| {
+            let conn = self.db.get_connection();
 
-        conn.execute(
-            "INSERT INTO links (task_id, task_index, url, title, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
-            params![task_id, next_index, url, title, now],
-        )?;
+            // Get the next task_index for this task
+            let next_index: i64 = conn.query_row(
+                "SELECT COALESCE(MAX(task_index), 0) + 1 FROM links WHERE task_id = ?1",
+                params![task_id],
+                |row| row.get(0),
+            )?;
 
-        let link_id = conn.last_insert_rowid();
-        self.db.increment_rev("links")?;
-        self.get_link(link_id)
+            conn.execute(
+                "INSERT INTO links (task_id, task_index, url, title, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
+                params![task_id, next_index, url, title, now],
+            )?;
+
+            let link_id = conn.last_insert_rowid();
+            self.db.increment_rev("links")?;
+            self.get_link(link_id)
+        })
     }
 
     pub fn get_link(&self, link_id: i64) -> Result<Link> {
@@ -112,23 +117,28 @@ impl<'a> ScrapService<'a> {
 
     pub fn add_scrap(&self, task_id: i64, content: &str) -> Result<Scrap> {
         let now = Utc::now().to_rfc3339();
-        let conn = self.db.get_connection();
+        let content = content.to_string();
 
-        // Get the next task_index for this task
-        let next_index: i64 = conn.query_row(
-            "SELECT COALESCE(MAX(task_index), 0) + 1 FROM scraps WHERE task_id = ?1",
-            params![task_id],
-            |row| row.get(0),
-        )?;
+        // Use transaction to make SELECT MAX + INSERT atomic
+        self.db.with_transaction(|| {
+            let conn = self.db.get_connection();
 
-        conn.execute(
-            "INSERT INTO scraps (task_id, task_index, content, created_at) VALUES (?1, ?2, ?3, ?4)",
-            params![task_id, next_index, content, now],
-        )?;
+            // Get the next task_index for this task
+            let next_index: i64 = conn.query_row(
+                "SELECT COALESCE(MAX(task_index), 0) + 1 FROM scraps WHERE task_id = ?1",
+                params![task_id],
+                |row| row.get(0),
+            )?;
 
-        let scrap_id = conn.last_insert_rowid();
-        self.db.increment_rev("scraps")?;
-        self.get_scrap(scrap_id)
+            conn.execute(
+                "INSERT INTO scraps (task_id, task_index, content, created_at) VALUES (?1, ?2, ?3, ?4)",
+                params![task_id, next_index, content, now],
+            )?;
+
+            let scrap_id = conn.last_insert_rowid();
+            self.db.increment_rev("scraps")?;
+            self.get_scrap(scrap_id)
+        })
     }
 
     pub fn get_scrap(&self, scrap_id: i64) -> Result<Scrap> {

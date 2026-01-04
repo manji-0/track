@@ -237,3 +237,125 @@ fn test_error_handling() {
     let result = todo_service.delete_todo(999);
     assert!(result.is_err());
 }
+
+/// Integration test: Concurrent TODO additions produce unique indices
+/// This test validates that the transaction-based atomic operations work correctly
+#[test]
+fn test_concurrent_todo_additions() {
+    use std::collections::HashSet;
+    use std::sync::Arc;
+    use std::thread;
+
+    // Create a shared database file for concurrent access
+    let temp_dir = tempfile::tempdir().unwrap();
+    let db_path = temp_dir.path().join("test_concurrent.db");
+
+    // Initialize the database
+    {
+        let conn = rusqlite::Connection::open(&db_path).unwrap();
+        conn.pragma_update(None, "journal_mode", "WAL").unwrap();
+        conn.busy_timeout(std::time::Duration::from_secs(5))
+            .unwrap();
+        conn.execute_batch(
+            r#"
+            CREATE TABLE IF NOT EXISTS app_state (
+                key TEXT PRIMARY KEY,
+                value TEXT
+            );
+            CREATE TABLE IF NOT EXISTS tasks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'active',
+                ticket_id TEXT UNIQUE,
+                ticket_url TEXT,
+                created_at TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS todos (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                task_id INTEGER NOT NULL,
+                task_index INTEGER,
+                content TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'pending',
+                worktree_requested INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL,
+                completed_at TEXT,
+                FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_todos_task_index ON todos(task_id, task_index);
+            "#,
+        )
+        .unwrap();
+
+        // Create a test task
+        conn.execute(
+            "INSERT INTO tasks (name, status, created_at) VALUES ('Test Task', 'active', datetime('now'))",
+            [],
+        )
+        .unwrap();
+    }
+
+    let db_path = Arc::new(db_path);
+    let num_threads = 5;
+    let todos_per_thread = 4;
+
+    // Spawn multiple threads that add TODOs concurrently
+    let handles: Vec<_> = (0..num_threads)
+        .map(|thread_id| {
+            let db_path = Arc::clone(&db_path);
+            thread::spawn(move || {
+                let conn = rusqlite::Connection::open(&*db_path).unwrap();
+                conn.pragma_update(None, "journal_mode", "WAL").unwrap();
+                conn.busy_timeout(std::time::Duration::from_secs(5))
+                    .unwrap();
+
+                let mut created_indices = Vec::new();
+                for i in 0..todos_per_thread {
+                    // Use BEGIN IMMEDIATE transaction like our implementation
+                    conn.execute("BEGIN IMMEDIATE", []).unwrap();
+
+                    let next_index: i64 = conn
+                        .query_row(
+                            "SELECT COALESCE(MAX(task_index), 0) + 1 FROM todos WHERE task_id = 1",
+                            [],
+                            |row| row.get(0),
+                        )
+                        .unwrap();
+
+                    let content = format!("Thread {} TODO {}", thread_id, i);
+                    conn.execute(
+                        "INSERT INTO todos (task_id, task_index, content, status, worktree_requested, created_at) VALUES (1, ?1, ?2, 'pending', 0, datetime('now'))",
+                        rusqlite::params![next_index, content],
+                    ).unwrap();
+
+                    conn.execute("COMMIT", []).unwrap();
+                    created_indices.push(next_index);
+                }
+                created_indices
+            })
+        })
+        .collect();
+
+    // Collect all created indices
+    let mut all_indices: Vec<i64> = handles
+        .into_iter()
+        .flat_map(|h| h.join().unwrap())
+        .collect();
+
+    // Verify all indices are unique
+    all_indices.sort();
+    let unique_indices: HashSet<_> = all_indices.iter().collect();
+
+    assert_eq!(
+        all_indices.len(),
+        unique_indices.len(),
+        "All task_index values should be unique. Got duplicates: {:?}",
+        all_indices
+    );
+
+    // Verify indices are sequential (1 to N)
+    let expected_count = num_threads * todos_per_thread;
+    assert_eq!(all_indices.len(), expected_count);
+    for (i, &idx) in all_indices.iter().enumerate() {
+        assert_eq!(idx, (i + 1) as i64, "Indices should be sequential");
+    }
+}

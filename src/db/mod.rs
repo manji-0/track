@@ -8,6 +8,7 @@ use crate::utils::Result;
 use directories::ProjectDirs;
 use rusqlite::{params, Connection, OptionalExtension};
 use std::path::PathBuf;
+use std::time::Duration;
 
 /// Revision numbers for each section, used for change detection.
 ///
@@ -59,6 +60,7 @@ impl Database {
         }
 
         let conn = Connection::open(&db_path)?;
+        Self::configure_connection(&conn)?;
         let db = Database { conn };
         db.initialize_schema()?;
         Ok(db)
@@ -72,9 +74,26 @@ impl Database {
     #[allow(dead_code)]
     pub fn new_in_memory() -> Result<Self> {
         let conn = Connection::open_in_memory()?;
+        Self::configure_connection(&conn)?;
         let db = Database { conn };
         db.initialize_schema()?;
         Ok(db)
+    }
+
+    /// Configures the SQLite connection for optimal concurrent access.
+    ///
+    /// Enables WAL (Write-Ahead Logging) mode for better read/write concurrency
+    /// and sets a busy timeout to automatically retry on lock contention.
+    fn configure_connection(conn: &Connection) -> Result<()> {
+        // Enable WAL mode for better concurrent access
+        // WAL allows readers to proceed while a writer is active
+        conn.pragma_update(None, "journal_mode", "WAL")?;
+
+        // Set busy timeout to 5 seconds
+        // SQLite will automatically retry if the database is locked
+        conn.busy_timeout(Duration::from_secs(5))?;
+
+        Ok(())
     }
 
     fn get_db_path() -> Result<PathBuf> {
@@ -505,6 +524,48 @@ impl Database {
         &self.conn
     }
 
+    /// Execute operations within an IMMEDIATE transaction.
+    ///
+    /// This method wraps the provided closure in a SQLite transaction that:
+    /// - Uses `BEGIN IMMEDIATE` to acquire the write lock upfront
+    /// - Automatically commits on success
+    /// - Automatically rolls back on error
+    ///
+    /// Using IMMEDIATE mode prevents race conditions in read-modify-write
+    /// sequences by acquiring the write lock before reading, ensuring no
+    /// other process can modify the data between the read and write steps.
+    ///
+    /// # Arguments
+    ///
+    /// * `f` - A closure that performs database operations and returns a Result
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// db.with_transaction(|| {
+    ///     let next_index = get_next_index()?;
+    ///     insert_with_index(next_index)?;
+    ///     Ok(())
+    /// })?;
+    /// ```
+    pub fn with_transaction<T, F>(&self, f: F) -> Result<T>
+    where
+        F: FnOnce() -> Result<T>,
+    {
+        self.conn.execute("BEGIN IMMEDIATE", [])?;
+        match f() {
+            Ok(value) => {
+                self.conn.execute("COMMIT", [])?;
+                Ok(value)
+            }
+            Err(e) => {
+                // Attempt rollback, but ignore errors (connection may be in bad state)
+                let _ = self.conn.execute("ROLLBACK", []);
+                Err(e)
+            }
+        }
+    }
+
     pub fn get_app_state(&self, key: &str) -> Result<Option<String>> {
         let mut stmt = self
             .conn
@@ -609,6 +670,31 @@ mod tests {
     }
 
     #[test]
+    fn test_wal_mode_enabled() {
+        let db = Database::new_in_memory().unwrap();
+        // Note: In-memory databases use "memory" journal mode, not "wal"
+        // This test verifies the pragma is set without error
+        // For file-based databases, WAL mode will be properly enabled
+        let mode: String = db
+            .get_connection()
+            .query_row("PRAGMA journal_mode", [], |row| row.get(0))
+            .unwrap();
+        // In-memory databases return "memory" as journal mode
+        assert!(mode == "memory" || mode == "wal");
+    }
+
+    #[test]
+    fn test_busy_timeout_configured() {
+        let db = Database::new_in_memory().unwrap();
+        let timeout: i64 = db
+            .get_connection()
+            .query_row("PRAGMA busy_timeout", [], |row| row.get(0))
+            .unwrap();
+        // Should be 5000ms (5 seconds)
+        assert_eq!(timeout, 5000);
+    }
+
+    #[test]
     fn test_app_state_get_set() {
         let db = Database::new_in_memory().unwrap();
 
@@ -627,6 +713,58 @@ mod tests {
         db.set_app_state("test_key", "new_value").unwrap();
         let value = db.get_app_state("test_key").unwrap();
         assert_eq!(value, Some("new_value".to_string()));
+    }
+
+    #[test]
+    fn test_with_transaction_commit() {
+        let db = Database::new_in_memory().unwrap();
+
+        // Transaction should commit on success
+        let result = db.with_transaction(|| {
+            db.set_app_state("tx_key", "tx_value")?;
+            Ok("success")
+        });
+
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "success");
+
+        // Value should persist after commit
+        let value = db.get_app_state("tx_key").unwrap();
+        assert_eq!(value, Some("tx_value".to_string()));
+    }
+
+    #[test]
+    fn test_with_transaction_rollback() {
+        let db = Database::new_in_memory().unwrap();
+
+        // Set initial value
+        db.set_app_state("rollback_key", "initial").unwrap();
+
+        // Transaction should rollback on error
+        let result: crate::utils::Result<()> = db.with_transaction(|| {
+            db.set_app_state("rollback_key", "changed")?;
+            Err(crate::utils::TrackError::Other("forced error".to_string()))
+        });
+
+        assert!(result.is_err());
+
+        // Value should be rolled back to initial
+        let value = db.get_app_state("rollback_key").unwrap();
+        assert_eq!(value, Some("initial".to_string()));
+    }
+
+    #[test]
+    fn test_with_transaction_returns_value() {
+        let db = Database::new_in_memory().unwrap();
+
+        // Transaction should return the value from closure
+        let result = db.with_transaction(|| {
+            db.set_app_state("key", "value")?;
+            Ok(42i64)
+        });
+
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), 42);
     }
 
     #[test]

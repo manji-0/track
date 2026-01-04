@@ -16,23 +16,29 @@ impl<'a> TodoService<'a> {
 
     pub fn add_todo(&self, task_id: i64, content: &str, worktree_requested: bool) -> Result<Todo> {
         let now = Utc::now().to_rfc3339();
-        let conn = self.db.get_connection();
+        let content = content.to_string();
+        let status = TodoStatus::Pending.as_str().to_string();
 
-        // Get next task_index for this task
-        let next_index: i64 = conn.query_row(
-            "SELECT COALESCE(MAX(task_index), 0) + 1 FROM todos WHERE task_id = ?1",
-            params![task_id],
-            |row| row.get(0),
-        )?;
+        // Use transaction to make SELECT MAX + INSERT atomic
+        self.db.with_transaction(|| {
+            let conn = self.db.get_connection();
 
-        conn.execute(
-            "INSERT INTO todos (task_id, task_index, content, status, worktree_requested, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-            params![task_id, next_index, content, TodoStatus::Pending.as_str(), worktree_requested, now],
-        )?;
+            // Get next task_index for this task
+            let next_index: i64 = conn.query_row(
+                "SELECT COALESCE(MAX(task_index), 0) + 1 FROM todos WHERE task_id = ?1",
+                params![task_id],
+                |row| row.get(0),
+            )?;
 
-        let todo_id = conn.last_insert_rowid();
-        self.db.increment_rev("todos")?;
-        self.get_todo(todo_id)
+            conn.execute(
+                "INSERT INTO todos (task_id, task_index, content, status, worktree_requested, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                params![task_id, next_index, content, status, worktree_requested, now],
+            )?;
+
+            let todo_id = conn.last_insert_rowid();
+            self.db.increment_rev("todos")?;
+            self.get_todo(todo_id)
+        })
     }
 
     pub fn get_todo(&self, todo_id: i64) -> Result<Todo> {
