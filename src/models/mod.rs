@@ -61,14 +61,15 @@ impl Todo {
         // This regex matches URLs and ensures trailing punctuation is not included
         // It allows dots, question marks, etc. within the URL but not at the end
         let url_regex = Regex::new(
-            r"(?P<pre>^|[\s\(])(?P<url>https?://[^\s\)<>]+?)(?P<post>[.,;!?]*(?:[\s\)]|$))"
-        ).unwrap();
-        
+            r"(?P<pre>^|[\s\(])(?P<url>https?://[^\s\)<>]+?)(?P<post>[.,;!?]*(?:[\s\)]|$))",
+        )
+        .unwrap();
+
         let linkified = url_regex.replace_all(&self.content, |caps: &regex::Captures| {
             let pre = &caps["pre"];
             let url = &caps["url"];
             let post = &caps["post"];
-            
+
             // Check if this URL is already part of a markdown link [text](url)
             // by looking backwards in the original content
             let cap_start = caps.get(0).unwrap().start();
@@ -79,8 +80,8 @@ impl Todo {
                     return caps.get(0).unwrap().as_str().to_string();
                 }
             }
-            
-            format!("{}<{}>{}",  pre, url, post)
+
+            format!("{}<{}>{}", pre, url, post)
         });
 
         let parser = Parser::new(linkified.as_ref());
