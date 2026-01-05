@@ -47,6 +47,49 @@ pub struct Todo {
     pub completed_at: Option<DateTime<Utc>>,
 }
 
+impl Todo {
+    /// Converts the todo content from markdown to HTML.
+    ///
+    /// This method uses pulldown-cmark to parse the markdown content
+    /// and render it as HTML. Plain URLs are automatically converted to clickable links.
+    /// The output is safe for display in web pages.
+    pub fn content_html(&self) -> String {
+        use pulldown_cmark::{html, Parser};
+        use regex::Regex;
+
+        // Auto-linkify plain URLs that aren't already in markdown link syntax
+        // This regex matches URLs and ensures trailing punctuation is not included
+        // It allows dots, question marks, etc. within the URL but not at the end
+        let url_regex = Regex::new(
+            r"(?P<pre>^|[\s\(])(?P<url>https?://[^\s\)<>]+?)(?P<post>[.,;!?]*(?:[\s\)]|$))"
+        ).unwrap();
+        
+        let linkified = url_regex.replace_all(&self.content, |caps: &regex::Captures| {
+            let pre = &caps["pre"];
+            let url = &caps["url"];
+            let post = &caps["post"];
+            
+            // Check if this URL is already part of a markdown link [text](url)
+            // by looking backwards in the original content
+            let cap_start = caps.get(0).unwrap().start();
+            if cap_start >= 2 {
+                let before = &self.content[..cap_start];
+                if before.ends_with("](") {
+                    // This is already a markdown link, don't modify
+                    return caps.get(0).unwrap().as_str().to_string();
+                }
+            }
+            
+            format!("{}<{}>{}",  pre, url, post)
+        });
+
+        let parser = Parser::new(linkified.as_ref());
+        let mut html_output = String::new();
+        html::push_html(&mut html_output, parser);
+        html_output
+    }
+}
+
 /// Represents a link associated with a task.
 ///
 /// Links are URLs with titles that provide context or reference material for a task.
@@ -433,5 +476,53 @@ mod tests {
         assert!(html.contains("<a href=\"https://example.com\">my site</a>"));
         // Plain URL should be auto-linkified
         assert!(html.contains("<a href=\"https://test.com\">https://test.com</a>"));
+    }
+
+    #[test]
+    fn test_todo_content_html_plain_text() {
+        let todo = Todo {
+            id: 1,
+            task_id: 1,
+            task_index: 1,
+            content: "This is a plain text todo.".to_string(),
+            status: "pending".to_string(),
+            worktree_requested: false,
+            created_at: Utc::now(),
+            completed_at: None,
+        };
+        let html = todo.content_html();
+        assert!(html.contains("<p>This is a plain text todo.</p>"));
+    }
+
+    #[test]
+    fn test_todo_content_html_auto_linkify_url() {
+        let todo = Todo {
+            id: 1,
+            task_id: 1,
+            task_index: 1,
+            content: "Check https://example.com for details".to_string(),
+            status: "pending".to_string(),
+            worktree_requested: false,
+            created_at: Utc::now(),
+            completed_at: None,
+        };
+        let html = todo.content_html();
+        assert!(html.contains("<a href=\"https://example.com\">https://example.com</a>"));
+    }
+
+    #[test]
+    fn test_todo_content_html_with_markdown() {
+        let todo = Todo {
+            id: 1,
+            task_id: 1,
+            task_index: 1,
+            content: "Fix **bug** in login".to_string(),
+            status: "pending".to_string(),
+            worktree_requested: false,
+            created_at: Utc::now(),
+            completed_at: None,
+        };
+        let html = todo.content_html();
+        assert!(html.contains("<strong>bug</strong>"));
     }
 }

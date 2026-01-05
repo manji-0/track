@@ -499,6 +499,10 @@ fn format_todos(
                     "worktree_paths".to_string(),
                     serde_json::json!(todo_worktrees),
                 );
+                obj.insert(
+                    "content_html".to_string(),
+                    serde_json::Value::String(todo.content_html()),
+                );
             }
             value
         })

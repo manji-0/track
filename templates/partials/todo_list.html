@@ -23,7 +23,7 @@
         <li class="todo-item {{ todo.status }}" data-todo-id="{{ todo.todo_id }}">
             <div class="todo-main" onclick="toggleTodoMenu(event, '{{ todo.todo_id }}')">
                 <span class="todo-index">{{ todo.todo_id }}</span>
-                <span class="todo-content">{{ todo.content }}</span>
+                <span class="todo-content">{{ todo.content_html | safe }}</span>
                 {% if todo.worktree_requested %}
                 <span class="worktree-icon" title="Worktree requested">🌿</span>
                 {% endif %}
