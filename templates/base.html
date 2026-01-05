@@ -807,14 +807,41 @@
         }
 
         .scrap-markdown a {
-            color: var(--accent);
+            color: #5eead4;
             text-decoration: none;
             transition: var(--transition);
         }
 
         .scrap-markdown a:hover {
-            color: var(--accent-hover);
+            color: #2dd4bf;
             text-decoration: underline;
+        }
+
+        [data-theme="light"] .scrap-markdown a {
+            color: #0ea5e9;
+        }
+
+        [data-theme="light"] .scrap-markdown a:hover {
+            color: #0284c7;
+        }
+
+        .todo-content a {
+            color: #5eead4;
+            text-decoration: none;
+            transition: var(--transition);
+        }
+
+        .todo-content a:hover {
+            color: #2dd4bf;
+            text-decoration: underline;
+        }
+
+        [data-theme="light"] .todo-content a {
+            color: #0ea5e9;
+        }
+
+        [data-theme="light"] .todo-content a:hover {
+            color: #0284c7;
         }
 
         .scrap-markdown blockquote {
