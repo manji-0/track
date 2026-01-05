@@ -1024,7 +1024,7 @@ impl CommandHandler {
         let task_service = TaskService::new(&self.db);
 
         match command {
-            AliasCommands::Set { alias, task } => {
+            AliasCommands::Set { alias, task, force } => {
                 let task_id = match task {
                     Some(id) => id,
                     None => self
@@ -1033,7 +1033,7 @@ impl CommandHandler {
                         .ok_or(TrackError::NoActiveTask)?,
                 };
 
-                task_service.set_alias(task_id, &alias)?;
+                task_service.set_alias(task_id, &alias, force)?;
                 let task = task_service.get_task(task_id)?;
                 println!("Set alias '{}' for task #{}: {}", alias, task.id, task.name);
             }
@@ -1306,6 +1306,7 @@ This guide explains the standard workflow for completing tasks.
 | `track switch a:<alias>` | Switch by alias |
 | `track archive [task_ref]` | Archive task (removes worktrees) |
 | `track alias set <alias>` | Set alias for current task |
+| `track alias set <alias> --force` | Overwrite existing alias on another task |
 | `track alias remove` | Remove alias from current task |
 | `track repo add [path]` | Register repository (default: current dir) |
 | `track repo add --base <branch>` | Register with custom base branch |

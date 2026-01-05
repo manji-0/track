@@ -274,6 +274,10 @@ pub enum AliasCommands {
         /// Target task ID (defaults to current task)
         #[arg(short, long)]
         task: Option<i64>,
+
+        /// Force overwrite if alias already exists on another task
+        #[arg(short, long)]
+        force: bool,
     },
 
     /// Remove the alias from the current task

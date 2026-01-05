@@ -76,6 +76,7 @@ The workflow is divided into two phases: **Task Setup** (typically done by a hum
 | `track switch a:<alias>` | Switch by alias |
 | `track archive [task_ref]` | Archive task (removes worktrees) |
 | `track alias set <alias>` | Set alias for current task |
+| `track alias set <alias> --force` | Overwrite existing alias on another task |
 | `track alias remove` | Remove alias from current task |
 | `track repo add [path]` | Register repository (default: current directory) |
 | `track repo add --base <branch>` | Register repository with custom base branch |

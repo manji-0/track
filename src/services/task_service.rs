@@ -300,23 +300,33 @@ impl<'a> TaskService<'a> {
     ///
     /// * `task_id` - The ID of the task to set the alias for
     /// * `alias` - The alias to set (must be unique and valid)
+    /// * `force` - If true, removes the alias from any existing task before setting it
     ///
     /// # Errors
     ///
     /// Returns an error if:
     /// - The alias format is invalid
-    /// - The alias is already in use by another task
+    /// - The alias is already in use by another task (when force is false)
     /// - The task does not exist
-    pub fn set_alias(&self, task_id: i64, alias: &str) -> Result<()> {
+    pub fn set_alias(&self, task_id: i64, alias: &str, force: bool) -> Result<()> {
         self.validate_alias(alias)?;
 
         // Check if alias is already in use
         if let Some(existing_id) = self.get_task_by_alias(alias)? {
             if existing_id != task_id {
-                return Err(TrackError::Other(format!(
-                    "Alias '{}' is already in use by task #{}",
-                    alias, existing_id
-                )));
+                if force {
+                    // Remove the alias from the existing task
+                    let conn = self.db.get_connection();
+                    conn.execute(
+                        "UPDATE tasks SET alias = NULL WHERE id = ?1",
+                        params![existing_id],
+                    )?;
+                } else {
+                    return Err(TrackError::Other(format!(
+                        "Alias '{}' is already in use by task #{}. Use --force to overwrite.",
+                        alias, existing_id
+                    )));
+                }
             }
         }
 
@@ -754,7 +764,7 @@ mod tests {
         let service = TaskService::new(&db);
 
         let task = service.create_task("Task 1", None, None, None).unwrap();
-        service.set_alias(task.id, "my-alias").unwrap();
+        service.set_alias(task.id, "my-alias", false).unwrap();
 
         let updated = service.get_task(task.id).unwrap();
         assert_eq!(updated.alias, Some("my-alias".to_string()));
@@ -768,10 +778,10 @@ mod tests {
         let task1 = service.create_task("Task 1", None, None, None).unwrap();
         let task2 = service.create_task("Task 2", None, None, None).unwrap();
 
-        service.set_alias(task1.id, "my-alias").unwrap();
+        service.set_alias(task1.id, "my-alias", false).unwrap();
 
         // Try to set the same alias on a different task
-        let result = service.set_alias(task2.id, "my-alias");
+        let result = service.set_alias(task2.id, "my-alias", false);
         assert!(result.is_err());
     }
 
@@ -782,10 +792,10 @@ mod tests {
 
         let task = service.create_task("Task 1", None, None, None).unwrap();
 
-        service.set_alias(task.id, "my-alias").unwrap();
+        service.set_alias(task.id, "my-alias", false).unwrap();
 
         // Setting the same alias on the same task should succeed
-        service.set_alias(task.id, "my-alias").unwrap();
+        service.set_alias(task.id, "my-alias", false).unwrap();
 
         let updated = service.get_task(task.id).unwrap();
         assert_eq!(updated.alias, Some("my-alias".to_string()));
@@ -797,7 +807,7 @@ mod tests {
         let service = TaskService::new(&db);
 
         let task = service.create_task("Task 1", None, None, None).unwrap();
-        service.set_alias(task.id, "my-alias").unwrap();
+        service.set_alias(task.id, "my-alias", false).unwrap();
         service.remove_alias(task.id).unwrap();
 
         let updated = service.get_task(task.id).unwrap();
@@ -810,7 +820,7 @@ mod tests {
         let service = TaskService::new(&db);
 
         let task = service.create_task("Task 1", None, None, None).unwrap();
-        service.set_alias(task.id, "my-alias").unwrap();
+        service.set_alias(task.id, "my-alias", false).unwrap();
 
         let resolved = service.resolve_task_id("my-alias").unwrap();
         assert_eq!(resolved, task.id);
@@ -827,7 +837,7 @@ mod tests {
             .create_task("Task 2", None, Some("PROJ-123"), None)
             .unwrap();
         let task3 = service.create_task("Task 3", None, None, None).unwrap();
-        service.set_alias(task3.id, "my-alias").unwrap();
+        service.set_alias(task3.id, "my-alias", false).unwrap();
 
         // Test numeric ID (priority 1)
         let resolved = service.resolve_task_id(&task1.id.to_string()).unwrap();
@@ -850,8 +860,8 @@ mod tests {
         let task1 = service.create_task("Task 1", None, None, None).unwrap();
         let task2 = service.create_task("Task 2", None, None, None).unwrap();
 
-        service.set_alias(task1.id, "my-alias").unwrap();
-        let result = service.set_alias(task2.id, "my-alias");
+        service.set_alias(task1.id, "my-alias", false).unwrap();
+        let result = service.set_alias(task2.id, "my-alias", false);
 
         assert!(result.is_err());
     }
@@ -895,5 +905,32 @@ mod tests {
         assert!(service.validate_alias("list").is_err());
         assert!(service.validate_alias("status").is_err());
         assert!(service.validate_alias("NEW").is_err()); // case insensitive
+    }
+
+    #[test]
+    fn test_set_alias_force_overwrite() {
+        let db = setup_db();
+        let service = TaskService::new(&db);
+
+        let task1 = service.create_task("Task 1", None, None, None).unwrap();
+        let task2 = service.create_task("Task 2", None, None, None).unwrap();
+
+        // Set alias on task1
+        service.set_alias(task1.id, "my-alias", false).unwrap();
+
+        // Verify task1 has the alias
+        let updated1 = service.get_task(task1.id).unwrap();
+        assert_eq!(updated1.alias, Some("my-alias".to_string()));
+
+        // Try to set the same alias on task2 with force=true
+        service.set_alias(task2.id, "my-alias", true).unwrap();
+
+        // Verify task2 now has the alias
+        let updated2 = service.get_task(task2.id).unwrap();
+        assert_eq!(updated2.alias, Some("my-alias".to_string()));
+
+        // Verify task1 no longer has the alias
+        let updated1_after = service.get_task(task1.id).unwrap();
+        assert!(updated1_after.alias.is_none());
     }
 }

@@ -65,6 +65,7 @@ track status
 | `track desc [description]` | View or set task description |
 | `track ticket <ticket_id> <url>` | Link a ticket to the task |
 | `track alias set <alias>` | Set an alias for the current task |
+| `track alias set <alias> --force` | Overwrite existing alias on another task |
 | `track alias remove` | Remove alias from the current task |
 | `track archive [task_id]` | Archive a task |
 

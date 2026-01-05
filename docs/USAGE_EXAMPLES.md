@@ -135,8 +135,23 @@ track alias remove
 **Alias Rules:**
 - Alphanumeric characters, hyphens, and underscores only
 - 1-50 characters
-- Must be unique
+- Must be unique (unless using `--force` to overwrite)
 - Cannot use reserved command names (new, list, status, etc.)
+
+**Overwriting Aliases:**
+
+If you try to set an alias that's already in use by another task, you'll get an error:
+
+```bash
+# Task 1 has alias "daily-report"
+track switch 2
+track alias set daily-report
+# Error: Alias 'daily-report' is already in use by task #1. Use --force to overwrite.
+
+# Use --force to move the alias to the current task
+track alias set daily-report --force
+# The alias is removed from task #1 and set on task #2
+```
 
 ## Task Templates
 
