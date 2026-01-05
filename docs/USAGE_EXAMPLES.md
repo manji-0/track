@@ -193,6 +193,69 @@ track switch t:PROJ-123
 track archive t:PROJ-123
 ```
 
+## Todo Prioritization
+
+Move todos to the front of your work queue to change priorities dynamically:
+
+```bash
+# Create a task with multiple todos
+track new "Sprint Planning"
+track todo add "Review backlog"
+track todo add "Estimate stories"
+track todo add "Plan sprint"
+track todo add "Update roadmap"
+
+# List todos (shows current order)
+track todo list
+# 1. Review backlog (pending)
+# 2. Estimate stories (pending)
+# 3. Plan sprint (pending)
+# 4. Update roadmap (pending)
+
+# Urgent: Need to update roadmap first
+track todo next 4
+
+# New order:
+track todo list
+# 1. Update roadmap (pending)  ← Moved to front
+# 2. Review backlog (pending)
+# 3. Estimate stories (pending)
+# 4. Plan sprint (pending)
+```
+
+**Web UI:** Click the ⋮ menu on any pending todo and select "⬆️ Make Next" to move it to the front.
+
+## Scrap Linking
+
+Scraps (work notes) are automatically linked to the active todo when created. This helps you track which notes belong to which work item:
+
+```bash
+# Working on first todo
+track todo add "Implement authentication"
+track todo add "Add user profile"
+track todo add "Write tests"
+
+# Add notes while working on todo #1
+track scrap add "Using JWT for token-based auth"
+track scrap add "Storing tokens in httpOnly cookies"
+
+# Complete first todo and move to next
+track todo done 1
+
+# Add notes for todo #2
+track scrap add "Profile includes avatar, bio, and preferences"
+track scrap add "Using Cloudinary for image storage"
+
+# View all scraps
+track scrap list
+# [2026-01-06 01:00:00] Using JWT for token-based auth (linked to todo #1)
+# [2026-01-06 01:01:00] Storing tokens in httpOnly cookies (linked to todo #1)
+# [2026-01-06 01:05:00] Profile includes avatar, bio, and preferences (linked to todo #2)
+# [2026-01-06 01:06:00] Using Cloudinary for image storage (linked to todo #2)
+```
+
+**Web UI:** Click the 📝 button on any todo to jump to its related scraps. The scrap will be highlighted and scrolled into view.
+
 ## Branch Naming Convention
 
 For tasks with registered tickets, the ticket ID is automatically used in branch names:

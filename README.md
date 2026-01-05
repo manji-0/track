@@ -77,6 +77,7 @@ track status
 | `track todo list` | Display TODO list |
 | `track todo update <index> <status>` | Update TODO status |
 | `track todo done <index>` | Complete a TODO (merges and removes worktrees) |
+| `track todo next <index>` | Move a TODO to the front (make it the next todo to work on) |
 | `track todo delete <index>` | Delete a TODO |
 | `track todo delete <index> --force` | Delete without confirmation |
 
@@ -121,6 +122,13 @@ track status
 | `track webui --open` | Start and open browser automatically |
 
 The Web UI provides a modern, browser-based interface with real-time updates via Server-Sent Events (SSE).
+
+**Key Features:**
+
+- **Todo-Scrap Linking**: Click the 📝 button on any todo to jump to related scraps. Scraps are automatically linked to the active todo when created.
+- **Todo Reordering**: Use the "⬆️ Make Next" option in the todo menu to move a todo to the front of your work queue.
+- **Real-time Updates**: All changes are instantly reflected across all connected browsers.
+- **Focus Mode**: Toggle between overview and focus modes to concentrate on the current task.
 
 ### Shell Completion
 

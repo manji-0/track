@@ -32,10 +32,12 @@
                         <span class="worktree-icon" title="Worktree requested">🌿</span>
                         {% endif %}
                         <span class="todo-status {{ todo.status }}">{{ todo.status }}</span>
+                        {% if todo.has_scraps %}
                         <button class="btn-scrap-link" onclick="scrollToRelatedScraps(event, {{ todo.todo_id }})"
                             title="Jump to related scraps">
                             📝
                         </button>
+                        {% endif %}
                         <span class="todo-menu-indicator">⋮</span>
                     </div>
                     {% if todo.worktree_paths and todo.worktree_paths|length > 0 %}

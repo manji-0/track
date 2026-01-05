@@ -154,7 +154,7 @@ pub async fn api_status(State(state): State<WebState>) -> Result<Json<StatusResp
 
     Ok(Json(StatusResponse {
         task: Some(serde_json::to_value(&task)?),
-        todos: format_todos(todos, &worktrees),
+        todos: format_todos(todos, &worktrees, &scraps),
         links: links
             .iter()
             .map(|l| serde_json::to_value(l).unwrap_or_default())
@@ -254,13 +254,16 @@ pub async fn get_todos(State(state): State<WebState>) -> Result<Html<String>, Ap
     let todo_service = TodoService::new(&db);
     let todos = todo_service.list_todos(current_task_id)?;
 
+    let scrap_service = ScrapService::new(&db);
+    let scraps = scrap_service.list_scraps(current_task_id)?;
+
     let worktree_service = WorktreeService::new(&db);
     let worktrees = worktree_service.list_worktrees(current_task_id)?;
 
     let html = state.templates.render(
         "partials/todo_list.html",
         serde_json::json!({
-            "todos": format_todos(todos, &worktrees),
+            "todos": format_todos(todos, &worktrees, &scraps),
         }),
     )?;
 
@@ -302,13 +305,15 @@ pub async fn add_todo(
 
     // Return updated todo list partial
     let todos = todo_service.list_todos(current_task_id)?;
+    let scrap_service = ScrapService::new(&db);
+    let scraps = scrap_service.list_scraps(current_task_id)?;
     let worktree_service = WorktreeService::new(&db);
     let worktrees = worktree_service.list_worktrees(current_task_id)?;
 
     let html = state.templates.render(
         "partials/todo_list.html",
         serde_json::json!({
-            "todos": format_todos(todos, &worktrees),
+            "todos": format_todos(todos, &worktrees, &scraps),
         }),
     )?;
 
@@ -333,13 +338,15 @@ pub async fn update_todo_status(
 
     // Return updated todo list partial
     let todos = todo_service.list_todos(current_task_id)?;
+    let scrap_service = ScrapService::new(&db);
+    let scraps = scrap_service.list_scraps(current_task_id)?;
     let worktree_service = WorktreeService::new(&db);
     let worktrees = worktree_service.list_worktrees(current_task_id)?;
 
     let html = state.templates.render(
         "partials/todo_list.html",
         serde_json::json!({
-            "todos": format_todos(todos, &worktrees),
+            "todos": format_todos(todos, &worktrees, &scraps),
         }),
     )?;
 
@@ -364,13 +371,15 @@ pub async fn delete_todo(
 
     // Return updated todo list partial
     let todos = todo_service.list_todos(current_task_id)?;
+    let scrap_service = ScrapService::new(&db);
+    let scraps = scrap_service.list_scraps(current_task_id)?;
     let worktree_service = WorktreeService::new(&db);
     let worktrees = worktree_service.list_worktrees(current_task_id)?;
 
     let html = state.templates.render(
         "partials/todo_list.html",
         serde_json::json!({
-            "todos": format_todos(todos, &worktrees),
+            "todos": format_todos(todos, &worktrees, &scraps),
         }),
     )?;
 
@@ -394,13 +403,15 @@ pub async fn move_todo_to_next(
 
     // Return updated todo list partial
     let todos = todo_service.list_todos(current_task_id)?;
+    let scrap_service = ScrapService::new(&db);
+    let scraps = scrap_service.list_scraps(current_task_id)?;
     let worktree_service = WorktreeService::new(&db);
     let worktrees = worktree_service.list_worktrees(current_task_id)?;
 
     let html = state.templates.render(
         "partials/todo_list.html",
         serde_json::json!({
-            "todos": format_todos(todos, &worktrees),
+            "todos": format_todos(todos, &worktrees, &scraps),
         }),
     )?;
 
@@ -494,7 +505,7 @@ fn build_status_context(db: &Database, task_id: i64) -> anyhow::Result<serde_jso
 
     Ok(serde_json::json!({
         "task": task,
-        "todos": format_todos(todos, &worktrees),
+        "todos": format_todos(todos, &worktrees, &scraps),
         "links": links,
         "scraps": format_scraps(&scraps),
         "worktrees": worktrees,
@@ -507,6 +518,7 @@ fn build_status_context(db: &Database, task_id: i64) -> anyhow::Result<serde_jso
 fn format_todos(
     todos: Vec<crate::models::Todo>,
     worktrees: &[crate::models::Worktree],
+    scraps: &[crate::models::Scrap],
 ) -> Vec<serde_json::Value> {
     todos
         .into_iter()
@@ -516,6 +528,12 @@ fn format_todos(
                 .filter(|wt| wt.todo_id == Some(todo.id))
                 .map(|wt| wt.path.clone())
                 .collect();
+
+            // Count scraps associated with this todo
+            let scrap_count = scraps
+                .iter()
+                .filter(|s| s.active_todo_id == Some(todo.task_index))
+                .count();
 
             let mut value = serde_json::to_value(&todo).unwrap_or_default();
 
@@ -532,6 +550,10 @@ fn format_todos(
                 obj.insert(
                     "content_html".to_string(),
                     serde_json::Value::String(todo.content_html()),
+                );
+                obj.insert(
+                    "has_scraps".to_string(),
+                    serde_json::Value::Bool(scrap_count > 0),
                 );
             }
             value
