@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.6] - 2026-01-06
+
+### Changed
+- **Web UI Todo Status Display**: The oldest pending todo now displays as "in progress" with a distinctive blue color
+  - Helps identify which task is currently being worked on
+  - Regular pending todos show in a subdued gray color
+  - Visual distinction makes it easier to focus on the active task
+
 ## [0.3.5] - 2026-01-06
 
 ### Added
