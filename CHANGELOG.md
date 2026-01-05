@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.5] - 2026-01-06
+
 ### Added
 - **Todo Prioritization**: New `track todo next <id>` command to move a todo to the front of the work queue
   - CLI: `track todo next <id>` moves a pending todo to become the next todo to work on
@@ -25,6 +27,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Real-time updates via Server-Sent Events (SSE)
   - Improved visual feedback with animations
   - Conditional UI elements based on data availability
+  - Hidden scrollbars in todo and scrap cards for cleaner appearance
+  - Automatic scroll positioning to oldest pending task in focus mode
 
 ### Changed
 - Database schema updated with migration support for existing databases
