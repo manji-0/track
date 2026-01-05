@@ -4,13 +4,20 @@
 {% if task %}Task #{{ task.id }}: {{ task.name }}{% else %}Track WebUI{% endif %}
 {% endblock %}
 
+{% block toolbar_buttons %}
+{% if task %}
+<!-- View mode toggle button -->
+<button class="toolbar-btn" onclick="toggleViewMode()" id="mode-toggle-btn">
+    <span id="mode-icon">👁️</span> <span id="mode-label">Overview</span>
+</button>
+{% endif %}
+{{ super() }}
+{% endblock %}
+
 {% block content %}
 {% if task %}
 <!-- Task Header -->
 <header class="task-header">
-    <button class="btn-collapse" onclick="toggleMetadata()" id="collapse-btn">
-        <span id="collapse-icon">▼</span> Metadata
-    </button>
     <h1>{{ task.name }}{% if task.alias %} <span class="task-alias">({{ task.alias }})</span>{% endif %}</h1>
     <div class="task-meta">
         {% if task.ticket_id %}
@@ -21,8 +28,8 @@
     </div>
 </header>
 
-<!-- Collapsible Metadata Section -->
-<div id="metadata-section">
+<!-- Overview Section (hidden in Focus Mode) -->
+<div id="overview-section">
     <!-- 2-Pane Layout for Description and Ticket -->
     <div class="two-pane-layout">
         <!-- Description Section (Left) -->
@@ -64,52 +71,61 @@
 {% endif %}
 
 <script>
-    function toggleMetadata() {
-        const section = document.getElementById('metadata-section');
-        const icon = document.getElementById('collapse-icon');
+    // Toggle between Focus Mode and Overview Mode
+    function toggleViewMode() {
+        const section = document.getElementById('overview-section');
+        const icon = document.getElementById('mode-icon');
+        const label = document.getElementById('mode-label');
         const body = document.body;
 
         if (section.style.display === 'none') {
+            // Switch to Overview Mode
             section.style.display = 'block';
-            icon.textContent = '▼';
-            body.classList.remove('metadata-collapsed');
-            localStorage.setItem('metadataCollapsed', 'false');
+            icon.textContent = '👁️';
+            label.textContent = 'Overview';
+            body.classList.remove('focus-mode');
+            localStorage.setItem('viewMode', 'overview');
         } else {
+            // Switch to Focus Mode
             section.style.display = 'none';
-            icon.textContent = '▶';
-            body.classList.add('metadata-collapsed');
-            localStorage.setItem('metadataCollapsed', 'true');
+            icon.textContent = '🎯';
+            label.textContent = 'Focus';
+            body.classList.add('focus-mode');
+            localStorage.setItem('viewMode', 'focus');
         }
     }
 
-    // Function to restore metadata collapse state
-    function restoreMetadataState() {
-        const collapsed = localStorage.getItem('metadataCollapsed') === 'true';
-        const section = document.getElementById('metadata-section');
-        const icon = document.getElementById('collapse-icon');
+    // Restore view mode state from localStorage
+    function restoreViewMode() {
+        const viewMode = localStorage.getItem('viewMode') || 'overview';
+        const section = document.getElementById('overview-section');
+        const icon = document.getElementById('mode-icon');
+        const label = document.getElementById('mode-label');
         const body = document.body;
 
-        if (collapsed) {
-            if (section && icon) {
+        if (viewMode === 'focus') {
+            if (section && icon && label) {
                 section.style.display = 'none';
-                icon.textContent = '▶';
-                body.classList.add('metadata-collapsed');
+                icon.textContent = '🎯';
+                label.textContent = 'Focus';
+                body.classList.add('focus-mode');
             }
         } else {
-            if (section && icon) {
+            if (section && icon && label) {
                 section.style.display = 'block';
-                icon.textContent = '▼';
-                body.classList.remove('metadata-collapsed');
+                icon.textContent = '👁️';
+                label.textContent = 'Overview';
+                body.classList.remove('focus-mode');
             }
         }
     }
 
-    // Initialize metadata section state from localStorage
-    document.addEventListener('DOMContentLoaded', restoreMetadataState);
+    // Initialize view mode on page load
+    document.addEventListener('DOMContentLoaded', restoreViewMode);
 
-    // Restore state after HTMX content swap and settle
-    document.body.addEventListener('htmx:afterSwap', restoreMetadataState);
-    document.body.addEventListener('htmx:afterSettle', restoreMetadataState);
+    // Restore view mode after HTMX content updates
+    document.body.addEventListener('htmx:afterSwap', restoreViewMode);
+    document.body.addEventListener('htmx:afterSettle', restoreViewMode);
 
 
 </script>

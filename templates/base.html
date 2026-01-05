@@ -68,16 +68,25 @@
             padding: 0;
         }
 
+        html {
+            background: var(--gradient-bg);
+            background-attachment: fixed;
+            min-height: 100%;
+            overscroll-behavior: none;
+        }
+
         body {
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: var(--gradient-bg);
+            background-attachment: fixed;
             color: var(--text-primary);
             min-height: 100vh;
             line-height: 1.6;
+            overscroll-behavior: none;
         }
 
-        /* When metadata is collapsed, fix height to viewport */
-        body.metadata-collapsed {
+        /* Focus Mode: Fix height to viewport for concentrated work on TODO/Scraps */
+        body.focus-mode {
             height: 100vh;
             overflow: hidden;
         }
@@ -90,8 +99,8 @@
             flex-direction: column;
         }
 
-        /* When metadata is collapsed, fix container height */
-        body.metadata-collapsed .container {
+        /* Focus Mode: Fix container height */
+        body.focus-mode .container {
             height: 100%;
             overflow: hidden;
         }
@@ -217,43 +226,6 @@
             font-size: 0.9rem;
             font-weight: 400;
             font-style: italic;
-        }
-
-
-        .btn-collapse {
-            position: absolute;
-            top: 0;
-            right: 0;
-            background: rgba(255, 255, 255, 0.05);
-            color: var(--text-secondary);
-            border: 1px solid var(--border-color);
-            border-radius: var(--border-radius-sm);
-            padding: 0.375rem 0.75rem;
-            font-size: 0.75rem;
-            font-weight: 500;
-            cursor: pointer;
-            transition: var(--transition);
-            display: flex;
-            align-items: center;
-            gap: 0.25rem;
-        }
-
-        .btn-collapse:hover {
-            background: rgba(255, 255, 255, 0.1);
-            border-color: rgba(255, 255, 255, 0.3);
-        }
-
-        [data-theme="light"] .btn-collapse {
-            background: rgba(0, 0, 0, 0.05);
-        }
-
-        [data-theme="light"] .btn-collapse:hover {
-            background: rgba(0, 0, 0, 0.1);
-            border-color: rgba(0, 0, 0, 0.3);
-        }
-
-        #collapse-icon {
-            font-size: 0.625rem;
         }
 
 
@@ -1054,27 +1026,29 @@
             font-family: 'JetBrains Mono', monospace;
         }
 
-        /* Connection status */
+        /* Connection status (in toolbar) */
         .connection-status {
-            position: fixed;
-            bottom: 1rem;
-            right: 1rem;
-            padding: 0.5rem 1rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
             border-radius: var(--border-radius-sm);
+            padding: 0.5rem 0.75rem;
             font-size: 0.75rem;
             display: flex;
             align-items: center;
-            gap: 0.5rem;
-            z-index: 1000;
+            gap: 0.375rem;
+            box-shadow: var(--shadow);
+            height: 2.5rem;
+            white-space: nowrap;
+            transition: var(--transition);
         }
 
         .connection-status.connected {
-            background: var(--success-light);
+            border-color: var(--success);
             color: var(--success);
         }
 
         .connection-status.disconnected {
-            background: var(--danger-light);
+            border-color: var(--danger);
             color: var(--danger);
         }
 
@@ -1106,34 +1080,61 @@
             }
         }
 
-        /* Theme toggle button */
-        .theme-toggle {
+        /* Fixed toolbar for view mode and theme toggle buttons */
+        .toolbar {
             position: fixed;
             top: 1rem;
             right: 1rem;
+            display: flex;
+            gap: 0.5rem;
+            z-index: 1000;
+        }
+
+        .toolbar-btn {
             background: var(--bg-card);
+            color: var(--text-secondary);
             border: 1px solid var(--border-color);
             border-radius: var(--border-radius-sm);
-            padding: 0.625rem;
+            padding: 0.5rem 0.75rem;
+            font-size: 0.875rem;
+            font-weight: 500;
             cursor: pointer;
             transition: var(--transition);
-            z-index: 1000;
             display: flex;
             align-items: center;
-            justify-content: center;
-            width: 2.5rem;
-            height: 2.5rem;
+            gap: 0.375rem;
             box-shadow: var(--shadow);
+            height: 2.5rem;
+            white-space: nowrap;
         }
 
-        .theme-toggle:hover {
+        .toolbar-btn:hover {
             background: var(--bg-input);
             border-color: var(--accent);
-            transform: scale(1.05);
+            transform: translateY(-1px);
         }
 
-        .theme-toggle:active {
-            transform: scale(0.95);
+        .toolbar-btn:active {
+            transform: translateY(0);
+        }
+
+        [data-theme="light"] .toolbar-btn {
+            background: var(--bg-card);
+        }
+
+        [data-theme="light"] .toolbar-btn:hover {
+            background: var(--bg-input);
+        }
+
+        .toolbar-btn .icon {
+            font-size: 1.125rem;
+        }
+
+        /* Theme toggle specific styles */
+        .theme-toggle {
+            min-width: 2.5rem;
+            justify-content: center;
+            padding: 0.5rem;
         }
 
         .theme-icon {
@@ -1164,7 +1165,7 @@
                 flex-direction: column;
             }
 
-            .theme-toggle {
+            .toolbar {
                 top: 0.5rem;
                 right: 0.5rem;
             }
@@ -1176,19 +1177,23 @@
 </head>
 
 <body>
-    <!-- Theme Toggle Button -->
-    <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
-        <span class="theme-icon" id="theme-icon">🌙</span>
-    </button>
+    <!-- Toolbar with View Mode, Connection Status, and Theme Toggle Buttons -->
+    <div class="toolbar">
+        {% block toolbar_buttons %}
+        <!-- Connection status (always visible) -->
+        <div id="connection-status" class="connection-status disconnected">
+            <span class="status-dot"></span>
+            <span class="status-text">Connecting...</span>
+        </div>
+        <!-- Theme toggle button (always visible) -->
+        <button class="toolbar-btn theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+            <span class="theme-icon" id="theme-icon">🌙</span>
+        </button>
+        {% endblock %}
+    </div>
 
     <div class="container">
         {% block content %}{% endblock %}
-    </div>
-
-    <!-- SSE Connection -->
-    <div id="connection-status" class="connection-status disconnected">
-        <span class="status-dot"></span>
-        <span class="status-text">Connecting...</span>
     </div>
 
     <script>
