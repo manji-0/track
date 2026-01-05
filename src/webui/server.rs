@@ -49,6 +49,7 @@ pub async fn start_server(port: u16, open_browser: bool) -> anyhow::Result<()> {
         .route("/api/status", get(routes::api_status))
         .route("/api/todo", post(routes::add_todo))
         .route("/api/todo/:id", delete(routes::delete_todo))
+        .route("/api/todo/:id/next", patch(routes::move_todo_to_next))
         .route("/api/todo/:id/:status", patch(routes::update_todo_status))
         .route("/api/scrap", post(routes::add_scrap))
         .route("/api/description", post(routes::update_description))

@@ -41,7 +41,8 @@
             {% if scraps and scraps|length > 0 %}
             <div class="scrap-list" id="scrap-list-container">
                 {% for scrap in scraps %}
-                <div class="scrap-item">
+                <div class="scrap-item" {% if scrap.active_todo_id %}data-active-todo-id="{{ scrap.active_todo_id }}" {%
+                    endif %}>
                     <div class="scrap-time">{{ scrap.created_at }}</div>
                     <div class="scrap-content scrap-markdown">{{ scrap.content_html | safe }}</div>
                 </div>

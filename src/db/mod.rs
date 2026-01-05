@@ -146,6 +146,7 @@ impl Database {
                 task_id INTEGER NOT NULL,
                 content TEXT NOT NULL,
                 created_at TEXT NOT NULL,
+                active_todo_id INTEGER,
                 FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
             );
 
@@ -511,10 +512,52 @@ impl Database {
 
             // Create unique index on (task_id, task_index)
             self.conn.execute(
-                "CREATE UNIQUE INDEX idx_task_repos_task_index ON task_repos(task_id, task_index)",
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_task_repos_task_index ON task_repos(task_id, task_index)",
                 [],
             )?;
         }
+
+        // Check for active_todo_id column in scraps
+        let count: i64 = self.conn.query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('scraps') WHERE name='active_todo_id'",
+            [],
+            |row| row.get(0),
+        )?;
+
+        if count == 0 {
+            // Add active_todo_id column to track which todo was active when scrap was created
+            // Active todo = the oldest pending todo at the time of scrap creation
+            self.conn
+                .execute("ALTER TABLE scraps ADD COLUMN active_todo_id INTEGER", [])?;
+
+            // For existing scraps, populate active_todo_id based on the oldest pending todo
+            // at the time of scrap creation. We need to find the first todo that was either:
+            // 1. Still pending at scrap creation time, OR
+            // 2. Completed after scrap creation time
+            self.conn.execute_batch(
+                r#"
+                UPDATE scraps
+                SET active_todo_id = (
+                    SELECT task_index
+                    FROM todos
+                    WHERE todos.task_id = scraps.task_id
+                      AND (
+                        todos.status = 'pending'
+                        OR todos.completed_at IS NULL
+                        OR todos.completed_at > scraps.created_at
+                      )
+                    ORDER BY todos.task_index ASC
+                    LIMIT 1
+                )
+                "#,
+            )?;
+        }
+
+        // Create index on active_todo_id for efficient lookups
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_scraps_active_todo_id ON scraps(active_todo_id)",
+            [],
+        )?;
 
         Ok(())
     }

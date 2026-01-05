@@ -32,6 +32,10 @@
                         <span class="worktree-icon" title="Worktree requested">🌿</span>
                         {% endif %}
                         <span class="todo-status {{ todo.status }}">{{ todo.status }}</span>
+                        <button class="btn-scrap-link" onclick="scrollToRelatedScraps(event, {{ todo.todo_id }})"
+                            title="Jump to related scraps">
+                            📝
+                        </button>
                         <span class="todo-menu-indicator">⋮</span>
                     </div>
                     {% if todo.worktree_paths and todo.worktree_paths|length > 0 %}
@@ -48,6 +52,13 @@
             <!-- Menus (outside of list items to avoid opacity inheritance) -->
             {% for todo in todos %}
             <div class="todo-menu" id="todo-menu-{{ todo.todo_id }}" style="display: none;">
+                {% if todo.status == 'pending' %}
+                <button class="menu-item btn-primary" hx-patch="/api/todo/{{ todo.todo_id }}/next"
+                    hx-target="#todos-section" hx-swap="none" onclick="event.stopPropagation()">
+                    <span class="menu-icon">⬆️</span>
+                    <span class="menu-label">Make Next</span>
+                </button>
+                {% endif %}
                 {% if todo.status != 'done' %}
                 <button class="menu-item btn-success" hx-patch="/api/todo/{{ todo.todo_id }}/done"
                     hx-target="#todos-section" hx-swap="none" onclick="event.stopPropagation()">

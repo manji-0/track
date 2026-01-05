@@ -2,7 +2,7 @@ use crate::db::Database;
 use crate::models::{Link, Scrap};
 use crate::utils::{Result, TrackError};
 use chrono::Utc;
-use rusqlite::params;
+use rusqlite::{params, OptionalExtension};
 
 pub struct LinkService<'a> {
     db: &'a Database,
@@ -130,9 +130,16 @@ impl<'a> ScrapService<'a> {
                 |row| row.get(0),
             )?;
 
+            // Find the active todo (oldest pending todo) at the time of scrap creation
+            let active_todo_id: Option<i64> = conn.query_row(
+                "SELECT task_index FROM todos WHERE task_id = ?1 AND status = 'pending' ORDER BY task_index ASC LIMIT 1",
+                params![task_id],
+                |row| row.get(0),
+            ).optional()?;
+
             conn.execute(
-                "INSERT INTO scraps (task_id, task_index, content, created_at) VALUES (?1, ?2, ?3, ?4)",
-                params![task_id, next_index, content, now],
+                "INSERT INTO scraps (task_id, task_index, content, created_at, active_todo_id) VALUES (?1, ?2, ?3, ?4, ?5)",
+                params![task_id, next_index, content, now, active_todo_id],
             )?;
 
             let scrap_id = conn.last_insert_rowid();
@@ -144,7 +151,7 @@ impl<'a> ScrapService<'a> {
     pub fn get_scrap(&self, scrap_id: i64) -> Result<Scrap> {
         let conn = self.db.get_connection();
         let mut stmt = conn.prepare(
-            "SELECT id, task_id, task_index, content, created_at FROM scraps WHERE id = ?1",
+            "SELECT id, task_id, task_index, content, created_at, active_todo_id FROM scraps WHERE id = ?1",
         )?;
 
         let scrap = stmt.query_row(params![scrap_id], |row| {
@@ -154,6 +161,7 @@ impl<'a> ScrapService<'a> {
                 scrap_id: row.get(2)?,
                 content: row.get(3)?,
                 created_at: row.get::<_, String>(4)?.parse().unwrap(),
+                active_todo_id: row.get(5)?,
             })
         })?;
 
@@ -163,7 +171,7 @@ impl<'a> ScrapService<'a> {
     pub fn list_scraps(&self, task_id: i64) -> Result<Vec<Scrap>> {
         let conn = self.db.get_connection();
         let mut stmt = conn.prepare(
-            "SELECT id, task_id, task_index, content, created_at FROM scraps WHERE task_id = ?1 ORDER BY created_at ASC"
+            "SELECT id, task_id, task_index, content, created_at, active_todo_id FROM scraps WHERE task_id = ?1 ORDER BY created_at ASC"
         )?;
 
         let scraps = stmt
@@ -174,6 +182,7 @@ impl<'a> ScrapService<'a> {
                     scrap_id: row.get(2)?,
                     content: row.get(3)?,
                     created_at: row.get::<_, String>(4)?.parse().unwrap(),
+                    active_todo_id: row.get(5)?,
                 })
             })?
             .collect::<std::result::Result<Vec<_>, _>>()?;

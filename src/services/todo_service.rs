@@ -150,6 +150,85 @@ impl<'a> TodoService<'a> {
         self.db.increment_rev("todos")?;
         Ok(())
     }
+
+    /// Move a TODO to the front (make it the next todo to work on)
+    ///
+    /// This reorders the task_index so that the specified todo becomes the oldest pending todo.
+    /// Only pending todos are affected by the reordering.
+    pub fn move_to_next(&self, task_id: i64, task_index: i64) -> Result<()> {
+        self.db.with_transaction(|| {
+            let conn = self.db.get_connection();
+
+            // Get the todo to move
+            let todo = self.get_todo_by_index(task_id, task_index)?;
+
+            // Only allow moving pending todos
+            if todo.status != "pending" {
+                return Err(TrackError::Other(format!(
+                    "Cannot move TODO #{} - only pending todos can be moved (current status: {})",
+                    task_index, todo.status
+                )));
+            }
+
+            // Get all pending todos for this task, ordered by task_index
+            let mut stmt = conn.prepare(
+                "SELECT id, task_index FROM todos WHERE task_id = ?1 AND status = 'pending' ORDER BY task_index ASC"
+            )?;
+
+            let pending_todos: Vec<(i64, i64)> = stmt
+                .query_map(params![task_id], |row| {
+                    Ok((row.get(0)?, row.get(1)?))
+                })?
+                .collect::<std::result::Result<Vec<_>, _>>()?;
+
+            if pending_todos.is_empty() {
+                return Err(TrackError::Other("No pending todos found".to_string()));
+            }
+
+            // Find the position of the todo to move
+            let move_pos = pending_todos.iter().position(|(_, idx)| *idx == task_index);
+            if move_pos.is_none() {
+                return Err(TrackError::Other(format!("TODO #{} not found in pending todos", task_index)));
+            }
+            let move_pos = move_pos.unwrap();
+
+            // If already at the front, nothing to do
+            if move_pos == 0 {
+                return Ok(());
+            }
+
+            // Reorder: move the todo to the front
+            let mut reordered = pending_todos.clone();
+            let moved_todo = reordered.remove(move_pos);
+            reordered.insert(0, moved_todo);
+
+            // Get the minimum task_index to use as starting point
+            let min_index = pending_todos[0].1;
+
+            // Update all pending todos with new task_index values
+            // We use a temporary offset to avoid UNIQUE constraint violations
+            let temp_offset = 10000;
+
+            // First, move all to temporary indices
+            for (i, (id, _)) in reordered.iter().enumerate() {
+                conn.execute(
+                    "UPDATE todos SET task_index = ?1 WHERE id = ?2",
+                    params![temp_offset + i as i64, id],
+                )?;
+            }
+
+            // Then, move them to final indices
+            for (i, (id, _)) in reordered.iter().enumerate() {
+                conn.execute(
+                    "UPDATE todos SET task_index = ?1 WHERE id = ?2",
+                    params![min_index + i as i64, id],
+                )?;
+            }
+
+            self.db.increment_rev("todos")?;
+            Ok(())
+        })
+    }
 }
 
 #[cfg(test)]
@@ -387,5 +466,99 @@ mod tests {
         assert_eq!(todos[0].task_index, 1);
         assert_eq!(todos[1].task_index, 2);
         assert_eq!(todos[2].task_index, 3);
+    }
+
+    #[test]
+    fn test_move_to_next_success() {
+        let db = setup_db();
+        let task_id = create_test_task(&db);
+        let service = TodoService::new(&db);
+
+        // Create 4 todos
+        service.add_todo(task_id, "TODO 1", false).unwrap();
+        service.add_todo(task_id, "TODO 2", false).unwrap();
+        service.add_todo(task_id, "TODO 3", false).unwrap();
+        service.add_todo(task_id, "TODO 4", false).unwrap();
+
+        // Move TODO #4 to the front
+        service.move_to_next(task_id, 4).unwrap();
+
+        let todos = service.list_todos(task_id).unwrap();
+        assert_eq!(todos.len(), 4);
+        // TODO #4 should now be at index 1 (the front)
+        assert_eq!(todos[0].task_index, 1);
+        assert_eq!(todos[0].content, "TODO 4");
+        // Others should be shifted
+        assert_eq!(todos[1].task_index, 2);
+        assert_eq!(todos[1].content, "TODO 1");
+        assert_eq!(todos[2].task_index, 3);
+        assert_eq!(todos[2].content, "TODO 2");
+        assert_eq!(todos[3].task_index, 4);
+        assert_eq!(todos[3].content, "TODO 3");
+    }
+
+    #[test]
+    fn test_move_to_next_already_at_front() {
+        let db = setup_db();
+        let task_id = create_test_task(&db);
+        let service = TodoService::new(&db);
+
+        service.add_todo(task_id, "TODO 1", false).unwrap();
+        service.add_todo(task_id, "TODO 2", false).unwrap();
+
+        // Try to move TODO #1 to the front (it's already there)
+        service.move_to_next(task_id, 1).unwrap();
+
+        let todos = service.list_todos(task_id).unwrap();
+        assert_eq!(todos[0].task_index, 1);
+        assert_eq!(todos[0].content, "TODO 1");
+        assert_eq!(todos[1].task_index, 2);
+        assert_eq!(todos[1].content, "TODO 2");
+    }
+
+    #[test]
+    fn test_move_to_next_with_done_todos() {
+        let db = setup_db();
+        let task_id = create_test_task(&db);
+        let service = TodoService::new(&db);
+
+        // Create todos and mark some as done
+        let todo1 = service.add_todo(task_id, "TODO 1", false).unwrap();
+        service.add_todo(task_id, "TODO 2", false).unwrap();
+        service.add_todo(task_id, "TODO 3", false).unwrap();
+        service.add_todo(task_id, "TODO 4", false).unwrap();
+
+        // Mark TODO #1 as done
+        service.update_status(todo1.id, "done").unwrap();
+
+        // Move TODO #4 to the front (should be first among pending)
+        service.move_to_next(task_id, 4).unwrap();
+
+        let todos = service.list_todos(task_id).unwrap();
+        // TODO #1 should still be at index 1 (done)
+        assert_eq!(todos[0].task_index, 1);
+        assert_eq!(todos[0].content, "TODO 1");
+        assert_eq!(todos[0].status, "done");
+        // TODO #4 should be at index 2 (first pending)
+        assert_eq!(todos[1].task_index, 2);
+        assert_eq!(todos[1].content, "TODO 4");
+        assert_eq!(todos[1].status, "pending");
+    }
+
+    #[test]
+    fn test_move_to_next_done_todo_fails() {
+        let db = setup_db();
+        let task_id = create_test_task(&db);
+        let service = TodoService::new(&db);
+
+        let todo1 = service.add_todo(task_id, "TODO 1", false).unwrap();
+        service.add_todo(task_id, "TODO 2", false).unwrap();
+
+        // Mark TODO #1 as done
+        service.update_status(todo1.id, "done").unwrap();
+
+        // Try to move a done todo
+        let result = service.move_to_next(task_id, 1);
+        assert!(result.is_err());
     }
 }

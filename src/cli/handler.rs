@@ -682,6 +682,10 @@ impl CommandHandler {
                 todo_service.delete_todo(todo.id)?;
                 println!("Deleted TODO #{}", id);
             }
+            TodoCommands::Next { id } => {
+                todo_service.move_to_next(current_task_id, id)?;
+                println!("Moved TODO #{} to the front (next todo to work on)", id);
+            }
         }
 
         Ok(())

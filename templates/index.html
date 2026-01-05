@@ -175,6 +175,72 @@
     document.body.addEventListener('htmx:afterSwap', restoreViewMode);
     document.body.addEventListener('htmx:afterSettle', restoreViewMode);
 
+    // Scroll to scraps related to a specific todo
+    function scrollToRelatedScraps(event, todoId) {
+        event.stopPropagation(); // Prevent menu from opening
+
+        // Find all scrap items
+        const scrapItems = document.querySelectorAll('.scrap-item');
+
+        if (scrapItems.length === 0) {
+            console.log('No scraps found');
+            return;
+        }
+
+        // Remove existing highlights
+        scrapItems.forEach(item => item.classList.remove('scrap-highlighted'));
+
+        // Find scraps with matching active_todo_id
+        // We need to get this from the server-rendered data
+        // For now, we'll use a data attribute approach
+        let foundScraps = [];
+
+        scrapItems.forEach(item => {
+            // The active_todo_id should be added as a data attribute in the template
+            const activeTodoId = item.getAttribute('data-active-todo-id');
+            if (activeTodoId && parseInt(activeTodoId) === todoId) {
+                foundScraps.push(item);
+            }
+        });
+
+        if (foundScraps.length === 0) {
+            console.log(`No scraps found for todo #${todoId}`);
+            // Show a subtle notification
+            const statusText = document.querySelector('#connection-status .status-text');
+            if (statusText) {
+                const originalText = statusText.textContent;
+                statusText.textContent = `No scraps for todo #${todoId}`;
+                setTimeout(() => {
+                    statusText.textContent = originalText;
+                }, 2000);
+            }
+            return;
+        }
+
+        // Scroll to the first matching scrap
+        const targetScrap = foundScraps[0];
+        targetScrap.classList.add('scrap-highlighted');
+
+        const listContainer = document.querySelector('#scraps-section .list-container');
+        if (listContainer) {
+            const scrapRect = targetScrap.getBoundingClientRect();
+            const containerRect = listContainer.getBoundingClientRect();
+            const scrollOffset = scrapRect.top - containerRect.top + listContainer.scrollTop;
+
+            listContainer.scrollTo({
+                top: scrollOffset - 20, // Add some padding
+                behavior: 'smooth'
+            });
+        }
+
+        // Remove highlight after animation completes
+        setTimeout(() => {
+            targetScrap.classList.remove('scrap-highlighted');
+        }, 3500);
+
+        console.log(`Found ${foundScraps.length} scrap(s) for todo #${todoId}`);
+    }
+
 
 </script>
 {% endblock %}

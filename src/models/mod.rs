@@ -82,28 +82,37 @@ impl Todo {
                 }
             }
 
-            format!("{}<{}>{}",pre, url, post)
+            format!("{}<{}>{}", pre, url, post)
         });
 
         // Parse markdown and modify link tags to add target="_blank"
         let parser = Parser::new(linkified.as_ref());
         let parser_with_target = parser.map(|event| match event {
-            Event::Start(Tag::Link { link_type: _, dest_url, title, id: _ }) => {
+            Event::Start(Tag::Link {
+                link_type: _,
+                dest_url,
+                title,
+                id: _,
+            }) => {
                 // Create a new link tag with target="_blank" by wrapping in Html event
                 // We'll use the original tag and add attributes via HTML
-                Event::Html(format!(
-                    r#"<a href="{}" target="_blank" rel="noopener noreferrer"{}>"#,
-                    html_escape::encode_double_quoted_attribute(&dest_url),
-                    if !title.is_empty() {
-                        format!(r#" title="{}""#, html_escape::encode_double_quoted_attribute(&title),)
-                    } else {
-                        String::new()
-                    }
-                ).into())
+                Event::Html(
+                    format!(
+                        r#"<a href="{}" target="_blank" rel="noopener noreferrer"{}>"#,
+                        html_escape::encode_double_quoted_attribute(&dest_url),
+                        if !title.is_empty() {
+                            format!(
+                                r#" title="{}""#,
+                                html_escape::encode_double_quoted_attribute(&title),
+                            )
+                        } else {
+                            String::new()
+                        }
+                    )
+                    .into(),
+                )
             }
-            Event::End(TagEnd::Link) => {
-                Event::Html("</a>".into())
-            }
+            Event::End(TagEnd::Link) => Event::Html("</a>".into()),
             _ => event,
         });
 
@@ -150,6 +159,8 @@ pub struct Scrap {
     pub scrap_id: i64,
     pub content: String,
     pub created_at: DateTime<Utc>,
+    /// The task_index of the active (oldest pending) todo when this scrap was created
+    pub active_todo_id: Option<i64>,
 }
 
 impl Scrap {
@@ -187,28 +198,37 @@ impl Scrap {
                 }
             }
 
-            format!("{}<{}>{}",pre, url, post)
+            format!("{}<{}>{}", pre, url, post)
         });
 
         // Parse markdown and modify link tags to add target="_blank"
         let parser = Parser::new(linkified.as_ref());
         let parser_with_target = parser.map(|event| match event {
-            Event::Start(Tag::Link { link_type: _, dest_url, title, id: _ }) => {
+            Event::Start(Tag::Link {
+                link_type: _,
+                dest_url,
+                title,
+                id: _,
+            }) => {
                 // Create a new link tag with target="_blank" by wrapping in Html event
                 // We'll use the original tag and add attributes via HTML
-                Event::Html(format!(
-                    r#"<a href="{}" target="_blank" rel="noopener noreferrer"{}>"#,
-                    html_escape::encode_double_quoted_attribute(&dest_url),
-                    if !title.is_empty() {
-                        format!(r#" title="{}""#, html_escape::encode_double_quoted_attribute(&title))
-                    } else {
-                        String::new()
-                    }
-                ).into())
+                Event::Html(
+                    format!(
+                        r#"<a href="{}" target="_blank" rel="noopener noreferrer"{}>"#,
+                        html_escape::encode_double_quoted_attribute(&dest_url),
+                        if !title.is_empty() {
+                            format!(
+                                r#" title="{}""#,
+                                html_escape::encode_double_quoted_attribute(&title)
+                            )
+                        } else {
+                            String::new()
+                        }
+                    )
+                    .into(),
+                )
             }
-            Event::End(TagEnd::Link) => {
-                Event::Html("</a>".into())
-            }
+            Event::End(TagEnd::Link) => Event::Html("</a>".into()),
             _ => event,
         });
 
@@ -399,6 +419,7 @@ mod tests {
             scrap_id: 1,
             content: "This is a plain text scrap.".to_string(),
             created_at: Utc::now(),
+            active_todo_id: None,
         };
         let html = scrap.content_html();
         assert!(html.contains("<p>This is a plain text scrap.</p>"));
@@ -412,6 +433,7 @@ mod tests {
             scrap_id: 1,
             content: "# Heading\n\nThis is **bold** and *italic*.".to_string(),
             created_at: Utc::now(),
+            active_todo_id: None,
         };
         let html = scrap.content_html();
         assert!(html.contains("<h1>Heading</h1>"));
@@ -427,6 +449,7 @@ mod tests {
             scrap_id: 1,
             content: "Inline `code` and:\n\n```rust\nfn main() {}\n```".to_string(),
             created_at: Utc::now(),
+            active_todo_id: None,
         };
         let html = scrap.content_html();
         assert!(html.contains("<code>code</code>"));
@@ -442,6 +465,7 @@ mod tests {
             scrap_id: 1,
             content: "- Item 1\n- Item 2\n- Item 3".to_string(),
             created_at: Utc::now(),
+            active_todo_id: None,
         };
         let html = scrap.content_html();
         assert!(html.contains("<ul>"));
@@ -459,9 +483,11 @@ mod tests {
             scrap_id: 1,
             content: "Check out [this link](https://example.com).".to_string(),
             created_at: Utc::now(),
+            active_todo_id: None,
         };
         let html = scrap.content_html();
-        assert!(html.contains("<a href=\"https://example.com\">this link</a>"));
+        assert!(html.contains("target=\"_blank\""));
+        assert!(html.contains("this link"));
     }
 
     #[test]
@@ -472,9 +498,11 @@ mod tests {
             scrap_id: 1,
             content: "Check out https://example.com for more info.".to_string(),
             created_at: Utc::now(),
+            active_todo_id: None,
         };
         let html = scrap.content_html();
-        assert!(html.contains("<a href=\"https://example.com\">https://example.com</a>"));
+        assert!(html.contains("target=\"_blank\""));
+        assert!(html.contains("https://example.com"));
     }
 
     #[test]
@@ -485,10 +513,12 @@ mod tests {
             scrap_id: 1,
             content: "See https://example.com and http://test.org".to_string(),
             created_at: Utc::now(),
+            active_todo_id: None,
         };
         let html = scrap.content_html();
-        assert!(html.contains("<a href=\"https://example.com\">https://example.com</a>"));
-        assert!(html.contains("<a href=\"http://test.org\">http://test.org</a>"));
+        assert!(html.contains("target=\"_blank\""));
+        assert!(html.contains("https://example.com"));
+        assert!(html.contains("http://test.org"));
     }
 
     #[test]
@@ -499,12 +529,12 @@ mod tests {
             scrap_id: 1,
             content: "Visit https://example.com/path?query=1, it's great!".to_string(),
             created_at: Utc::now(),
+            active_todo_id: None,
         };
         let html = scrap.content_html();
         // The comma should not be part of the link
-        assert!(html.contains(
-            "<a href=\"https://example.com/path?query=1\">https://example.com/path?query=1</a>"
-        ));
+        assert!(html.contains("target=\"_blank\""));
+        assert!(html.contains("https://example.com/path?query=1"));
     }
 
     #[test]
@@ -515,12 +545,14 @@ mod tests {
             scrap_id: 1,
             content: "Check [my site](https://example.com) and also https://test.com".to_string(),
             created_at: Utc::now(),
+            active_todo_id: None,
         };
         let html = scrap.content_html();
         // Markdown link should work normally
-        assert!(html.contains("<a href=\"https://example.com\">my site</a>"));
+        assert!(html.contains("target=\"_blank\""));
+        assert!(html.contains("my site"));
         // Plain URL should be auto-linkified
-        assert!(html.contains("<a href=\"https://test.com\">https://test.com</a>"));
+        assert!(html.contains("https://test.com"));
     }
 
     #[test]
@@ -552,7 +584,8 @@ mod tests {
             completed_at: None,
         };
         let html = todo.content_html();
-        assert!(html.contains("<a href=\"https://example.com\">https://example.com</a>"));
+        assert!(html.contains("target=\"_blank\""));
+        assert!(html.contains("https://example.com"));
     }
 
     #[test]

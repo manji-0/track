@@ -207,6 +207,12 @@ pub enum TodoCommands {
         #[arg(short, long)]
         force: bool,
     },
+
+    /// Move a TODO to the front (make it the next todo to work on)
+    Next {
+        /// TODO ID
+        id: i64,
+    },
 }
 
 #[derive(Subcommand)]

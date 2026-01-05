@@ -377,6 +377,36 @@ pub async fn delete_todo(
     Ok(Html(html))
 }
 
+/// Move a todo to the front (make it the next todo to work on)
+pub async fn move_todo_to_next(
+    State(state): State<WebState>,
+    Path(todo_index): Path<i64>,
+) -> Result<Html<String>, AppError> {
+    let db = state.app.db.lock().await;
+
+    let current_task_id = db.get_current_task_id()?.ok_or(TrackError::NoActiveTask)?;
+
+    let todo_service = TodoService::new(&db);
+    todo_service.move_to_next(current_task_id, todo_index)?;
+
+    // Broadcast SSE event
+    state.app.broadcast(SseEvent::Todos);
+
+    // Return updated todo list partial
+    let todos = todo_service.list_todos(current_task_id)?;
+    let worktree_service = WorktreeService::new(&db);
+    let worktrees = worktree_service.list_worktrees(current_task_id)?;
+
+    let html = state.templates.render(
+        "partials/todo_list.html",
+        serde_json::json!({
+            "todos": format_todos(todos, &worktrees),
+        }),
+    )?;
+
+    Ok(Html(html))
+}
+
 /// Add a new scrap
 pub async fn add_scrap(
     State(state): State<WebState>,
@@ -527,6 +557,7 @@ fn format_scraps(scraps: &[crate::models::Scrap]) -> Vec<serde_json::Value> {
                 "content": scrap.content,
                 "content_html": scrap.content_html(),
                 "created_at": formatted_time,
+                "active_todo_id": scrap.active_todo_id,
             })
         })
         .collect()
