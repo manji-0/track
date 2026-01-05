@@ -44,7 +44,7 @@
 </div>
 
 <!-- 2-Pane Layout for TODOs and Scraps -->
-<div class="two-pane-layout">
+<div class="two-pane-layout main-content">
     <!-- TODOs Section (Left) -->
     {% include "partials/todo_list.html" %}
 
@@ -67,14 +67,17 @@
     function toggleMetadata() {
         const section = document.getElementById('metadata-section');
         const icon = document.getElementById('collapse-icon');
+        const body = document.body;
 
         if (section.style.display === 'none') {
             section.style.display = 'block';
             icon.textContent = '▼';
+            body.classList.remove('metadata-collapsed');
             localStorage.setItem('metadataCollapsed', 'false');
         } else {
             section.style.display = 'none';
             icon.textContent = '▶';
+            body.classList.add('metadata-collapsed');
             localStorage.setItem('metadataCollapsed', 'true');
         }
     }
@@ -82,12 +85,21 @@
     // Function to restore metadata collapse state
     function restoreMetadataState() {
         const collapsed = localStorage.getItem('metadataCollapsed') === 'true';
+        const section = document.getElementById('metadata-section');
+        const icon = document.getElementById('collapse-icon');
+        const body = document.body;
+
         if (collapsed) {
-            const section = document.getElementById('metadata-section');
-            const icon = document.getElementById('collapse-icon');
             if (section && icon) {
                 section.style.display = 'none';
                 icon.textContent = '▶';
+                body.classList.add('metadata-collapsed');
+            }
+        } else {
+            if (section && icon) {
+                section.style.display = 'block';
+                icon.textContent = '▼';
+                body.classList.remove('metadata-collapsed');
             }
         }
     }

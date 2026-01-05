@@ -76,10 +76,24 @@
             line-height: 1.6;
         }
 
+        /* When metadata is collapsed, fix height to viewport */
+        body.metadata-collapsed {
+            height: 100vh;
+            overflow: hidden;
+        }
+
         .container {
             max-width: 1400px;
             margin: 0 auto;
             padding: 2rem 1rem;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* When metadata is collapsed, fix container height */
+        body.metadata-collapsed .container {
+            height: 100%;
+            overflow: hidden;
         }
 
         /* Card styles */
@@ -96,6 +110,39 @@
 
         .card:hover {
             border-color: rgba(255, 255, 255, 0.15);
+        }
+
+        /* Scrollable card for TODO/Scrap sections */
+        .card.scrollable-card {
+            display: flex;
+            flex-direction: column;
+            min-height: 300px;
+            height: 100%;
+            margin-bottom: 0;
+        }
+
+        .card.scrollable-card .card-header {
+            flex-shrink: 0;
+        }
+
+        .card.scrollable-card .card-content {
+            flex: 1;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Input form stays fixed at top */
+        .card.scrollable-card .input-form-container {
+            flex-shrink: 0;
+            margin-bottom: 1rem;
+        }
+
+        /* List container is scrollable */
+        .card.scrollable-card .list-container {
+            flex: 1;
+            overflow-y: auto;
+            min-height: 0;
         }
 
         .card-header {
@@ -449,6 +496,13 @@
             gap: 1.5rem;
         }
 
+        /* Make the main content pane (TODOs/Scraps) grow to fill available space */
+        .two-pane-layout.main-content {
+            flex: 1;
+            min-height: 0;
+            overflow: hidden;
+        }
+
         @media (min-width: 1024px) {
             .two-pane-layout {
                 grid-template-columns: 1fr 1fr;
@@ -678,11 +732,7 @@
             text-decoration: line-through;
         }
 
-        /* Scrap list */
-        .scrap-list {
-            max-height: 600px;
-            overflow-y: auto;
-        }
+        /* Scrap list - scrolling is handled by .card.scrollable-card .card-content */
 
         .scrap-item {
             padding: 1rem;

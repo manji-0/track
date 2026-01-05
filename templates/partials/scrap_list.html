@@ -1,62 +1,72 @@
-<div class="card" id="scraps-section">
+<div class="card scrollable-card" id="scraps-section">
     <div class="card-header">
         <h2 class="card-title"><span class="icon">📝</span> Scraps</h2>
     </div>
 
-    <!-- Add Scrap Form -->
-    <form id="scrap-form" hx-post="/api/scrap" hx-swap="none" hx-on::after-request="this.reset()"
-        style="margin-bottom: 1rem;">
-        <div class="input-group">
-            <textarea name="content" id="scrap-input" placeholder="Add a note or scrap... (Shift+Enter for newline)"
-                required autocomplete="off" rows="1" style="resize: vertical; min-height: 2.5rem;"></textarea>
-            <button type="submit">
-                <span>📌</span> Add
-            </button>
+    <div class="card-content">
+        <!-- Add Scrap Form -->
+        <div class="input-form-container">
+            <form id="scrap-form" hx-post="/api/scrap" hx-swap="none" hx-on::after-request="this.reset()">
+                <div class="input-group">
+                    <textarea name="content" id="scrap-input"
+                        placeholder="Add a note or scrap... (Shift+Enter for newline)" required autocomplete="off"
+                        rows="1" style="resize: vertical; min-height: 2.5rem;"></textarea>
+                    <button type="submit">
+                        <span>📌</span> Add
+                    </button>
+                </div>
+            </form>
         </div>
-    </form>
-    <script>
-        // Scrap input: Enter to submit, Shift+Enter for newline
-        (function () {
-            const scrapInput = document.getElementById('scrap-input');
-            const scrapForm = document.getElementById('scrap-form');
-            if (scrapInput && scrapForm) {
-                scrapInput.addEventListener('keydown', function (e) {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault();
-                        if (scrapInput.value.trim()) {
-                            htmx.trigger(scrapForm, 'submit');
+        <script>
+            // Scrap input: Enter to submit, Shift+Enter for newline
+            (function () {
+                const scrapInput = document.getElementById('scrap-input');
+                const scrapForm = document.getElementById('scrap-form');
+                if (scrapInput && scrapForm) {
+                    scrapInput.addEventListener('keydown', function (e) {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault();
+                            if (scrapInput.value.trim()) {
+                                htmx.trigger(scrapForm, 'submit');
+                            }
+                        }
+                        // Shift+Enter allows default behavior (newline)
+                    });
+                }
+            })();
+        </script>
+
+        <!-- Scrap List -->
+        <div class="list-container">
+            {% if scraps and scraps|length > 0 %}
+            <div class="scrap-list" id="scrap-list-container">
+                {% for scrap in scraps %}
+                <div class="scrap-item">
+                    <div class="scrap-time">{{ scrap.created_at }}</div>
+                    <div class="scrap-content scrap-markdown">{{ scrap.content_html | safe }}</div>
+                </div>
+                {% endfor %}
+            </div>
+
+            <script>
+                // Scroll scrap list to bottom after content loads
+                (function () {
+                    const scrapList = document.getElementById('scrap-list-container');
+                    if (scrapList) {
+                        // Find the parent list-container which is the actual scrollable container
+                        const listContainer = scrapList.closest('.list-container');
+                        if (listContainer) {
+                            listContainer.scrollTop = listContainer.scrollHeight;
                         }
                     }
-                    // Shift+Enter allows default behavior (newline)
-                });
-            }
-        })();
-    </script>
-
-    <!-- Scrap List -->
-    {% if scraps and scraps|length > 0 %}
-    <div class="scrap-list" id="scrap-list-container">
-        {% for scrap in scraps %}
-        <div class="scrap-item">
-            <div class="scrap-time">{{ scrap.created_at }}</div>
-            <div class="scrap-content scrap-markdown">{{ scrap.content_html | safe }}</div>
+                })();
+            </script>
+            {% else %}
+            <div class="empty-state">
+                <div class="icon">📝</div>
+                <p>No scraps yet. Record your thoughts and progress!</p>
+            </div>
+            {% endif %}
         </div>
-        {% endfor %}
     </div>
-
-    <script>
-        // Scroll scrap list to bottom after content loads
-        (function () {
-            const scrapList = document.getElementById('scrap-list-container');
-            if (scrapList) {
-                scrapList.scrollTop = scrapList.scrollHeight;
-            }
-        })();
-    </script>
-    {% else %}
-    <div class="empty-state">
-        <div class="icon">📝</div>
-        <p>No scraps yet. Record your thoughts and progress!</p>
-    </div>
-    {% endif %}
 </div>
