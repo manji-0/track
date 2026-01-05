@@ -268,6 +268,15 @@ fn test_merge_branch_actually_merges() {
         .output()
         .unwrap();
 
+    // Get the initial branch name (could be 'main' or 'master' depending on git config)
+    let branch_output = Command::new("git")
+        .args(["-C", repo_path, "branch", "--show-current"])
+        .output()
+        .unwrap();
+    let initial_branch = String::from_utf8_lossy(&branch_output.stdout)
+        .trim()
+        .to_string();
+
     // Create feature branch
     Command::new("git")
         .args(["-C", repo_path, "checkout", "-b", "feature"])
@@ -283,9 +292,9 @@ fn test_merge_branch_actually_merges() {
         .output()
         .unwrap();
 
-    // Go back to main
+    // Go back to initial branch
     Command::new("git")
-        .args(["-C", repo_path, "checkout", "master"])
+        .args(["-C", repo_path, "checkout", &initial_branch])
         .output()
         .unwrap();
 

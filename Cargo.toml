@@ -22,6 +22,8 @@ prettytable-rs = "0.10"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.148"
 pulldown-cmark = { version = "0.12", default-features = false, features = ["html"] }
+regex = "1.11"
+
 
 # Web server
 axum = { version = "0.7", features = ["macros"] }

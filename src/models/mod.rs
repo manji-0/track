@@ -90,11 +90,40 @@ impl Scrap {
     /// Converts the scrap content from markdown to HTML.
     ///
     /// This method uses pulldown-cmark to parse the markdown content
-    /// and render it as HTML. The output is safe for display in web pages.
+    /// and render it as HTML. Plain URLs are automatically converted to clickable links.
+    /// The output is safe for display in web pages.
     pub fn content_html(&self) -> String {
         use pulldown_cmark::{html, Parser};
+        use regex::Regex;
 
-        let parser = Parser::new(&self.content);
+        // Auto-linkify plain URLs that aren't already in markdown link syntax
+        // This regex matches URLs and ensures trailing punctuation is not included
+        // It allows dots, question marks, etc. within the URL but not at the end
+        let url_regex = Regex::new(
+            r"(?P<pre>^|[\s\(])(?P<url>https?://[^\s\)<>]+?)(?P<post>[.,;!?]*(?:[\s\)]|$))",
+        )
+        .unwrap();
+
+        let linkified = url_regex.replace_all(&self.content, |caps: &regex::Captures| {
+            let pre = &caps["pre"];
+            let url = &caps["url"];
+            let post = &caps["post"];
+
+            // Check if this URL is already part of a markdown link [text](url)
+            // by looking backwards in the original content
+            let cap_start = caps.get(0).unwrap().start();
+            if cap_start >= 2 {
+                let before = &self.content[..cap_start];
+                if before.ends_with("](") {
+                    // This is already a markdown link, don't modify
+                    return caps.get(0).unwrap().as_str().to_string();
+                }
+            }
+
+            format!("{}<{}>{}", pre, url, post)
+        });
+
+        let parser = Parser::new(linkified.as_ref());
         let mut html_output = String::new();
         html::push_html(&mut html_output, parser);
         html_output
@@ -345,5 +374,64 @@ mod tests {
         };
         let html = scrap.content_html();
         assert!(html.contains("<a href=\"https://example.com\">this link</a>"));
+    }
+
+    #[test]
+    fn test_scrap_content_html_auto_linkify_plain_url() {
+        let scrap = Scrap {
+            id: 1,
+            task_id: 1,
+            scrap_id: 1,
+            content: "Check out https://example.com for more info.".to_string(),
+            created_at: Utc::now(),
+        };
+        let html = scrap.content_html();
+        assert!(html.contains("<a href=\"https://example.com\">https://example.com</a>"));
+    }
+
+    #[test]
+    fn test_scrap_content_html_auto_linkify_multiple_urls() {
+        let scrap = Scrap {
+            id: 1,
+            task_id: 1,
+            scrap_id: 1,
+            content: "See https://example.com and http://test.org".to_string(),
+            created_at: Utc::now(),
+        };
+        let html = scrap.content_html();
+        assert!(html.contains("<a href=\"https://example.com\">https://example.com</a>"));
+        assert!(html.contains("<a href=\"http://test.org\">http://test.org</a>"));
+    }
+
+    #[test]
+    fn test_scrap_content_html_auto_linkify_url_with_punctuation() {
+        let scrap = Scrap {
+            id: 1,
+            task_id: 1,
+            scrap_id: 1,
+            content: "Visit https://example.com/path?query=1, it's great!".to_string(),
+            created_at: Utc::now(),
+        };
+        let html = scrap.content_html();
+        // The comma should not be part of the link
+        assert!(html.contains(
+            "<a href=\"https://example.com/path?query=1\">https://example.com/path?query=1</a>"
+        ));
+    }
+
+    #[test]
+    fn test_scrap_content_html_preserve_markdown_links() {
+        let scrap = Scrap {
+            id: 1,
+            task_id: 1,
+            scrap_id: 1,
+            content: "Check [my site](https://example.com) and also https://test.com".to_string(),
+            created_at: Utc::now(),
+        };
+        let html = scrap.content_html();
+        // Markdown link should work normally
+        assert!(html.contains("<a href=\"https://example.com\">my site</a>"));
+        // Plain URL should be auto-linkified
+        assert!(html.contains("<a href=\"https://test.com\">https://test.com</a>"));
     }
 }
