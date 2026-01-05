@@ -152,6 +152,16 @@
             flex: 1;
             overflow-y: auto;
             min-height: 0;
+            /* Hide scrollbar for webkit browsers (Chrome, Safari, Edge) */
+            scrollbar-width: none;
+            /* Firefox */
+            -ms-overflow-style: none;
+            /* IE and Edge */
+        }
+
+        .card.scrollable-card .list-container::-webkit-scrollbar {
+            display: none;
+            /* Chrome, Safari, Opera */
         }
 
         .card-header {
@@ -507,12 +517,46 @@
             transition: var(--transition);
         }
 
+        /* Highlight the oldest pending task */
+        .todo-item.oldest-pending .todo-main {
+            background: linear-gradient(135deg, rgba(124, 58, 237, 0.15) 0%, rgba(168, 85, 247, 0.1) 100%);
+            border: 2px solid var(--accent);
+            box-shadow: 0 0 20px rgba(124, 58, 237, 0.3);
+            animation: subtle-pulse 2s ease-in-out infinite;
+        }
+
+        [data-theme="light"] .todo-item.oldest-pending .todo-main {
+            background: linear-gradient(135deg, rgba(124, 58, 237, 0.12) 0%, rgba(168, 85, 247, 0.08) 100%);
+            box-shadow: 0 0 15px rgba(124, 58, 237, 0.25);
+        }
+
+        @keyframes subtle-pulse {
+
+            0%,
+            100% {
+                box-shadow: 0 0 20px rgba(124, 58, 237, 0.3);
+            }
+
+            50% {
+                box-shadow: 0 0 30px rgba(124, 58, 237, 0.5);
+            }
+        }
+
         .todo-main:hover {
             background: rgba(255, 255, 255, 0.05);
         }
 
+        /* Keep the highlight even on hover for oldest pending */
+        .todo-item.oldest-pending .todo-main:hover {
+            background: linear-gradient(135deg, rgba(124, 58, 237, 0.2) 0%, rgba(168, 85, 247, 0.15) 100%);
+        }
+
         [data-theme="light"] .todo-main:hover {
             background: rgba(0, 0, 0, 0.03);
+        }
+
+        [data-theme="light"] .todo-item.oldest-pending .todo-main:hover {
+            background: linear-gradient(135deg, rgba(124, 58, 237, 0.18) 0%, rgba(168, 85, 247, 0.12) 100%);
         }
 
         .todo-menu-indicator {
@@ -1304,6 +1348,15 @@
                             htmx.ajax('GET', '/api/card/todos', {
                                 target: '#todos-section',
                                 swap: 'outerHTML'
+                            }).then(() => {
+                                // After todos update, scroll to oldest pending task if in focus mode
+                                if (document.body.classList.contains('focus-mode')) {
+                                    setTimeout(() => {
+                                        if (typeof scrollToOldestPendingTask === 'function') {
+                                            scrollToOldestPendingTask();
+                                        }
+                                    }, 100);
+                                }
                             });
                             break;
 
