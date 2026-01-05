@@ -520,6 +520,13 @@ fn format_todos(
     worktrees: &[crate::models::Worktree],
     scraps: &[crate::models::Scrap],
 ) -> Vec<serde_json::Value> {
+    // Find the oldest pending todo (lowest task_index among pending todos)
+    let oldest_pending_id = todos
+        .iter()
+        .filter(|t| t.status == "pending")
+        .min_by_key(|t| t.task_index)
+        .map(|t| t.id);
+
     todos
         .into_iter()
         .map(|todo| {
@@ -534,6 +541,9 @@ fn format_todos(
                 .iter()
                 .filter(|s| s.active_todo_id == Some(todo.task_index))
                 .count();
+
+            // Check if this is the oldest pending todo (in progress)
+            let is_in_progress = oldest_pending_id == Some(todo.id);
 
             let mut value = serde_json::to_value(&todo).unwrap_or_default();
 
@@ -554,6 +564,10 @@ fn format_todos(
                 obj.insert(
                     "has_scraps".to_string(),
                     serde_json::Value::Bool(scrap_count > 0),
+                );
+                obj.insert(
+                    "is_in_progress".to_string(),
+                    serde_json::Value::Bool(is_in_progress),
                 );
             }
             value

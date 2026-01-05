@@ -31,7 +31,9 @@
                         {% if todo.worktree_requested %}
                         <span class="worktree-icon" title="Worktree requested">🌿</span>
                         {% endif %}
-                        <span class="todo-status {{ todo.status }}">{{ todo.status }}</span>
+                        <span
+                            class="todo-status {% if todo.is_in_progress %}in-progress{% else %}{{ todo.status }}{% endif %}">{%
+                            if todo.is_in_progress %}in progress{% else %}{{ todo.status }}{% endif %}</span>
                         {% if todo.has_scraps %}
                         <button class="btn-scrap-link" onclick="scrollToRelatedScraps(event, {{ todo.todo_id }})"
                             title="Jump to related scraps">

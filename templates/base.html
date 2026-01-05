@@ -737,8 +737,14 @@
         }
 
         .todo-status.pending {
-            background: var(--warning);
-            color: #000;
+            background: #6b7280;
+            color: #fff;
+            font-weight: 500;
+        }
+
+        .todo-status.in-progress {
+            background: #3b82f6;
+            color: #fff;
             font-weight: 600;
         }
 
@@ -773,7 +779,12 @@
         }
 
         [data-theme="light"] .todo-status.pending {
-            background: var(--warning);
+            background: #6b7280;
+            color: white;
+        }
+
+        [data-theme="light"] .todo-status.in-progress {
+            background: #3b82f6;
             color: white;
         }
 
