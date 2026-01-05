@@ -1479,6 +1479,16 @@
                 item.classList.remove('menu-open');
             });
         });
+
+        // Prevent link clicks in TODO/Scrap content from triggering menu toggle
+        document.addEventListener('click', function (event) {
+            // Check if the clicked element is a link within todo-content or scrap-content
+            const link = event.target.closest('a');
+            if (link && (link.closest('.todo-content') || link.closest('.scrap-content'))) {
+                // Stop propagation to prevent triggering toggleTodoMenu
+                event.stopPropagation();
+            }
+        }, true); // Use capture phase to catch the event early
     </script>
 </body>
 

@@ -52,9 +52,10 @@ impl Todo {
     ///
     /// This method uses pulldown-cmark to parse the markdown content
     /// and render it as HTML. Plain URLs are automatically converted to clickable links.
+    /// All links open in new tabs with target="_blank".
     /// The output is safe for display in web pages.
     pub fn content_html(&self) -> String {
-        use pulldown_cmark::{html, Parser};
+        use pulldown_cmark::{html, Event, Parser, Tag, TagEnd};
         use regex::Regex;
 
         // Auto-linkify plain URLs that aren't already in markdown link syntax
@@ -81,12 +82,33 @@ impl Todo {
                 }
             }
 
-            format!("{}<{}>{}", pre, url, post)
+            format!("{}<{}>{}",pre, url, post)
         });
 
+        // Parse markdown and modify link tags to add target="_blank"
         let parser = Parser::new(linkified.as_ref());
+        let parser_with_target = parser.map(|event| match event {
+            Event::Start(Tag::Link { link_type: _, dest_url, title, id: _ }) => {
+                // Create a new link tag with target="_blank" by wrapping in Html event
+                // We'll use the original tag and add attributes via HTML
+                Event::Html(format!(
+                    r#"<a href="{}" target="_blank" rel="noopener noreferrer"{}>"#,
+                    html_escape::encode_double_quoted_attribute(&dest_url),
+                    if !title.is_empty() {
+                        format!(r#" title="{}""#, html_escape::encode_double_quoted_attribute(&title),)
+                    } else {
+                        String::new()
+                    }
+                ).into())
+            }
+            Event::End(TagEnd::Link) => {
+                Event::Html("</a>".into())
+            }
+            _ => event,
+        });
+
         let mut html_output = String::new();
-        html::push_html(&mut html_output, parser);
+        html::push_html(&mut html_output, parser_with_target);
         html_output
     }
 }
@@ -135,9 +157,10 @@ impl Scrap {
     ///
     /// This method uses pulldown-cmark to parse the markdown content
     /// and render it as HTML. Plain URLs are automatically converted to clickable links.
+    /// All links open in new tabs with target="_blank".
     /// The output is safe for display in web pages.
     pub fn content_html(&self) -> String {
-        use pulldown_cmark::{html, Parser};
+        use pulldown_cmark::{html, Event, Parser, Tag, TagEnd};
         use regex::Regex;
 
         // Auto-linkify plain URLs that aren't already in markdown link syntax
@@ -164,12 +187,33 @@ impl Scrap {
                 }
             }
 
-            format!("{}<{}>{}", pre, url, post)
+            format!("{}<{}>{}",pre, url, post)
         });
 
+        // Parse markdown and modify link tags to add target="_blank"
         let parser = Parser::new(linkified.as_ref());
+        let parser_with_target = parser.map(|event| match event {
+            Event::Start(Tag::Link { link_type: _, dest_url, title, id: _ }) => {
+                // Create a new link tag with target="_blank" by wrapping in Html event
+                // We'll use the original tag and add attributes via HTML
+                Event::Html(format!(
+                    r#"<a href="{}" target="_blank" rel="noopener noreferrer"{}>"#,
+                    html_escape::encode_double_quoted_attribute(&dest_url),
+                    if !title.is_empty() {
+                        format!(r#" title="{}""#, html_escape::encode_double_quoted_attribute(&title))
+                    } else {
+                        String::new()
+                    }
+                ).into())
+            }
+            Event::End(TagEnd::Link) => {
+                Event::Html("</a>".into())
+            }
+            _ => event,
+        });
+
         let mut html_output = String::new();
-        html::push_html(&mut html_output, parser);
+        html::push_html(&mut html_output, parser_with_target);
         html_output
     }
 }
