@@ -229,6 +229,71 @@ impl<'a> TodoService<'a> {
             Ok(())
         })
     }
+
+    /// Copies incomplete (pending) todos from one task to another.
+    ///
+    /// Returns a mapping of old task_index to new task_index for the copied todos.
+    /// This mapping is used to copy linked scraps.
+    ///
+    /// # Arguments
+    ///
+    /// * `from_task_id` - The task ID to copy from
+    /// * `to_task_id` - The task ID to copy to
+    ///
+    /// # Returns
+    ///
+    /// A HashMap mapping old task_index values to new task_index values.
+    pub fn copy_incomplete_todos(
+        &self,
+        from_task_id: i64,
+        to_task_id: i64,
+    ) -> Result<std::collections::HashMap<i64, i64>> {
+        use std::collections::HashMap;
+
+        let mut mapping = HashMap::new();
+
+        self.db.with_transaction(|| {
+            let conn = self.db.get_connection();
+
+            // Get all pending todos from the source task
+            let mut stmt = conn.prepare(
+                "SELECT task_index, content FROM todos WHERE task_id = ?1 AND status = 'pending' ORDER BY task_index ASC"
+            )?;
+
+            let pending_todos: Vec<(i64, String)> = stmt
+                .query_map(params![from_task_id], |row| {
+                    Ok((row.get(0)?, row.get(1)?))
+                })?
+                .collect::<std::result::Result<Vec<_>, _>>()?;
+
+            // Copy each todo to the new task
+            for (old_index, content) in pending_todos {
+                // Get next task_index for the destination task
+                let next_index: i64 = conn.query_row(
+                    "SELECT COALESCE(MAX(task_index), 0) + 1 FROM todos WHERE task_id = ?1",
+                    params![to_task_id],
+                    |row| row.get(0),
+                )?;
+
+                let now = Utc::now().to_rfc3339();
+
+                // Insert the new todo (don't copy worktree_requested)
+                conn.execute(
+                    "INSERT INTO todos (task_id, task_index, content, status, worktree_requested, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                    params![to_task_id, next_index, content, "pending", 0, now],
+                )?;
+
+                // Store the mapping
+                mapping.insert(old_index, next_index);
+            }
+
+            if !mapping.is_empty() {
+                self.db.increment_rev("todos")?;
+            }
+
+            Ok(mapping)
+        })
+    }
 }
 
 #[cfg(test)]

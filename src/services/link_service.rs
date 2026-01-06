@@ -189,6 +189,68 @@ impl<'a> ScrapService<'a> {
 
         Ok(scraps)
     }
+
+    /// Copies scraps that are linked to inherited todos.
+    ///
+    /// # Arguments
+    ///
+    /// * `from_task_id` - The task ID to copy from
+    /// * `to_task_id` - The task ID to copy to
+    /// * `todo_mapping` - HashMap mapping old todo task_index to new todo task_index
+    pub fn copy_linked_scraps(
+        &self,
+        from_task_id: i64,
+        to_task_id: i64,
+        todo_mapping: &std::collections::HashMap<i64, i64>,
+    ) -> Result<()> {
+        if todo_mapping.is_empty() {
+            return Ok(());
+        }
+
+        self.db.with_transaction(|| {
+            let conn = self.db.get_connection();
+
+            // Get all scraps from the source task that are linked to inherited todos
+            let mut stmt = conn.prepare(
+                "SELECT content, active_todo_id FROM scraps WHERE task_id = ?1 AND active_todo_id IS NOT NULL ORDER BY created_at ASC"
+            )?;
+
+            let linked_scraps: Vec<(String, i64)> = stmt
+                .query_map(params![from_task_id], |row| {
+                    Ok((row.get(0)?, row.get(1)?))
+                })?
+                .collect::<std::result::Result<Vec<_>, _>>()?;
+
+            let has_scraps = !linked_scraps.is_empty();
+
+            // Copy scraps that are linked to inherited todos
+            for (content, old_todo_index) in linked_scraps {
+                // Only copy if this todo was inherited
+                if let Some(&new_todo_index) = todo_mapping.get(&old_todo_index) {
+                    // Get next task_index for the destination task
+                    let next_index: i64 = conn.query_row(
+                        "SELECT COALESCE(MAX(task_index), 0) + 1 FROM scraps WHERE task_id = ?1",
+                        params![to_task_id],
+                        |row| row.get(0),
+                    )?;
+
+                    let now = Utc::now().to_rfc3339();
+
+                    // Insert the new scrap with updated active_todo_id
+                    conn.execute(
+                        "INSERT INTO scraps (task_id, task_index, content, created_at, active_todo_id) VALUES (?1, ?2, ?3, ?4, ?5)",
+                        params![to_task_id, next_index, content, now, new_todo_index],
+                    )?;
+                }
+            }
+
+            if has_scraps {
+                self.db.increment_rev("scraps")?;
+            }
+
+            Ok(())
+        })
+    }
 }
 
 #[cfg(test)]

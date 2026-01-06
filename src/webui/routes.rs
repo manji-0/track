@@ -503,6 +503,9 @@ fn build_status_context(db: &Database, task_id: i64) -> anyhow::Result<serde_jso
         format!("task/task-{}", task.id)
     };
 
+    // Get calendar ID if configured
+    let calendar_id = db.get_app_state("calendar_id").ok().flatten();
+
     Ok(serde_json::json!({
         "task": task,
         "todos": format_todos(todos, &worktrees, &scraps),
@@ -511,6 +514,7 @@ fn build_status_context(db: &Database, task_id: i64) -> anyhow::Result<serde_jso
         "worktrees": worktrees,
         "repos": repos,
         "base_branch": base_branch,
+        "calendar_id": calendar_id,
     }))
 }
 

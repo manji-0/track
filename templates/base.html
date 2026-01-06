@@ -538,6 +538,68 @@
             }
         }
 
+        /* Single-Pane Layout (full width) */
+        .single-pane-layout {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 1.5rem;
+            margin-top: 1.5rem;
+        }
+
+        /* Calendar container */
+        .calendar-container {
+            width: 100%;
+            overflow: hidden;
+            border-radius: var(--border-radius-sm);
+            position: relative;
+        }
+
+        /* Dark mode calendar styling - grayscale with theme color overlay */
+        #calendar-wrapper {
+            filter: invert(0.9) grayscale(1) brightness(1.1) contrast(0.9);
+            background: #1a1a2e;
+            border-radius: var(--border-radius-sm);
+            overflow: hidden;
+            position: relative;
+        }
+
+        #calendar-wrapper::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(135deg, rgba(124, 58, 237, 0.08) 0%, rgba(168, 85, 247, 0.05) 100%);
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        #calendar-wrapper iframe {
+            display: block;
+            margin-bottom: -10px;
+            position: relative;
+            z-index: 0;
+        }
+
+        /* Light mode - override dark mode filters */
+        [data-theme="light"] #calendar-wrapper {
+            filter: none;
+            background: #ffffff;
+        }
+
+        [data-theme="light"] #calendar-wrapper::before {
+            display: none;
+        }
+
+        [data-theme="light"] #calendar-wrapper iframe {
+            filter: none;
+            margin-bottom: 0;
+        }
+
+
+
+
         /* Todo list */
         .todo-list {
             list-style: none;

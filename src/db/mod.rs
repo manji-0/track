@@ -559,6 +559,26 @@ impl Database {
             [],
         )?;
 
+        // Check for is_today_task column in tasks
+        let count: i64 = self.conn.query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('tasks') WHERE name='is_today_task'",
+            [],
+            |row| row.get(0),
+        )?;
+
+        if count == 0 {
+            self.conn.execute(
+                "ALTER TABLE tasks ADD COLUMN is_today_task INTEGER DEFAULT 0",
+                [],
+            )?;
+        }
+
+        // Create index on is_today_task for efficient lookups
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_tasks_is_today_task ON tasks(is_today_task)",
+            [],
+        )?;
+
         Ok(())
     }
 

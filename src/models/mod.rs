@@ -20,6 +20,7 @@ pub struct Task {
     pub ticket_id: Option<String>,
     pub ticket_url: Option<String>,
     pub alias: Option<String>,
+    pub is_today_task: bool,
     pub created_at: DateTime<Utc>,
 }
 

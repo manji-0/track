@@ -28,8 +28,20 @@
     </div>
 </header>
 
+
 <!-- Overview Section (hidden in Focus Mode) -->
 <div id="overview-section">
+    {% if task.is_today_task %}
+    <!-- For today task: Show Calendar and Links in 2-pane layout -->
+    <div class="two-pane-layout">
+        <!-- Calendar Section (Left) -->
+        {% include "partials/calendar.html" %}
+
+        <!-- Links Section (Right) -->
+        {% include "partials/links.html" %}
+    </div>
+    {% else %}
+    <!-- For regular task: Show Description, Ticket, Repositories, and Links -->
     <!-- 2-Pane Layout for Description and Ticket -->
     <div class="two-pane-layout">
         <!-- Description Section (Left) -->
@@ -42,13 +54,14 @@
     <!-- 2-Pane Layout for Repositories and Links -->
     <div class="two-pane-layout">
         <!-- Repositories Section (Left) -->
-        <!-- Repositories Section (Left) -->
         {% include "partials/repos.html" %}
 
         <!-- Links Section (Right) -->
         {% include "partials/links.html" %}
     </div>
+    {% endif %}
 </div>
+
 
 <!-- 2-Pane Layout for TODOs and Scraps -->
 <div class="two-pane-layout main-content">

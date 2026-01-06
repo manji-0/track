@@ -1,6 +1,6 @@
 use crate::cli::{
-    AliasCommands, Commands, CompletionType, LinkCommands, RepoCommands, ScrapCommands,
-    TodoCommands,
+    AliasCommands, Commands, CompletionType, ConfigCommands, LinkCommands, RepoCommands,
+    ScrapCommands, TodoCommands,
 };
 use crate::db::Database;
 use crate::services::{
@@ -67,6 +67,7 @@ impl CommandHandler {
             Commands::LlmHelp => self.handle_llm_help(),
             Commands::Completion { shell, dynamic } => self.handle_completion(shell, dynamic),
             Commands::Complete { completion_type } => self.handle_complete(completion_type),
+            Commands::Config(cmd) => self.handle_config(cmd),
             // Webui is handled directly in main.rs with async runtime
             Commands::Webui { .. } => unreachable!("Webui command is handled in main.rs"),
         }
@@ -169,6 +170,15 @@ impl CommandHandler {
 
     fn handle_switch(&self, task_ref: &str) -> Result<()> {
         let task_service = TaskService::new(&self.db);
+
+        // Check if the user wants to switch to today's task
+        if task_ref.to_lowercase() == "today" {
+            let task = task_service.get_or_create_today_task()?;
+            println!("Switched to today's task: {}", task.name);
+            return Ok(());
+        }
+
+        // Normal task switching
         let task_id = task_service.resolve_task_id(task_ref)?;
         let task = task_service.switch_task(task_id)?;
 
@@ -1449,6 +1459,30 @@ Executing `track archive` performs the following:
 4. **Marks** the task as archived.
 "#
         );
+        Ok(())
+    }
+
+    fn handle_config(&self, command: ConfigCommands) -> Result<()> {
+        match command {
+            ConfigCommands::SetCalendar { calendar_id } => {
+                self.db.set_app_state("calendar_id", &calendar_id)?;
+                println!("Set Google Calendar ID: {}", calendar_id);
+                println!("\nTo use this calendar in the WebUI:");
+                println!("1. Make sure the calendar is shared with appropriate permissions");
+                println!("2. The calendar will be displayed in the today task WebUI");
+            }
+            ConfigCommands::Show => {
+                println!("=== Track Configuration ===\n");
+
+                if let Some(calendar_id) = self.db.get_app_state("calendar_id")? {
+                    println!("Google Calendar ID: {}", calendar_id);
+                } else {
+                    println!("Google Calendar ID: (not set)");
+                    println!("\nTo set a calendar ID, run:");
+                    println!("  track config set-calendar <calendar-id>");
+                }
+            }
+        }
         Ok(())
     }
 }

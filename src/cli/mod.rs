@@ -156,6 +156,10 @@ pub enum Commands {
         completion_type: CompletionType,
     },
 
+    /// Configuration management
+    #[command(subcommand)]
+    Config(ConfigCommands),
+
     /// Start web-based user interface
     Webui {
         /// Port to listen on
@@ -292,4 +296,16 @@ pub enum AliasCommands {
         #[arg(short, long)]
         task: Option<i64>,
     },
+}
+
+#[derive(Subcommand)]
+pub enum ConfigCommands {
+    /// Set Google Calendar ID for today task
+    SetCalendar {
+        /// Google Calendar ID
+        calendar_id: String,
+    },
+
+    /// Show current configuration
+    Show,
 }
