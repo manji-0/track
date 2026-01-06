@@ -16,6 +16,9 @@ _track() {
             ",$1")
                 cmd="track"
                 ;;
+            track,_complete)
+                cmd="track___complete"
+                ;;
             track,alias)
                 cmd="track__alias"
                 ;;
@@ -24,6 +27,9 @@ _track() {
                 ;;
             track,completion)
                 cmd="track__completion"
+                ;;
+            track,config)
+                cmd="track__config"
                 ;;
             track,desc)
                 cmd="track__desc"
@@ -85,6 +91,27 @@ _track() {
             track__alias__help,set)
                 cmd="track__alias__help__set"
                 ;;
+            track__config,help)
+                cmd="track__config__help"
+                ;;
+            track__config,set-calendar)
+                cmd="track__config__set__calendar"
+                ;;
+            track__config,show)
+                cmd="track__config__show"
+                ;;
+            track__config__help,help)
+                cmd="track__config__help__help"
+                ;;
+            track__config__help,set-calendar)
+                cmd="track__config__help__set__calendar"
+                ;;
+            track__config__help,show)
+                cmd="track__config__help__show"
+                ;;
+            track__help,_complete)
+                cmd="track__help___complete"
+                ;;
             track__help,alias)
                 cmd="track__help__alias"
                 ;;
@@ -93,6 +120,9 @@ _track() {
                 ;;
             track__help,completion)
                 cmd="track__help__completion"
+                ;;
+            track__help,config)
+                cmd="track__help__config"
                 ;;
             track__help,desc)
                 cmd="track__help__desc"
@@ -142,6 +172,12 @@ _track() {
             track__help__alias,set)
                 cmd="track__help__alias__set"
                 ;;
+            track__help__config,set-calendar)
+                cmd="track__help__config__set__calendar"
+                ;;
+            track__help__config,show)
+                cmd="track__help__config__show"
+                ;;
             track__help__link,add)
                 cmd="track__help__link__add"
                 ;;
@@ -177,6 +213,9 @@ _track() {
                 ;;
             track__help__todo,list)
                 cmd="track__help__todo__list"
+                ;;
+            track__help__todo,next)
+                cmd="track__help__todo__next"
                 ;;
             track__help__todo,update)
                 cmd="track__help__todo__update"
@@ -262,6 +301,9 @@ _track() {
             track__todo,list)
                 cmd="track__todo__list"
                 ;;
+            track__todo,next)
+                cmd="track__todo__next"
+                ;;
             track__todo,update)
                 cmd="track__todo__update"
                 ;;
@@ -280,6 +322,9 @@ _track() {
             track__todo__help,list)
                 cmd="track__todo__help__list"
                 ;;
+            track__todo__help,next)
+                cmd="track__todo__help__next"
+                ;;
             track__todo__help,update)
                 cmd="track__todo__help__update"
                 ;;
@@ -290,8 +335,22 @@ _track() {
 
     case "${cmd}" in
         track)
-            opts="-h --help new list switch status desc ticket archive todo link scrap sync repo alias llm-help completion webui help"
+            opts="-h --help new list switch status desc ticket archive todo link scrap sync repo alias llm-help completion _complete config webui help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 1 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        track___complete)
+            opts="-h --help tasks todos links repos"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
             fi
@@ -396,7 +455,7 @@ _track() {
             return 0
             ;;
         track__alias__set)
-            opts="-t -h --task --help <ALIAS>"
+            opts="-t -f -h --task --force --help <ALIAS>"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -432,8 +491,106 @@ _track() {
             return 0
             ;;
         track__completion)
-            opts="-h --help bash elvish fish powershell zsh"
+            opts="-d -h --dynamic --help bash elvish fish powershell zsh"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        track__config)
+            opts="-h --help set-calendar show help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        track__config__help)
+            opts="set-calendar show help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        track__config__help__help)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        track__config__help__set__calendar)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        track__config__help__show)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        track__config__set__calendar)
+            opts="-h --help <CALENDAR_ID>"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        track__config__show)
+            opts="-h --help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
             fi
@@ -468,8 +625,22 @@ _track() {
             return 0
             ;;
         track__help)
-            opts="new list switch status desc ticket archive todo link scrap sync repo alias llm-help completion webui help"
+            opts="new list switch status desc ticket archive todo link scrap sync repo alias llm-help completion _complete config webui help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        track__help___complete)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
             fi
@@ -540,6 +711,48 @@ _track() {
         track__help__completion)
             opts=""
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        track__help__config)
+            opts="set-calendar show"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        track__help__config__set__calendar)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        track__help__config__show)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
             fi
@@ -832,7 +1045,7 @@ _track() {
             return 0
             ;;
         track__help__todo)
-            opts="add list update done delete"
+            opts="add list update done delete next"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -888,6 +1101,20 @@ _track() {
             return 0
             ;;
         track__help__todo__list)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        track__help__todo__next)
             opts=""
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
@@ -1414,7 +1641,7 @@ _track() {
             return 0
             ;;
         track__todo)
-            opts="-h --help add list update done delete help"
+            opts="-h --help add list update done delete next help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -1470,7 +1697,7 @@ _track() {
             return 0
             ;;
         track__todo__help)
-            opts="add list update done delete help"
+            opts="add list update done delete next help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -1553,6 +1780,20 @@ _track() {
             COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
             return 0
             ;;
+        track__todo__help__next)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
         track__todo__help__update)
             opts=""
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
@@ -1569,6 +1810,20 @@ _track() {
             ;;
         track__todo__list)
             opts="-h --help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        track__todo__next)
+            opts="-h --help <ID>"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0

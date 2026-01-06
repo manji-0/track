@@ -1,45 +1,5 @@
 #compdef track
 
-# Dynamic completion helper functions for track CLI
-# These functions call 'track _complete' to get dynamic data
-
-_track_tasks() {
-    local -a tasks
-    local line
-    while IFS=: read -r id rest; do
-        tasks+=("$id:$rest")
-    done < <(track _complete tasks 2>/dev/null)
-    _describe 'task' tasks
-}
-
-_track_todos() {
-    local -a todos
-    local line
-    while IFS=: read -r id content; do
-        todos+=("$id:$content")
-    done < <(track _complete todos 2>/dev/null)
-    _describe 'todo' todos
-}
-
-_track_links() {
-    local -a links
-    local line
-    while IFS=: read -r id title url; do
-        links+=("$id:$title")
-    done < <(track _complete links 2>/dev/null)
-    _describe 'link' links
-}
-
-_track_repos() {
-    local -a repos
-    local line
-    while IFS=: read -r id path; do
-        repos+=("$id:$path")
-    done < <(track _complete repos 2>/dev/null)
-    _describe 'repository' repos
-}
-
-# Main completion function
 autoload -U is-at-least
 
 _track() {
@@ -70,10 +30,10 @@ _track() {
 _arguments "${_arguments_options[@]}" : \
 '-d+[Task description]:DESCRIPTION:_default' \
 '--description=[Task description]:DESCRIPTION:_default' \
-'-t+[Ticket ID]:TICKET:_default' \
-'--ticket=[Ticket ID]:TICKET:_default' \
+'-t+[Ticket ID (e.g., PROJ-123, owner/repo/456)]:TICKET:_default' \
+'--ticket=[Ticket ID (e.g., PROJ-123, owner/repo/456)]:TICKET:_default' \
 '--ticket-url=[Ticket URL]:TICKET_URL:_default' \
-'--template=[Template task reference]:TEMPLATE:_track_tasks' \
+'--template=[Template task reference (ID, ticket, or alias) to copy TODOs from]:TEMPLATE:_default' \
 '-h[Print help]' \
 '--help[Print help]' \
 ':name -- Task name:_default' \
@@ -91,7 +51,7 @@ _arguments "${_arguments_options[@]}" : \
 _arguments "${_arguments_options[@]}" : \
 '-h[Print help]' \
 '--help[Print help]' \
-':task_ref -- Task ID or reference:_track_tasks' \
+':task_ref -- Task ID or ticket reference (e.g., 1 or t\:PROJ-123):_default' \
 && ret=0
 ;;
 (status)
@@ -102,32 +62,32 @@ _arguments "${_arguments_options[@]}" : \
 '--all[Show all scraps]' \
 '-h[Print help]' \
 '--help[Print help]' \
-'::id -- Task ID or reference:_track_tasks' \
+'::id -- Task ID or ticket reference (e.g., 1 or t\:PROJ-123):_default' \
 && ret=0
 ;;
 (desc)
 _arguments "${_arguments_options[@]}" : \
-'-t+[Target task ID]:TASK:_default' \
-'--task=[Target task ID]:TASK:_default' \
+'-t+[Target task ID (defaults to current task)]:TASK:_default' \
+'--task=[Target task ID (defaults to current task)]:TASK:_default' \
 '-h[Print help]' \
 '--help[Print help]' \
-'::description:_default' \
+'::description -- Description text (if omitted, displays current description):_default' \
 && ret=0
 ;;
 (ticket)
 _arguments "${_arguments_options[@]}" : \
-'--task=[Target task ID]:TASK:_default' \
+'--task=[Target task ID (defaults to current task)]:TASK:_default' \
 '-h[Print help]' \
 '--help[Print help]' \
-':ticket_id:_default' \
-':url:_default' \
+':ticket_id -- Ticket ID:_default' \
+':url -- Ticket URL:_default' \
 && ret=0
 ;;
 (archive)
 _arguments "${_arguments_options[@]}" : \
 '-h[Print help]' \
 '--help[Print help]' \
-'::task_ref:_track_tasks' \
+'::task_ref -- Task ID or ticket reference (defaults to current task):_default' \
 && ret=0
 ;;
 (todo)
@@ -138,7 +98,7 @@ _arguments "${_arguments_options[@]}" : \
 "*::: :->todo" \
 && ret=0
 
-case $state in
+    case $state in
     (todo)
         words=($line[1] "${words[@]}")
         (( CURRENT += 1 ))
@@ -153,35 +113,86 @@ _arguments "${_arguments_options[@]}" : \
 ':text -- TODO content:_default' \
 && ret=0
 ;;
-            (list)
+(list)
 _arguments "${_arguments_options[@]}" : \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
 ;;
-            (update)
+(update)
 _arguments "${_arguments_options[@]}" : \
 '-h[Print help]' \
 '--help[Print help]' \
-':id -- TODO ID:_track_todos' \
-':status -- New status:_default' \
+':id -- TODO ID:_default' \
+':status -- New status (pending, done, cancelled):_default' \
 && ret=0
 ;;
-            (done)
+(done)
 _arguments "${_arguments_options[@]}" : \
 '-h[Print help]' \
 '--help[Print help]' \
-':id -- TODO ID:_track_todos' \
+':id -- TODO ID:_default' \
 && ret=0
 ;;
-            (delete)
+(delete)
 _arguments "${_arguments_options[@]}" : \
-'-f[Skip confirmation]' \
-'--force[Skip confirmation]' \
+'-f[Skip confirmation prompt]' \
+'--force[Skip confirmation prompt]' \
 '-h[Print help]' \
 '--help[Print help]' \
-':id -- TODO ID:_track_todos' \
+':id -- TODO ID:_default' \
 && ret=0
+;;
+(next)
+_arguments "${_arguments_options[@]}" : \
+'-h[Print help]' \
+'--help[Print help]' \
+':id -- TODO ID:_default' \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+":: :_track__todo__help_commands" \
+"*::: :->help" \
+&& ret=0
+
+    case $state in
+    (help)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:track-todo-help-command-$line[1]:"
+        case $line[1] in
+            (add)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(list)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(update)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(done)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(delete)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(next)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
 ;;
         esac
     ;;
@@ -195,7 +206,7 @@ _arguments "${_arguments_options[@]}" : \
 "*::: :->link" \
 && ret=0
 
-case $state in
+    case $state in
     (link)
         words=($line[1] "${words[@]}")
         (( CURRENT += 1 ))
@@ -205,22 +216,54 @@ case $state in
 _arguments "${_arguments_options[@]}" : \
 '-h[Print help]' \
 '--help[Print help]' \
-':url:_default' \
-'::title:_default' \
+':url -- URL:_default' \
+'::title -- Link title (defaults to URL):_default' \
 && ret=0
 ;;
-            (list)
+(list)
 _arguments "${_arguments_options[@]}" : \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
 ;;
-            (delete)
+(delete)
 _arguments "${_arguments_options[@]}" : \
 '-h[Print help]' \
 '--help[Print help]' \
-':index -- Link index:_track_links' \
+':index -- Link index (1-based):_default' \
 && ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+":: :_track__link__help_commands" \
+"*::: :->help" \
+&& ret=0
+
+    case $state in
+    (help)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:track-link-help-command-$line[1]:"
+        case $line[1] in
+            (add)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(list)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(delete)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
 ;;
         esac
     ;;
@@ -234,7 +277,7 @@ _arguments "${_arguments_options[@]}" : \
 "*::: :->scrap" \
 && ret=0
 
-case $state in
+    case $state in
     (scrap)
         words=($line[1] "${words[@]}")
         (( CURRENT += 1 ))
@@ -244,14 +287,42 @@ case $state in
 _arguments "${_arguments_options[@]}" : \
 '-h[Print help]' \
 '--help[Print help]' \
-':content:_default' \
+':content -- Scrap content:_default' \
 && ret=0
 ;;
-            (list)
+(list)
 _arguments "${_arguments_options[@]}" : \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+":: :_track__scrap__help_commands" \
+"*::: :->help" \
+&& ret=0
+
+    case $state in
+    (help)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:track-scrap-help-command-$line[1]:"
+        case $line[1] in
+            (add)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(list)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
 ;;
         esac
     ;;
@@ -271,7 +342,7 @@ _arguments "${_arguments_options[@]}" : \
 "*::: :->repo" \
 && ret=0
 
-case $state in
+    case $state in
     (repo)
         words=($line[1] "${words[@]}")
         (( CURRENT += 1 ))
@@ -279,25 +350,57 @@ case $state in
         case $line[1] in
             (add)
 _arguments "${_arguments_options[@]}" : \
-'-b+[Base branch]:BASE:_default' \
-'--base=[Base branch]:BASE:_default' \
+'-b+[Base branch to use (defaults to current branch)]:BASE:_default' \
+'--base=[Base branch to use (defaults to current branch)]:BASE:_default' \
 '-h[Print help]' \
 '--help[Print help]' \
-'::path:_files -/' \
+'::path -- Repository path (defaults to current directory):_default' \
 && ret=0
 ;;
-            (list)
+(list)
 _arguments "${_arguments_options[@]}" : \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
 ;;
-            (remove)
+(remove)
 _arguments "${_arguments_options[@]}" : \
 '-h[Print help]' \
 '--help[Print help]' \
-':id -- Repository ID:_track_repos' \
+':id -- Repository ID:_default' \
 && ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+":: :_track__repo__help_commands" \
+"*::: :->help" \
+&& ret=0
+
+    case $state in
+    (help)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:track-repo-help-command-$line[1]:"
+        case $line[1] in
+            (add)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(list)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(remove)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
 ;;
         esac
     ;;
@@ -311,7 +414,7 @@ _arguments "${_arguments_options[@]}" : \
 "*::: :->alias" \
 && ret=0
 
-case $state in
+    case $state in
     (alias)
         words=($line[1] "${words[@]}")
         (( CURRENT += 1 ))
@@ -319,20 +422,50 @@ case $state in
         case $line[1] in
             (set)
 _arguments "${_arguments_options[@]}" : \
-'-t+[Target task ID]:TASK:_default' \
-'--task=[Target task ID]:TASK:_default' \
+'-t+[Target task ID (defaults to current task)]:TASK:_default' \
+'--task=[Target task ID (defaults to current task)]:TASK:_default' \
+'-f[Force overwrite if alias already exists on another task]' \
+'--force[Force overwrite if alias already exists on another task]' \
 '-h[Print help]' \
 '--help[Print help]' \
-':alias:_default' \
+':alias -- Alias name:_default' \
 && ret=0
 ;;
-            (remove)
+(remove)
 _arguments "${_arguments_options[@]}" : \
-'-t+[Target task ID]:TASK:_default' \
-'--task=[Target task ID]:TASK:_default' \
+'-t+[Target task ID (defaults to current task)]:TASK:_default' \
+'--task=[Target task ID (defaults to current task)]:TASK:_default' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+":: :_track__alias__help_commands" \
+"*::: :->help" \
+&& ret=0
+
+    case $state in
+    (help)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:track-alias-help-command-$line[1]:"
+        case $line[1] in
+            (set)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(remove)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
 ;;
         esac
     ;;
@@ -346,17 +479,88 @@ _arguments "${_arguments_options[@]}" : \
 ;;
 (completion)
 _arguments "${_arguments_options[@]}" : \
+'-d[Generate dynamic completion script (with real-time data)]' \
+'--dynamic[Generate dynamic completion script (with real-time data)]' \
 '-h[Print help]' \
 '--help[Print help]' \
-':shell:(bash zsh fish powershell)' \
+':shell -- Shell to generate completions for:(bash elvish fish powershell zsh)' \
 && ret=0
+;;
+(_complete)
+_arguments "${_arguments_options[@]}" : \
+'-h[Print help (see more with '\''--help'\'')]' \
+'--help[Print help (see more with '\''--help'\'')]' \
+':completion_type -- Type of completion data to output:((tasks\:"Task IDs and names for '\''track switch'\''"
+todos\:"TODO IDs and content for current task"
+links\:"Link IDs and URLs for current task"
+repos\:"Repository IDs and paths for current task"))' \
+&& ret=0
+;;
+(config)
+_arguments "${_arguments_options[@]}" : \
+'-h[Print help]' \
+'--help[Print help]' \
+":: :_track__config_commands" \
+"*::: :->config" \
+&& ret=0
+
+    case $state in
+    (config)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:track-config-command-$line[1]:"
+        case $line[1] in
+            (set-calendar)
+_arguments "${_arguments_options[@]}" : \
+'-h[Print help]' \
+'--help[Print help]' \
+':calendar_id -- Google Calendar ID:_default' \
+&& ret=0
+;;
+(show)
+_arguments "${_arguments_options[@]}" : \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+":: :_track__config__help_commands" \
+"*::: :->help" \
+&& ret=0
+
+    case $state in
+    (help)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:track-config-help-command-$line[1]:"
+        case $line[1] in
+            (set-calendar)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(show)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+        esac
+    ;;
+esac
 ;;
 (webui)
 _arguments "${_arguments_options[@]}" : \
-'-p+[Port]:PORT:_default' \
-'--port=[Port]:PORT:_default' \
-'-o[Open browser]' \
-'--open[Open browser]' \
+'-p+[Port to listen on]:PORT:_default' \
+'--port=[Port to listen on]:PORT:_default' \
+'-o[Open browser automatically]' \
+'--open[Open browser automatically]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -367,13 +571,229 @@ _arguments "${_arguments_options[@]}" : \
 "*::: :->help" \
 && ret=0
 
-case $state in
+    case $state in
     (help)
         words=($line[1] "${words[@]}")
         (( CURRENT += 1 ))
         curcontext="${curcontext%:*:*}:track-help-command-$line[1]:"
         case $line[1] in
-            (new|list|switch|status|desc|ticket|archive|todo|link|scrap|sync|repo|alias|llm-help|completion|webui|help)
+            (new)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(list)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(switch)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(status)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(desc)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(ticket)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(archive)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(todo)
+_arguments "${_arguments_options[@]}" : \
+":: :_track__help__todo_commands" \
+"*::: :->todo" \
+&& ret=0
+
+    case $state in
+    (todo)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:track-help-todo-command-$line[1]:"
+        case $line[1] in
+            (add)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(list)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(update)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(done)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(delete)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(next)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+(link)
+_arguments "${_arguments_options[@]}" : \
+":: :_track__help__link_commands" \
+"*::: :->link" \
+&& ret=0
+
+    case $state in
+    (link)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:track-help-link-command-$line[1]:"
+        case $line[1] in
+            (add)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(list)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(delete)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+(scrap)
+_arguments "${_arguments_options[@]}" : \
+":: :_track__help__scrap_commands" \
+"*::: :->scrap" \
+&& ret=0
+
+    case $state in
+    (scrap)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:track-help-scrap-command-$line[1]:"
+        case $line[1] in
+            (add)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(list)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+(sync)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(repo)
+_arguments "${_arguments_options[@]}" : \
+":: :_track__help__repo_commands" \
+"*::: :->repo" \
+&& ret=0
+
+    case $state in
+    (repo)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:track-help-repo-command-$line[1]:"
+        case $line[1] in
+            (add)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(list)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(remove)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+(alias)
+_arguments "${_arguments_options[@]}" : \
+":: :_track__help__alias_commands" \
+"*::: :->alias" \
+&& ret=0
+
+    case $state in
+    (alias)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:track-help-alias-command-$line[1]:"
+        case $line[1] in
+            (set)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(remove)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+(llm-help)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(completion)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(_complete)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(config)
+_arguments "${_arguments_options[@]}" : \
+":: :_track__help__config_commands" \
+"*::: :->config" \
+&& ret=0
+
+    case $state in
+    (config)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:track-help-config-command-$line[1]:"
+        case $line[1] in
+            (set-calendar)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(show)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+(webui)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(help)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
@@ -404,84 +824,640 @@ _track_commands() {
 'alias:Task alias management' \
 'llm-help:Show help optimized for LLM agents' \
 'completion:Generate shell completion script' \
+'_complete:Output completion candidates (hidden, for shell completion scripts)' \
+'config:Configuration management' \
 'webui:Start web-based user interface' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'track commands' commands "$@"
 }
-
-(( $+functions[_track__todo_commands] )) ||
-_track__todo_commands() {
-    local commands; commands=(
-'add:Add a new TODO' \
-'list:List TODOs' \
-'update:Update TODO status' \
-'done:Complete a TODO' \
-'delete:Delete a TODO' \
-    )
-    _describe -t commands 'track todo commands' commands "$@"
+(( $+functions[_track___complete_commands] )) ||
+_track___complete_commands() {
+    local commands; commands=()
+    _describe -t commands 'track _complete commands' commands "$@"
 }
-
-(( $+functions[_track__link_commands] )) ||
-_track__link_commands() {
-    local commands; commands=(
-'add:Add a new link' \
-'list:List links' \
-'delete:Delete a link' \
-    )
-    _describe -t commands 'track link commands' commands "$@"
-}
-
-(( $+functions[_track__scrap_commands] )) ||
-_track__scrap_commands() {
-    local commands; commands=(
-'add:Add a new scrap' \
-'list:List scraps' \
-    )
-    _describe -t commands 'track scrap commands' commands "$@"
-}
-
-(( $+functions[_track__repo_commands] )) ||
-_track__repo_commands() {
-    local commands; commands=(
-'add:Add a repository' \
-'list:List repositories' \
-'remove:Remove a repository' \
-    )
-    _describe -t commands 'track repo commands' commands "$@"
-}
-
 (( $+functions[_track__alias_commands] )) ||
 _track__alias_commands() {
     local commands; commands=(
 'set:Set an alias for the current task' \
 'remove:Remove the alias from the current task' \
+'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'track alias commands' commands "$@"
 }
-
+(( $+functions[_track__alias__help_commands] )) ||
+_track__alias__help_commands() {
+    local commands; commands=(
+'set:Set an alias for the current task' \
+'remove:Remove the alias from the current task' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'track alias help commands' commands "$@"
+}
+(( $+functions[_track__alias__help__help_commands] )) ||
+_track__alias__help__help_commands() {
+    local commands; commands=()
+    _describe -t commands 'track alias help help commands' commands "$@"
+}
+(( $+functions[_track__alias__help__remove_commands] )) ||
+_track__alias__help__remove_commands() {
+    local commands; commands=()
+    _describe -t commands 'track alias help remove commands' commands "$@"
+}
+(( $+functions[_track__alias__help__set_commands] )) ||
+_track__alias__help__set_commands() {
+    local commands; commands=()
+    _describe -t commands 'track alias help set commands' commands "$@"
+}
+(( $+functions[_track__alias__remove_commands] )) ||
+_track__alias__remove_commands() {
+    local commands; commands=()
+    _describe -t commands 'track alias remove commands' commands "$@"
+}
+(( $+functions[_track__alias__set_commands] )) ||
+_track__alias__set_commands() {
+    local commands; commands=()
+    _describe -t commands 'track alias set commands' commands "$@"
+}
+(( $+functions[_track__archive_commands] )) ||
+_track__archive_commands() {
+    local commands; commands=()
+    _describe -t commands 'track archive commands' commands "$@"
+}
+(( $+functions[_track__completion_commands] )) ||
+_track__completion_commands() {
+    local commands; commands=()
+    _describe -t commands 'track completion commands' commands "$@"
+}
+(( $+functions[_track__config_commands] )) ||
+_track__config_commands() {
+    local commands; commands=(
+'set-calendar:Set Google Calendar ID for today task' \
+'show:Show current configuration' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'track config commands' commands "$@"
+}
+(( $+functions[_track__config__help_commands] )) ||
+_track__config__help_commands() {
+    local commands; commands=(
+'set-calendar:Set Google Calendar ID for today task' \
+'show:Show current configuration' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'track config help commands' commands "$@"
+}
+(( $+functions[_track__config__help__help_commands] )) ||
+_track__config__help__help_commands() {
+    local commands; commands=()
+    _describe -t commands 'track config help help commands' commands "$@"
+}
+(( $+functions[_track__config__help__set-calendar_commands] )) ||
+_track__config__help__set-calendar_commands() {
+    local commands; commands=()
+    _describe -t commands 'track config help set-calendar commands' commands "$@"
+}
+(( $+functions[_track__config__help__show_commands] )) ||
+_track__config__help__show_commands() {
+    local commands; commands=()
+    _describe -t commands 'track config help show commands' commands "$@"
+}
+(( $+functions[_track__config__set-calendar_commands] )) ||
+_track__config__set-calendar_commands() {
+    local commands; commands=()
+    _describe -t commands 'track config set-calendar commands' commands "$@"
+}
+(( $+functions[_track__config__show_commands] )) ||
+_track__config__show_commands() {
+    local commands; commands=()
+    _describe -t commands 'track config show commands' commands "$@"
+}
+(( $+functions[_track__desc_commands] )) ||
+_track__desc_commands() {
+    local commands; commands=()
+    _describe -t commands 'track desc commands' commands "$@"
+}
 (( $+functions[_track__help_commands] )) ||
 _track__help_commands() {
     local commands; commands=(
 'new:Create a new task and switch to it' \
 'list:List tasks' \
 'switch:Switch to a different task' \
-'status:Show detailed information' \
+'status:Show detailed information about the current task' \
 'desc:View or set task description' \
 'ticket:Link a ticket to a task' \
 'archive:Archive a task' \
 'todo:TODO management' \
 'link:Link management' \
-'scrap:Scrap management' \
-'sync:Sync repositories' \
+'scrap:Scrap (work notes) management' \
+'sync:Sync repositories and setup task branches' \
 'repo:Repository management' \
 'alias:Task alias management' \
-'llm-help:Show LLM help' \
-'completion:Generate completion script' \
-'webui:Start web UI' \
-'help:Print help' \
+'llm-help:Show help optimized for LLM agents' \
+'completion:Generate shell completion script' \
+'_complete:Output completion candidates (hidden, for shell completion scripts)' \
+'config:Configuration management' \
+'webui:Start web-based user interface' \
+'help:Print this message or the help of the given subcommand(s)' \
     )
-    _describe -t commands 'help commands' commands "$@"
+    _describe -t commands 'track help commands' commands "$@"
+}
+(( $+functions[_track__help___complete_commands] )) ||
+_track__help___complete_commands() {
+    local commands; commands=()
+    _describe -t commands 'track help _complete commands' commands "$@"
+}
+(( $+functions[_track__help__alias_commands] )) ||
+_track__help__alias_commands() {
+    local commands; commands=(
+'set:Set an alias for the current task' \
+'remove:Remove the alias from the current task' \
+    )
+    _describe -t commands 'track help alias commands' commands "$@"
+}
+(( $+functions[_track__help__alias__remove_commands] )) ||
+_track__help__alias__remove_commands() {
+    local commands; commands=()
+    _describe -t commands 'track help alias remove commands' commands "$@"
+}
+(( $+functions[_track__help__alias__set_commands] )) ||
+_track__help__alias__set_commands() {
+    local commands; commands=()
+    _describe -t commands 'track help alias set commands' commands "$@"
+}
+(( $+functions[_track__help__archive_commands] )) ||
+_track__help__archive_commands() {
+    local commands; commands=()
+    _describe -t commands 'track help archive commands' commands "$@"
+}
+(( $+functions[_track__help__completion_commands] )) ||
+_track__help__completion_commands() {
+    local commands; commands=()
+    _describe -t commands 'track help completion commands' commands "$@"
+}
+(( $+functions[_track__help__config_commands] )) ||
+_track__help__config_commands() {
+    local commands; commands=(
+'set-calendar:Set Google Calendar ID for today task' \
+'show:Show current configuration' \
+    )
+    _describe -t commands 'track help config commands' commands "$@"
+}
+(( $+functions[_track__help__config__set-calendar_commands] )) ||
+_track__help__config__set-calendar_commands() {
+    local commands; commands=()
+    _describe -t commands 'track help config set-calendar commands' commands "$@"
+}
+(( $+functions[_track__help__config__show_commands] )) ||
+_track__help__config__show_commands() {
+    local commands; commands=()
+    _describe -t commands 'track help config show commands' commands "$@"
+}
+(( $+functions[_track__help__desc_commands] )) ||
+_track__help__desc_commands() {
+    local commands; commands=()
+    _describe -t commands 'track help desc commands' commands "$@"
+}
+(( $+functions[_track__help__help_commands] )) ||
+_track__help__help_commands() {
+    local commands; commands=()
+    _describe -t commands 'track help help commands' commands "$@"
+}
+(( $+functions[_track__help__link_commands] )) ||
+_track__help__link_commands() {
+    local commands; commands=(
+'add:Add a new link' \
+'list:List links' \
+'delete:Delete a link' \
+    )
+    _describe -t commands 'track help link commands' commands "$@"
+}
+(( $+functions[_track__help__link__add_commands] )) ||
+_track__help__link__add_commands() {
+    local commands; commands=()
+    _describe -t commands 'track help link add commands' commands "$@"
+}
+(( $+functions[_track__help__link__delete_commands] )) ||
+_track__help__link__delete_commands() {
+    local commands; commands=()
+    _describe -t commands 'track help link delete commands' commands "$@"
+}
+(( $+functions[_track__help__link__list_commands] )) ||
+_track__help__link__list_commands() {
+    local commands; commands=()
+    _describe -t commands 'track help link list commands' commands "$@"
+}
+(( $+functions[_track__help__list_commands] )) ||
+_track__help__list_commands() {
+    local commands; commands=()
+    _describe -t commands 'track help list commands' commands "$@"
+}
+(( $+functions[_track__help__llm-help_commands] )) ||
+_track__help__llm-help_commands() {
+    local commands; commands=()
+    _describe -t commands 'track help llm-help commands' commands "$@"
+}
+(( $+functions[_track__help__new_commands] )) ||
+_track__help__new_commands() {
+    local commands; commands=()
+    _describe -t commands 'track help new commands' commands "$@"
+}
+(( $+functions[_track__help__repo_commands] )) ||
+_track__help__repo_commands() {
+    local commands; commands=(
+'add:Add a repository to the current task' \
+'list:List repositories' \
+'remove:Remove a repository' \
+    )
+    _describe -t commands 'track help repo commands' commands "$@"
+}
+(( $+functions[_track__help__repo__add_commands] )) ||
+_track__help__repo__add_commands() {
+    local commands; commands=()
+    _describe -t commands 'track help repo add commands' commands "$@"
+}
+(( $+functions[_track__help__repo__list_commands] )) ||
+_track__help__repo__list_commands() {
+    local commands; commands=()
+    _describe -t commands 'track help repo list commands' commands "$@"
+}
+(( $+functions[_track__help__repo__remove_commands] )) ||
+_track__help__repo__remove_commands() {
+    local commands; commands=()
+    _describe -t commands 'track help repo remove commands' commands "$@"
+}
+(( $+functions[_track__help__scrap_commands] )) ||
+_track__help__scrap_commands() {
+    local commands; commands=(
+'add:Add a new scrap (work note)' \
+'list:List scraps' \
+    )
+    _describe -t commands 'track help scrap commands' commands "$@"
+}
+(( $+functions[_track__help__scrap__add_commands] )) ||
+_track__help__scrap__add_commands() {
+    local commands; commands=()
+    _describe -t commands 'track help scrap add commands' commands "$@"
+}
+(( $+functions[_track__help__scrap__list_commands] )) ||
+_track__help__scrap__list_commands() {
+    local commands; commands=()
+    _describe -t commands 'track help scrap list commands' commands "$@"
+}
+(( $+functions[_track__help__status_commands] )) ||
+_track__help__status_commands() {
+    local commands; commands=()
+    _describe -t commands 'track help status commands' commands "$@"
+}
+(( $+functions[_track__help__switch_commands] )) ||
+_track__help__switch_commands() {
+    local commands; commands=()
+    _describe -t commands 'track help switch commands' commands "$@"
+}
+(( $+functions[_track__help__sync_commands] )) ||
+_track__help__sync_commands() {
+    local commands; commands=()
+    _describe -t commands 'track help sync commands' commands "$@"
+}
+(( $+functions[_track__help__ticket_commands] )) ||
+_track__help__ticket_commands() {
+    local commands; commands=()
+    _describe -t commands 'track help ticket commands' commands "$@"
+}
+(( $+functions[_track__help__todo_commands] )) ||
+_track__help__todo_commands() {
+    local commands; commands=(
+'add:Add a new TODO' \
+'list:List TODOs' \
+'update:Update TODO status' \
+'done:Complete a TODO (merges worktree if exists)' \
+'delete:Delete a TODO' \
+'next:Move a TODO to the front (make it the next todo to work on)' \
+    )
+    _describe -t commands 'track help todo commands' commands "$@"
+}
+(( $+functions[_track__help__todo__add_commands] )) ||
+_track__help__todo__add_commands() {
+    local commands; commands=()
+    _describe -t commands 'track help todo add commands' commands "$@"
+}
+(( $+functions[_track__help__todo__delete_commands] )) ||
+_track__help__todo__delete_commands() {
+    local commands; commands=()
+    _describe -t commands 'track help todo delete commands' commands "$@"
+}
+(( $+functions[_track__help__todo__done_commands] )) ||
+_track__help__todo__done_commands() {
+    local commands; commands=()
+    _describe -t commands 'track help todo done commands' commands "$@"
+}
+(( $+functions[_track__help__todo__list_commands] )) ||
+_track__help__todo__list_commands() {
+    local commands; commands=()
+    _describe -t commands 'track help todo list commands' commands "$@"
+}
+(( $+functions[_track__help__todo__next_commands] )) ||
+_track__help__todo__next_commands() {
+    local commands; commands=()
+    _describe -t commands 'track help todo next commands' commands "$@"
+}
+(( $+functions[_track__help__todo__update_commands] )) ||
+_track__help__todo__update_commands() {
+    local commands; commands=()
+    _describe -t commands 'track help todo update commands' commands "$@"
+}
+(( $+functions[_track__help__webui_commands] )) ||
+_track__help__webui_commands() {
+    local commands; commands=()
+    _describe -t commands 'track help webui commands' commands "$@"
+}
+(( $+functions[_track__link_commands] )) ||
+_track__link_commands() {
+    local commands; commands=(
+'add:Add a new link' \
+'list:List links' \
+'delete:Delete a link' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'track link commands' commands "$@"
+}
+(( $+functions[_track__link__add_commands] )) ||
+_track__link__add_commands() {
+    local commands; commands=()
+    _describe -t commands 'track link add commands' commands "$@"
+}
+(( $+functions[_track__link__delete_commands] )) ||
+_track__link__delete_commands() {
+    local commands; commands=()
+    _describe -t commands 'track link delete commands' commands "$@"
+}
+(( $+functions[_track__link__help_commands] )) ||
+_track__link__help_commands() {
+    local commands; commands=(
+'add:Add a new link' \
+'list:List links' \
+'delete:Delete a link' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'track link help commands' commands "$@"
+}
+(( $+functions[_track__link__help__add_commands] )) ||
+_track__link__help__add_commands() {
+    local commands; commands=()
+    _describe -t commands 'track link help add commands' commands "$@"
+}
+(( $+functions[_track__link__help__delete_commands] )) ||
+_track__link__help__delete_commands() {
+    local commands; commands=()
+    _describe -t commands 'track link help delete commands' commands "$@"
+}
+(( $+functions[_track__link__help__help_commands] )) ||
+_track__link__help__help_commands() {
+    local commands; commands=()
+    _describe -t commands 'track link help help commands' commands "$@"
+}
+(( $+functions[_track__link__help__list_commands] )) ||
+_track__link__help__list_commands() {
+    local commands; commands=()
+    _describe -t commands 'track link help list commands' commands "$@"
+}
+(( $+functions[_track__link__list_commands] )) ||
+_track__link__list_commands() {
+    local commands; commands=()
+    _describe -t commands 'track link list commands' commands "$@"
+}
+(( $+functions[_track__list_commands] )) ||
+_track__list_commands() {
+    local commands; commands=()
+    _describe -t commands 'track list commands' commands "$@"
+}
+(( $+functions[_track__llm-help_commands] )) ||
+_track__llm-help_commands() {
+    local commands; commands=()
+    _describe -t commands 'track llm-help commands' commands "$@"
+}
+(( $+functions[_track__new_commands] )) ||
+_track__new_commands() {
+    local commands; commands=()
+    _describe -t commands 'track new commands' commands "$@"
+}
+(( $+functions[_track__repo_commands] )) ||
+_track__repo_commands() {
+    local commands; commands=(
+'add:Add a repository to the current task' \
+'list:List repositories' \
+'remove:Remove a repository' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'track repo commands' commands "$@"
+}
+(( $+functions[_track__repo__add_commands] )) ||
+_track__repo__add_commands() {
+    local commands; commands=()
+    _describe -t commands 'track repo add commands' commands "$@"
+}
+(( $+functions[_track__repo__help_commands] )) ||
+_track__repo__help_commands() {
+    local commands; commands=(
+'add:Add a repository to the current task' \
+'list:List repositories' \
+'remove:Remove a repository' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'track repo help commands' commands "$@"
+}
+(( $+functions[_track__repo__help__add_commands] )) ||
+_track__repo__help__add_commands() {
+    local commands; commands=()
+    _describe -t commands 'track repo help add commands' commands "$@"
+}
+(( $+functions[_track__repo__help__help_commands] )) ||
+_track__repo__help__help_commands() {
+    local commands; commands=()
+    _describe -t commands 'track repo help help commands' commands "$@"
+}
+(( $+functions[_track__repo__help__list_commands] )) ||
+_track__repo__help__list_commands() {
+    local commands; commands=()
+    _describe -t commands 'track repo help list commands' commands "$@"
+}
+(( $+functions[_track__repo__help__remove_commands] )) ||
+_track__repo__help__remove_commands() {
+    local commands; commands=()
+    _describe -t commands 'track repo help remove commands' commands "$@"
+}
+(( $+functions[_track__repo__list_commands] )) ||
+_track__repo__list_commands() {
+    local commands; commands=()
+    _describe -t commands 'track repo list commands' commands "$@"
+}
+(( $+functions[_track__repo__remove_commands] )) ||
+_track__repo__remove_commands() {
+    local commands; commands=()
+    _describe -t commands 'track repo remove commands' commands "$@"
+}
+(( $+functions[_track__scrap_commands] )) ||
+_track__scrap_commands() {
+    local commands; commands=(
+'add:Add a new scrap (work note)' \
+'list:List scraps' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'track scrap commands' commands "$@"
+}
+(( $+functions[_track__scrap__add_commands] )) ||
+_track__scrap__add_commands() {
+    local commands; commands=()
+    _describe -t commands 'track scrap add commands' commands "$@"
+}
+(( $+functions[_track__scrap__help_commands] )) ||
+_track__scrap__help_commands() {
+    local commands; commands=(
+'add:Add a new scrap (work note)' \
+'list:List scraps' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'track scrap help commands' commands "$@"
+}
+(( $+functions[_track__scrap__help__add_commands] )) ||
+_track__scrap__help__add_commands() {
+    local commands; commands=()
+    _describe -t commands 'track scrap help add commands' commands "$@"
+}
+(( $+functions[_track__scrap__help__help_commands] )) ||
+_track__scrap__help__help_commands() {
+    local commands; commands=()
+    _describe -t commands 'track scrap help help commands' commands "$@"
+}
+(( $+functions[_track__scrap__help__list_commands] )) ||
+_track__scrap__help__list_commands() {
+    local commands; commands=()
+    _describe -t commands 'track scrap help list commands' commands "$@"
+}
+(( $+functions[_track__scrap__list_commands] )) ||
+_track__scrap__list_commands() {
+    local commands; commands=()
+    _describe -t commands 'track scrap list commands' commands "$@"
+}
+(( $+functions[_track__status_commands] )) ||
+_track__status_commands() {
+    local commands; commands=()
+    _describe -t commands 'track status commands' commands "$@"
+}
+(( $+functions[_track__switch_commands] )) ||
+_track__switch_commands() {
+    local commands; commands=()
+    _describe -t commands 'track switch commands' commands "$@"
+}
+(( $+functions[_track__sync_commands] )) ||
+_track__sync_commands() {
+    local commands; commands=()
+    _describe -t commands 'track sync commands' commands "$@"
+}
+(( $+functions[_track__ticket_commands] )) ||
+_track__ticket_commands() {
+    local commands; commands=()
+    _describe -t commands 'track ticket commands' commands "$@"
+}
+(( $+functions[_track__todo_commands] )) ||
+_track__todo_commands() {
+    local commands; commands=(
+'add:Add a new TODO' \
+'list:List TODOs' \
+'update:Update TODO status' \
+'done:Complete a TODO (merges worktree if exists)' \
+'delete:Delete a TODO' \
+'next:Move a TODO to the front (make it the next todo to work on)' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'track todo commands' commands "$@"
+}
+(( $+functions[_track__todo__add_commands] )) ||
+_track__todo__add_commands() {
+    local commands; commands=()
+    _describe -t commands 'track todo add commands' commands "$@"
+}
+(( $+functions[_track__todo__delete_commands] )) ||
+_track__todo__delete_commands() {
+    local commands; commands=()
+    _describe -t commands 'track todo delete commands' commands "$@"
+}
+(( $+functions[_track__todo__done_commands] )) ||
+_track__todo__done_commands() {
+    local commands; commands=()
+    _describe -t commands 'track todo done commands' commands "$@"
+}
+(( $+functions[_track__todo__help_commands] )) ||
+_track__todo__help_commands() {
+    local commands; commands=(
+'add:Add a new TODO' \
+'list:List TODOs' \
+'update:Update TODO status' \
+'done:Complete a TODO (merges worktree if exists)' \
+'delete:Delete a TODO' \
+'next:Move a TODO to the front (make it the next todo to work on)' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'track todo help commands' commands "$@"
+}
+(( $+functions[_track__todo__help__add_commands] )) ||
+_track__todo__help__add_commands() {
+    local commands; commands=()
+    _describe -t commands 'track todo help add commands' commands "$@"
+}
+(( $+functions[_track__todo__help__delete_commands] )) ||
+_track__todo__help__delete_commands() {
+    local commands; commands=()
+    _describe -t commands 'track todo help delete commands' commands "$@"
+}
+(( $+functions[_track__todo__help__done_commands] )) ||
+_track__todo__help__done_commands() {
+    local commands; commands=()
+    _describe -t commands 'track todo help done commands' commands "$@"
+}
+(( $+functions[_track__todo__help__help_commands] )) ||
+_track__todo__help__help_commands() {
+    local commands; commands=()
+    _describe -t commands 'track todo help help commands' commands "$@"
+}
+(( $+functions[_track__todo__help__list_commands] )) ||
+_track__todo__help__list_commands() {
+    local commands; commands=()
+    _describe -t commands 'track todo help list commands' commands "$@"
+}
+(( $+functions[_track__todo__help__next_commands] )) ||
+_track__todo__help__next_commands() {
+    local commands; commands=()
+    _describe -t commands 'track todo help next commands' commands "$@"
+}
+(( $+functions[_track__todo__help__update_commands] )) ||
+_track__todo__help__update_commands() {
+    local commands; commands=()
+    _describe -t commands 'track todo help update commands' commands "$@"
+}
+(( $+functions[_track__todo__list_commands] )) ||
+_track__todo__list_commands() {
+    local commands; commands=()
+    _describe -t commands 'track todo list commands' commands "$@"
+}
+(( $+functions[_track__todo__next_commands] )) ||
+_track__todo__next_commands() {
+    local commands; commands=()
+    _describe -t commands 'track todo next commands' commands "$@"
+}
+(( $+functions[_track__todo__update_commands] )) ||
+_track__todo__update_commands() {
+    local commands; commands=()
+    _describe -t commands 'track todo update commands' commands "$@"
+}
+(( $+functions[_track__webui_commands] )) ||
+_track__webui_commands() {
+    local commands; commands=()
+    _describe -t commands 'track webui commands' commands "$@"
 }
 
-_track "$@"
+if [ "$funcstack[1]" = "_track" ]; then
+    _track "$@"
+else
+    compdef _track track
+fi

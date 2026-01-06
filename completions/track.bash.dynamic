@@ -22,12 +22,13 @@ _track() {
     local cur prev words cword
     _init_completion || return
 
-    local commands="new list switch status desc ticket archive todo link scrap sync repo alias llm-help completion webui help"
-    local todo_commands="add list update done delete"
+    local commands="new list switch status desc ticket archive todo link scrap sync repo alias llm-help completion config webui help"
+    local todo_commands="add list update done delete next"
     local link_commands="add list delete"
     local scrap_commands="add list"
     local repo_commands="add list remove"
     local alias_commands="set remove"
+    local config_commands="set-calendar show"
 
     # Handle subcommands
     if [[ $cword -eq 1 ]]; then
@@ -71,7 +72,7 @@ _track() {
             elif [[ $cword -ge 3 ]]; then
                 local subcmd="${words[2]}"
                 case "$subcmd" in
-                    done|delete|update)
+                    done|delete|update|next)
                         if [[ $cword -eq 3 ]]; then
                             COMPREPLY=($(compgen -W "$(_track_complete_todos)" -- "$cur"))
                         elif [[ "$subcmd" == "update" ]] && [[ $cword -eq 4 ]]; then
@@ -115,15 +116,31 @@ _track() {
         alias)
             if [[ $cword -eq 2 ]]; then
                 COMPREPLY=($(compgen -W "$alias_commands" -- "$cur"))
+            elif [[ "${words[2]}" == "set" ]]; then
+                case "$prev" in
+                    --task|-t)
+                        COMPREPLY=($(compgen -W "$(_track_complete_tasks)" -- "$cur"))
+                        ;;
+                    *)
+                        COMPREPLY=($(compgen -W "--task --force --help" -- "$cur"))
+                        ;;
+                esac
             fi
             ;;
         completion)
             if [[ $cword -eq 2 ]]; then
                 COMPREPLY=($(compgen -W "bash zsh fish powershell" -- "$cur"))
+            else
+                COMPREPLY=($(compgen -W "--dynamic --help" -- "$cur"))
             fi
             ;;
         list)
             COMPREPLY=($(compgen -W "--all --help" -- "$cur"))
+            ;;
+        config)
+            if [[ $cword -eq 2 ]]; then
+                COMPREPLY=($(compgen -W "$config_commands" -- "$cur"))
+            fi
             ;;
         desc|ticket|sync|llm-help|webui)
             COMPREPLY=($(compgen -W "--help" -- "$cur"))

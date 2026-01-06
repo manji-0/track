@@ -38,6 +38,8 @@ Register-ArgumentCompleter -Native -CommandName 'track' -ScriptBlock {
             [CompletionResult]::new('alias', 'alias', [CompletionResultType]::ParameterValue, 'Task alias management')
             [CompletionResult]::new('llm-help', 'llm-help', [CompletionResultType]::ParameterValue, 'Show help optimized for LLM agents')
             [CompletionResult]::new('completion', 'completion', [CompletionResultType]::ParameterValue, 'Generate shell completion script')
+            [CompletionResult]::new('_complete', '_complete', [CompletionResultType]::ParameterValue, 'Output completion candidates (hidden, for shell completion scripts)')
+            [CompletionResult]::new('config', 'config', [CompletionResultType]::ParameterValue, 'Configuration management')
             [CompletionResult]::new('webui', 'webui', [CompletionResultType]::ParameterValue, 'Start web-based user interface')
             [CompletionResult]::new('help', 'help', [CompletionResultType]::ParameterValue, 'Print this message or the help of the given subcommand(s)')
             break
@@ -100,6 +102,7 @@ Register-ArgumentCompleter -Native -CommandName 'track' -ScriptBlock {
             [CompletionResult]::new('update', 'update', [CompletionResultType]::ParameterValue, 'Update TODO status')
             [CompletionResult]::new('done', 'done', [CompletionResultType]::ParameterValue, 'Complete a TODO (merges worktree if exists)')
             [CompletionResult]::new('delete', 'delete', [CompletionResultType]::ParameterValue, 'Delete a TODO')
+            [CompletionResult]::new('next', 'next', [CompletionResultType]::ParameterValue, 'Move a TODO to the front (make it the next todo to work on)')
             [CompletionResult]::new('help', 'help', [CompletionResultType]::ParameterValue, 'Print this message or the help of the given subcommand(s)')
             break
         }
@@ -132,12 +135,18 @@ Register-ArgumentCompleter -Native -CommandName 'track' -ScriptBlock {
             [CompletionResult]::new('--help', '--help', [CompletionResultType]::ParameterName, 'Print help')
             break
         }
+        'track;todo;next' {
+            [CompletionResult]::new('-h', '-h', [CompletionResultType]::ParameterName, 'Print help')
+            [CompletionResult]::new('--help', '--help', [CompletionResultType]::ParameterName, 'Print help')
+            break
+        }
         'track;todo;help' {
             [CompletionResult]::new('add', 'add', [CompletionResultType]::ParameterValue, 'Add a new TODO')
             [CompletionResult]::new('list', 'list', [CompletionResultType]::ParameterValue, 'List TODOs')
             [CompletionResult]::new('update', 'update', [CompletionResultType]::ParameterValue, 'Update TODO status')
             [CompletionResult]::new('done', 'done', [CompletionResultType]::ParameterValue, 'Complete a TODO (merges worktree if exists)')
             [CompletionResult]::new('delete', 'delete', [CompletionResultType]::ParameterValue, 'Delete a TODO')
+            [CompletionResult]::new('next', 'next', [CompletionResultType]::ParameterValue, 'Move a TODO to the front (make it the next todo to work on)')
             [CompletionResult]::new('help', 'help', [CompletionResultType]::ParameterValue, 'Print this message or the help of the given subcommand(s)')
             break
         }
@@ -154,6 +163,9 @@ Register-ArgumentCompleter -Native -CommandName 'track' -ScriptBlock {
             break
         }
         'track;todo;help;delete' {
+            break
+        }
+        'track;todo;help;next' {
             break
         }
         'track;todo;help;help' {
@@ -296,6 +308,8 @@ Register-ArgumentCompleter -Native -CommandName 'track' -ScriptBlock {
         'track;alias;set' {
             [CompletionResult]::new('-t', '-t', [CompletionResultType]::ParameterName, 'Target task ID (defaults to current task)')
             [CompletionResult]::new('--task', '--task', [CompletionResultType]::ParameterName, 'Target task ID (defaults to current task)')
+            [CompletionResult]::new('-f', '-f', [CompletionResultType]::ParameterName, 'Force overwrite if alias already exists on another task')
+            [CompletionResult]::new('--force', '--force', [CompletionResultType]::ParameterName, 'Force overwrite if alias already exists on another task')
             [CompletionResult]::new('-h', '-h', [CompletionResultType]::ParameterName, 'Print help')
             [CompletionResult]::new('--help', '--help', [CompletionResultType]::ParameterName, 'Print help')
             break
@@ -328,8 +342,48 @@ Register-ArgumentCompleter -Native -CommandName 'track' -ScriptBlock {
             break
         }
         'track;completion' {
+            [CompletionResult]::new('-d', '-d', [CompletionResultType]::ParameterName, 'Generate dynamic completion script (with real-time data)')
+            [CompletionResult]::new('--dynamic', '--dynamic', [CompletionResultType]::ParameterName, 'Generate dynamic completion script (with real-time data)')
             [CompletionResult]::new('-h', '-h', [CompletionResultType]::ParameterName, 'Print help')
             [CompletionResult]::new('--help', '--help', [CompletionResultType]::ParameterName, 'Print help')
+            break
+        }
+        'track;_complete' {
+            [CompletionResult]::new('-h', '-h', [CompletionResultType]::ParameterName, 'Print help (see more with ''--help'')')
+            [CompletionResult]::new('--help', '--help', [CompletionResultType]::ParameterName, 'Print help (see more with ''--help'')')
+            break
+        }
+        'track;config' {
+            [CompletionResult]::new('-h', '-h', [CompletionResultType]::ParameterName, 'Print help')
+            [CompletionResult]::new('--help', '--help', [CompletionResultType]::ParameterName, 'Print help')
+            [CompletionResult]::new('set-calendar', 'set-calendar', [CompletionResultType]::ParameterValue, 'Set Google Calendar ID for today task')
+            [CompletionResult]::new('show', 'show', [CompletionResultType]::ParameterValue, 'Show current configuration')
+            [CompletionResult]::new('help', 'help', [CompletionResultType]::ParameterValue, 'Print this message or the help of the given subcommand(s)')
+            break
+        }
+        'track;config;set-calendar' {
+            [CompletionResult]::new('-h', '-h', [CompletionResultType]::ParameterName, 'Print help')
+            [CompletionResult]::new('--help', '--help', [CompletionResultType]::ParameterName, 'Print help')
+            break
+        }
+        'track;config;show' {
+            [CompletionResult]::new('-h', '-h', [CompletionResultType]::ParameterName, 'Print help')
+            [CompletionResult]::new('--help', '--help', [CompletionResultType]::ParameterName, 'Print help')
+            break
+        }
+        'track;config;help' {
+            [CompletionResult]::new('set-calendar', 'set-calendar', [CompletionResultType]::ParameterValue, 'Set Google Calendar ID for today task')
+            [CompletionResult]::new('show', 'show', [CompletionResultType]::ParameterValue, 'Show current configuration')
+            [CompletionResult]::new('help', 'help', [CompletionResultType]::ParameterValue, 'Print this message or the help of the given subcommand(s)')
+            break
+        }
+        'track;config;help;set-calendar' {
+            break
+        }
+        'track;config;help;show' {
+            break
+        }
+        'track;config;help;help' {
             break
         }
         'track;webui' {
@@ -357,6 +411,8 @@ Register-ArgumentCompleter -Native -CommandName 'track' -ScriptBlock {
             [CompletionResult]::new('alias', 'alias', [CompletionResultType]::ParameterValue, 'Task alias management')
             [CompletionResult]::new('llm-help', 'llm-help', [CompletionResultType]::ParameterValue, 'Show help optimized for LLM agents')
             [CompletionResult]::new('completion', 'completion', [CompletionResultType]::ParameterValue, 'Generate shell completion script')
+            [CompletionResult]::new('_complete', '_complete', [CompletionResultType]::ParameterValue, 'Output completion candidates (hidden, for shell completion scripts)')
+            [CompletionResult]::new('config', 'config', [CompletionResultType]::ParameterValue, 'Configuration management')
             [CompletionResult]::new('webui', 'webui', [CompletionResultType]::ParameterValue, 'Start web-based user interface')
             [CompletionResult]::new('help', 'help', [CompletionResultType]::ParameterValue, 'Print this message or the help of the given subcommand(s)')
             break
@@ -388,6 +444,7 @@ Register-ArgumentCompleter -Native -CommandName 'track' -ScriptBlock {
             [CompletionResult]::new('update', 'update', [CompletionResultType]::ParameterValue, 'Update TODO status')
             [CompletionResult]::new('done', 'done', [CompletionResultType]::ParameterValue, 'Complete a TODO (merges worktree if exists)')
             [CompletionResult]::new('delete', 'delete', [CompletionResultType]::ParameterValue, 'Delete a TODO')
+            [CompletionResult]::new('next', 'next', [CompletionResultType]::ParameterValue, 'Move a TODO to the front (make it the next todo to work on)')
             break
         }
         'track;help;todo;add' {
@@ -403,6 +460,9 @@ Register-ArgumentCompleter -Native -CommandName 'track' -ScriptBlock {
             break
         }
         'track;help;todo;delete' {
+            break
+        }
+        'track;help;todo;next' {
             break
         }
         'track;help;link' {
@@ -464,6 +524,20 @@ Register-ArgumentCompleter -Native -CommandName 'track' -ScriptBlock {
             break
         }
         'track;help;completion' {
+            break
+        }
+        'track;help;_complete' {
+            break
+        }
+        'track;help;config' {
+            [CompletionResult]::new('set-calendar', 'set-calendar', [CompletionResultType]::ParameterValue, 'Set Google Calendar ID for today task')
+            [CompletionResult]::new('show', 'show', [CompletionResultType]::ParameterValue, 'Show current configuration')
+            break
+        }
+        'track;help;config;set-calendar' {
+            break
+        }
+        'track;help;config;show' {
             break
         }
         'track;help;webui' {

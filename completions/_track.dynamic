@@ -183,6 +183,13 @@ _arguments "${_arguments_options[@]}" : \
 ':id -- TODO ID:_track_todos' \
 && ret=0
 ;;
+            (next)
+_arguments "${_arguments_options[@]}" : \
+'-h[Print help]' \
+'--help[Print help]' \
+':id -- TODO ID:_track_todos' \
+&& ret=0
+;;
         esac
     ;;
 esac
@@ -321,6 +328,8 @@ case $state in
 _arguments "${_arguments_options[@]}" : \
 '-t+[Target task ID]:TASK:_default' \
 '--task=[Target task ID]:TASK:_default' \
+'-f[Force overwrite]' \
+'--force[Force overwrite]' \
 '-h[Print help]' \
 '--help[Print help]' \
 ':alias:_default' \
@@ -346,10 +355,43 @@ _arguments "${_arguments_options[@]}" : \
 ;;
 (completion)
 _arguments "${_arguments_options[@]}" : \
+'-d[Generate dynamic completion]' \
+'--dynamic[Generate dynamic completion]' \
 '-h[Print help]' \
 '--help[Print help]' \
 ':shell:(bash zsh fish powershell)' \
 && ret=0
+;;
+(config)
+_arguments "${_arguments_options[@]}" : \
+'-h[Print help]' \
+'--help[Print help]' \
+":: :_track__config_commands" \
+"*::: :->config" \
+&& ret=0
+
+case $state in
+    (config)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:track-config-command-$line[1]:"
+        case $line[1] in
+            (set-calendar)
+_arguments "${_arguments_options[@]}" : \
+'-h[Print help]' \
+'--help[Print help]' \
+':calendar_id:_default' \
+&& ret=0
+;;
+            (show)
+_arguments "${_arguments_options[@]}" : \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+        esac
+    ;;
+esac
 ;;
 (webui)
 _arguments "${_arguments_options[@]}" : \
@@ -373,7 +415,7 @@ case $state in
         (( CURRENT += 1 ))
         curcontext="${curcontext%:*:*}:track-help-command-$line[1]:"
         case $line[1] in
-            (new|list|switch|status|desc|ticket|archive|todo|link|scrap|sync|repo|alias|llm-help|completion|webui|help)
+            (new|list|switch|status|desc|ticket|archive|todo|link|scrap|sync|repo|alias|llm-help|completion|config|webui|help)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
@@ -404,6 +446,7 @@ _track_commands() {
 'alias:Task alias management' \
 'llm-help:Show help optimized for LLM agents' \
 'completion:Generate shell completion script' \
+'config:Configuration management' \
 'webui:Start web-based user interface' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
@@ -418,6 +461,7 @@ _track__todo_commands() {
 'update:Update TODO status' \
 'done:Complete a TODO' \
 'delete:Delete a TODO' \
+'next:Move a TODO to the front' \
     )
     _describe -t commands 'track todo commands' commands "$@"
 }
@@ -460,6 +504,15 @@ _track__alias_commands() {
     _describe -t commands 'track alias commands' commands "$@"
 }
 
+(( $+functions[_track__config_commands] )) ||
+_track__config_commands() {
+    local commands; commands=(
+'set-calendar:Set Google Calendar ID' \
+'show:Show current configuration' \
+    )
+    _describe -t commands 'track config commands' commands "$@"
+}
+
 (( $+functions[_track__help_commands] )) ||
 _track__help_commands() {
     local commands; commands=(
@@ -478,6 +531,7 @@ _track__help_commands() {
 'alias:Task alias management' \
 'llm-help:Show LLM help' \
 'completion:Generate completion script' \
+'config:Configuration management' \
 'webui:Start web UI' \
 'help:Print help' \
     )

@@ -57,12 +57,15 @@ track status
 | `track todo add "<text>"` | Add TODO |
 | `track todo add "<text>" --worktree` | Add TODO with worktree |
 | `track todo done <index>` | Complete TODO |
+| `track todo next <index>` | Move TODO to front (make it next) |
 | `track link add <url>` | Add reference link |
 | `track link add <url> --title "<title>"` | Add link with title |
 | `track repo add [path]` | Register repository |
 | `track repo add --base <branch>` | Register with base branch |
 | `track scrap add "<note>"` | Record progress note |
 | `track sync` | Create branches and worktrees |
+| `track config set-calendar <id>` | Set Google Calendar ID |
+| `track config show` | Show current configuration |
 | `track webui` | Start web-based UI |
 | `track llm-help` | Show comprehensive guide |
 
