@@ -174,6 +174,8 @@ impl CommandHandler {
         // Check if the user wants to switch to today's task
         if task_ref.to_lowercase() == "today" {
             let task = task_service.get_or_create_today_task()?;
+            // Update the current task context
+            task_service.switch_task(task.id)?;
             println!("Switched to today's task: {}", task.name);
             return Ok(());
         }

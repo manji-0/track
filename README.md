@@ -59,6 +59,7 @@ track status
 | `track new <name> --template <task_ref>` | Create task from template (copies TODOs) |
 | `track list [--all]` | Display task list |
 | `track switch <task_id>` | Switch tasks |
+| `track switch today` | Switch to today's task (auto-creates if needed) |
 | `track status [id]` | Display task information |
 | `track status --json` | Output in JSON format |
 | `track status --all` | Show all scraps |
@@ -68,6 +69,13 @@ track status
 | `track alias set <alias> --force` | Overwrite existing alias on another task |
 | `track alias remove` | Remove alias from the current task |
 | `track archive [task_id]` | Archive a task |
+
+### Configuration
+
+| Command | Description |
+|---------|-------------|
+| `track config set-calendar <calendar-id>` | Set Google Calendar ID for today task |
+| `track config show` | Show current configuration |
 
 ### TODO Management
 
@@ -125,10 +133,13 @@ The Web UI provides a modern, browser-based interface with real-time updates via
 
 **Key Features:**
 
+- **Today Task**: Special task type that automatically inherits incomplete TODOs from the previous day. Access with `track switch today`.
+- **Calendar Integration**: Display your Google Calendar in the today task view. Configure with `track config set-calendar <calendar-id>`.
 - **Todo-Scrap Linking**: Click the 📝 button on any todo to jump to related scraps. Scraps are automatically linked to the active todo when created.
 - **Todo Reordering**: Use the "⬆️ Make Next" option in the todo menu to move a todo to the front of your work queue.
 - **Real-time Updates**: All changes are instantly reflected across all connected browsers.
 - **Focus Mode**: Toggle between overview and focus modes to concentrate on the current task.
+- **Dark/Light Theme**: Automatic theme switching with calendar color adaptation.
 
 ### Shell Completion
 
@@ -212,6 +223,7 @@ See [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md) for details.
 
 - [DESIGN.md](DESIGN.md) - Design specification
 - [docs/FUNCTIONAL_SPEC.md](docs/FUNCTIONAL_SPEC.md) - Functional specification
+- [docs/TODAY_TASK.md](docs/TODAY_TASK.md) - Today task feature guide
 - [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md) - Project structure
 - [docs/USAGE_EXAMPLES.md](docs/USAGE_EXAMPLES.md) - Detailed usage examples
 - [docs/LLM_INTEGRATION.md](docs/LLM_INTEGRATION.md) - LLM agent integration guide (includes `track llm-help` command)
