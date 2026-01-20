@@ -1,8 +1,14 @@
 use crate::db::Database;
 use crate::models::{Link, Scrap};
 use crate::utils::{Result, TrackError};
-use chrono::Utc;
-use rusqlite::{params, OptionalExtension};
+use chrono::{DateTime, Utc};
+use rusqlite::{params, types::Type, OptionalExtension};
+
+fn parse_datetime(value: String) -> rusqlite::Result<DateTime<Utc>> {
+    value
+        .parse()
+        .map_err(|e| rusqlite::Error::FromSqlConversionFailure(0, Type::Text, Box::new(e)))
+}
 
 pub struct LinkService<'a> {
     db: &'a Database,
@@ -55,7 +61,7 @@ impl<'a> LinkService<'a> {
                 task_index: row.get(2)?,
                 url: row.get(3)?,
                 title: row.get(4)?,
-                created_at: row.get::<_, String>(5)?.parse().unwrap(),
+                created_at: parse_datetime(row.get::<_, String>(5)?)?,
             })
         })?;
 
@@ -76,7 +82,7 @@ impl<'a> LinkService<'a> {
                     task_index: row.get(2)?,
                     url: row.get(3)?,
                     title: row.get(4)?,
-                    created_at: row.get::<_, String>(5)?.parse().unwrap(),
+                    created_at: parse_datetime(row.get::<_, String>(5)?)?,
                 })
             })?
             .collect::<std::result::Result<Vec<_>, _>>()?;
@@ -160,7 +166,7 @@ impl<'a> ScrapService<'a> {
                 task_id: row.get(1)?,
                 scrap_id: row.get(2)?,
                 content: row.get(3)?,
-                created_at: row.get::<_, String>(4)?.parse().unwrap(),
+                created_at: parse_datetime(row.get::<_, String>(4)?)?,
                 active_todo_id: row.get(5)?,
             })
         })?;
@@ -181,7 +187,7 @@ impl<'a> ScrapService<'a> {
                     task_id: row.get(1)?,
                     scrap_id: row.get(2)?,
                     content: row.get(3)?,
-                    created_at: row.get::<_, String>(4)?.parse().unwrap(),
+                    created_at: parse_datetime(row.get::<_, String>(4)?)?,
                     active_todo_id: row.get(5)?,
                 })
             })?

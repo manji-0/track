@@ -7,6 +7,101 @@ use chrono::{DateTime, Utc};
 use serde::Serialize;
 use std::str::FromStr;
 
+fn render_markdown_with_links(content: &str) -> String {
+    use pulldown_cmark::{html, Event, Parser, Tag, TagEnd};
+    use regex::Regex;
+    use std::collections::{HashMap, HashSet};
+
+    let url_regex =
+        Regex::new(r"(?P<pre>^|[\s\(])(?P<url>https?://[^\s\)<>]+?)(?P<post>[.,;!?]*(?:[\s\)]|$))")
+            .unwrap();
+
+    let linkified = url_regex.replace_all(content, |caps: &regex::Captures| {
+        let pre = &caps["pre"];
+        let url = &caps["url"];
+        let post = &caps["post"];
+
+        let cap_start = caps.get(0).unwrap().start();
+        if cap_start >= 2 {
+            let before = &content[..cap_start];
+            if before.ends_with("](") {
+                return caps.get(0).unwrap().as_str().to_string();
+            }
+        }
+
+        format!("{}<{}>{}", pre, url, post)
+    });
+
+    let parser = Parser::new(linkified.as_ref());
+    let sanitized = parser.map(|event| match event {
+        Event::Html(html) | Event::InlineHtml(html) => {
+            let escaped = html_escape::encode_safe(&html).into_owned();
+            Event::Text(escaped.into())
+        }
+        _ => event,
+    });
+
+    let parser_with_target = sanitized.map(|event| match event {
+        Event::Start(Tag::Link {
+            link_type: _,
+            dest_url,
+            title,
+            id: _,
+        }) => Event::Html(
+            format!(
+                r#"<a href="{}" target="_blank" rel="noopener noreferrer"{}>"#,
+                html_escape::encode_double_quoted_attribute(&dest_url),
+                if !title.is_empty() {
+                    format!(
+                        r#" title="{}""#,
+                        html_escape::encode_double_quoted_attribute(&title)
+                    )
+                } else {
+                    String::new()
+                }
+            )
+            .into(),
+        ),
+        Event::End(TagEnd::Link) => Event::Html("</a>".into()),
+        _ => event,
+    });
+
+    let mut html_output = String::new();
+    html::push_html(&mut html_output, parser_with_target);
+
+    let allowed_tags: HashSet<&'static str> = [
+        "a",
+        "p",
+        "ul",
+        "ol",
+        "li",
+        "strong",
+        "em",
+        "code",
+        "pre",
+        "blockquote",
+        "br",
+        "h1",
+        "h2",
+        "h3",
+        "h4",
+        "h5",
+        "h6",
+    ]
+    .into_iter()
+    .collect();
+    let allowed_attrs: HashSet<&'static str> = ["href", "title", "target"].into_iter().collect();
+    let mut allowed_tag_attrs = HashMap::new();
+    allowed_tag_attrs.insert("a", allowed_attrs);
+
+    ammonia::Builder::default()
+        .tags(allowed_tags)
+        .tag_attributes(allowed_tag_attrs)
+        .link_rel(Some("noopener noreferrer"))
+        .clean(&html_output)
+        .to_string()
+}
+
 /// Represents a development task.
 ///
 /// A task is the primary organizational unit in track. Each task can have multiple TODOs,
@@ -56,70 +151,7 @@ impl Todo {
     /// All links open in new tabs with target="_blank".
     /// The output is safe for display in web pages.
     pub fn content_html(&self) -> String {
-        use pulldown_cmark::{html, Event, Parser, Tag, TagEnd};
-        use regex::Regex;
-
-        // Auto-linkify plain URLs that aren't already in markdown link syntax
-        // This regex matches URLs and ensures trailing punctuation is not included
-        // It allows dots, question marks, etc. within the URL but not at the end
-        let url_regex = Regex::new(
-            r"(?P<pre>^|[\s\(])(?P<url>https?://[^\s\)<>]+?)(?P<post>[.,;!?]*(?:[\s\)]|$))",
-        )
-        .unwrap();
-
-        let linkified = url_regex.replace_all(&self.content, |caps: &regex::Captures| {
-            let pre = &caps["pre"];
-            let url = &caps["url"];
-            let post = &caps["post"];
-
-            // Check if this URL is already part of a markdown link [text](url)
-            // by looking backwards in the original content
-            let cap_start = caps.get(0).unwrap().start();
-            if cap_start >= 2 {
-                let before = &self.content[..cap_start];
-                if before.ends_with("](") {
-                    // This is already a markdown link, don't modify
-                    return caps.get(0).unwrap().as_str().to_string();
-                }
-            }
-
-            format!("{}<{}>{}", pre, url, post)
-        });
-
-        // Parse markdown and modify link tags to add target="_blank"
-        let parser = Parser::new(linkified.as_ref());
-        let parser_with_target = parser.map(|event| match event {
-            Event::Start(Tag::Link {
-                link_type: _,
-                dest_url,
-                title,
-                id: _,
-            }) => {
-                // Create a new link tag with target="_blank" by wrapping in Html event
-                // We'll use the original tag and add attributes via HTML
-                Event::Html(
-                    format!(
-                        r#"<a href="{}" target="_blank" rel="noopener noreferrer"{}>"#,
-                        html_escape::encode_double_quoted_attribute(&dest_url),
-                        if !title.is_empty() {
-                            format!(
-                                r#" title="{}""#,
-                                html_escape::encode_double_quoted_attribute(&title),
-                            )
-                        } else {
-                            String::new()
-                        }
-                    )
-                    .into(),
-                )
-            }
-            Event::End(TagEnd::Link) => Event::Html("</a>".into()),
-            _ => event,
-        });
-
-        let mut html_output = String::new();
-        html::push_html(&mut html_output, parser_with_target);
-        html_output
+        render_markdown_with_links(&self.content)
     }
 }
 
@@ -172,70 +204,7 @@ impl Scrap {
     /// All links open in new tabs with target="_blank".
     /// The output is safe for display in web pages.
     pub fn content_html(&self) -> String {
-        use pulldown_cmark::{html, Event, Parser, Tag, TagEnd};
-        use regex::Regex;
-
-        // Auto-linkify plain URLs that aren't already in markdown link syntax
-        // This regex matches URLs and ensures trailing punctuation is not included
-        // It allows dots, question marks, etc. within the URL but not at the end
-        let url_regex = Regex::new(
-            r"(?P<pre>^|[\s\(])(?P<url>https?://[^\s\)<>]+?)(?P<post>[.,;!?]*(?:[\s\)]|$))",
-        )
-        .unwrap();
-
-        let linkified = url_regex.replace_all(&self.content, |caps: &regex::Captures| {
-            let pre = &caps["pre"];
-            let url = &caps["url"];
-            let post = &caps["post"];
-
-            // Check if this URL is already part of a markdown link [text](url)
-            // by looking backwards in the original content
-            let cap_start = caps.get(0).unwrap().start();
-            if cap_start >= 2 {
-                let before = &self.content[..cap_start];
-                if before.ends_with("](") {
-                    // This is already a markdown link, don't modify
-                    return caps.get(0).unwrap().as_str().to_string();
-                }
-            }
-
-            format!("{}<{}>{}", pre, url, post)
-        });
-
-        // Parse markdown and modify link tags to add target="_blank"
-        let parser = Parser::new(linkified.as_ref());
-        let parser_with_target = parser.map(|event| match event {
-            Event::Start(Tag::Link {
-                link_type: _,
-                dest_url,
-                title,
-                id: _,
-            }) => {
-                // Create a new link tag with target="_blank" by wrapping in Html event
-                // We'll use the original tag and add attributes via HTML
-                Event::Html(
-                    format!(
-                        r#"<a href="{}" target="_blank" rel="noopener noreferrer"{}>"#,
-                        html_escape::encode_double_quoted_attribute(&dest_url),
-                        if !title.is_empty() {
-                            format!(
-                                r#" title="{}""#,
-                                html_escape::encode_double_quoted_attribute(&title)
-                            )
-                        } else {
-                            String::new()
-                        }
-                    )
-                    .into(),
-                )
-            }
-            Event::End(TagEnd::Link) => Event::Html("</a>".into()),
-            _ => event,
-        });
-
-        let mut html_output = String::new();
-        html::push_html(&mut html_output, parser_with_target);
-        html_output
+        render_markdown_with_links(&self.content)
     }
 }
 
@@ -482,13 +451,30 @@ mod tests {
             id: 1,
             task_id: 1,
             scrap_id: 1,
-            content: "Check out [this link](https://example.com).".to_string(),
+            content: "[Example](https://example.com)".to_string(),
             created_at: Utc::now(),
             active_todo_id: None,
         };
         let html = scrap.content_html();
+        assert!(html.contains("href=\"https://example.com\""));
         assert!(html.contains("target=\"_blank\""));
-        assert!(html.contains("this link"));
+        assert!(html.contains("rel=\"noopener noreferrer\""));
+    }
+
+    #[test]
+    fn test_scrap_content_html_sanitizes_html() {
+        let scrap = Scrap {
+            id: 1,
+            task_id: 1,
+            scrap_id: 1,
+            content: "<script>alert('x')</script><b>safe</b>".to_string(),
+            created_at: Utc::now(),
+            active_todo_id: None,
+        };
+        let html = scrap.content_html();
+        assert!(!html.contains("<script>"));
+        assert!(!html.contains("alert('x')"));
+        assert!(html.contains("safe"));
     }
 
     #[test]
@@ -595,13 +581,32 @@ mod tests {
             id: 1,
             task_id: 1,
             task_index: 1,
-            content: "Fix **bug** in login".to_string(),
+            content: "# Heading\n\nThis is **bold** and *italic*.".to_string(),
             status: "pending".to_string(),
-            worktree_requested: false,
             created_at: Utc::now(),
             completed_at: None,
+            worktree_requested: false,
         };
         let html = todo.content_html();
-        assert!(html.contains("<strong>bug</strong>"));
+        assert!(html.contains("<h1>Heading</h1>"));
+        assert!(html.contains("<strong>bold</strong>"));
+        assert!(html.contains("<em>italic</em>"));
+    }
+
+    #[test]
+    fn test_todo_content_html_sanitizes_html() {
+        let todo = Todo {
+            id: 1,
+            task_id: 1,
+            task_index: 1,
+            content: "<img src=x onerror=alert(1)><b>safe</b>".to_string(),
+            status: "pending".to_string(),
+            created_at: Utc::now(),
+            completed_at: None,
+            worktree_requested: false,
+        };
+        let html = todo.content_html();
+        assert!(!html.contains("<img"));
+        assert!(html.contains("safe"));
     }
 }

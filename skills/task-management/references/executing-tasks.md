@@ -12,7 +12,7 @@ Complete workflow for working through TODOs and completing tasks.
 
 - Task created with `track new`
 - TODOs added with `track todo add`
-- Repositories synced (if using worktrees)
+- Repositories synced (if using workspaces)
 
 ## Step-by-Step Workflow
 
@@ -24,7 +24,7 @@ track status [id]
 
 **Analyze output:**
 - Identify pending TODOs (marked `[ ]`)
-- Note worktree paths if they exist
+- Note workspace paths if they exist
 - Review recent scraps for context
 - Determine which TODO to tackle next
 
@@ -35,33 +35,32 @@ track status [id]
 **Selection strategies:**
 1. **Sequential**: Work through 1 → 2 → 3
 2. **Priority**: Handle dependencies first
-3. **Parallel**: If worktrees exist, work on any pending TODO
+3. **Parallel**: If workspaces exist, work on any pending TODO
 
 ---
 
 ### Step 3: Navigate to Work Location
 
-**If TODO has worktree:**
+**If TODO has workspace:**
 ```bash
-cd /path/to/worktree
+cd "$(track todo workspace <index>)"
 ```
 
 Example from `track status` output:
 ```bash
-# Worktree shown as: /home/user/projects/myapp/task/PROJ-123-todo-2
-cd /home/user/projects/myapp/task/PROJ-123-todo-2
+# Workspace shown as: /home/user/projects/myapp/task/PROJ-123-todo-2
+cd "$(track todo workspace 2)"
 ```
 
-**If no worktree:**
+**If no workspace:**
 ```bash
 cd /path/to/repository
-git checkout task/<branch-name>
 ```
 
 **Verify location:**
 ```bash
-pwd           # Check directory
-git branch    # Verify branch
+pwd        # Check directory
+jj status  # Verify bookmark
 ```
 
 ---
@@ -78,7 +77,12 @@ git branch    # Verify branch
    - Follow project conventions
    - Keep changes focused
 
-3. **Test changes**
+3. **Describe changes**
+   ```bash
+   jj describe -m "<summary>"
+   ```
+
+4. **Test changes**
    ```bash
    # Run tests
    cargo test       # Rust
@@ -90,7 +94,7 @@ git branch    # Verify branch
    npm run build
    ```
 
-4. **Verify quality**
+5. **Verify quality**
    ```bash
    # Lint
    cargo clippy
@@ -103,16 +107,12 @@ git branch    # Verify branch
 
 ---
 
-### Step 5: Commit Changes
+### Step 5: Describe Changes
 
-**All changes must be committed before marking TODO done.**
+**Describe changes before marking TODO done.**
 
 ```bash
-# Stage changes
-git add .
-
-# Commit with descriptive message
-git commit -m "Implement OAuth2 Google provider
+jj describe -m "Implement OAuth2 Google provider
 
 - Add GoogleOAuthClient class
 - Implement token exchange
@@ -122,7 +122,7 @@ git commit -m "Implement OAuth2 Google provider
 Refs: PROJ-123"
 ```
 
-**Commit message best practices:**
+**Description best practices:**
 - Imperative mood ("Add" not "Added")
 - Brief summary in first line
 - Details in body if needed
@@ -169,15 +169,15 @@ track todo done 2
 
 **What happens:**
 1. Checks for uncommitted changes (aborts if any exist)
-2. Merges worktree branch into task base branch (if worktree exists)
-3. Removes worktree directory and database record
+2. Rebases workspace bookmark onto task bookmark (if workspace exists)
+3. Removes workspace directory and database record
 4. Marks TODO as `done`
 
 **Output:**
 ```
 TODO #2 marked as done
-Merged task/PROJ-123-todo-2 into task/PROJ-123
-Removed worktree at /home/user/projects/myapp/task/PROJ-123-todo-2
+Rebased task/PROJ-123-todo-2 onto task/PROJ-123
+Removed workspace at /home/user/projects/myapp/task/PROJ-123-todo-2
 ```
 
 ---
@@ -190,7 +190,7 @@ track status
 
 **Verify:**
 - TODO marked as done `[✓]`
-- Worktree removed (if applicable)
+- Workspace removed (if applicable)
 - Next pending TODO identified
 
 **Then:**
@@ -205,17 +205,18 @@ track status
 # 1. Check state
 track status
 
-# 2. Navigate to worktree
-cd /home/user/projects/myapp/task/PROJ-123-todo-2
+# 2. Navigate to workspace
+cd "$(track todo workspace 2)"
 
 # 3. Implement
 # ... edit code ...
 cargo test
 cargo clippy
 
-# 4. Commit
-git add .
-git commit -m "Implement Google OAuth flow"
+# 4. Describe changes
+
+jj describe -m "Implement Google OAuth flow"
+
 
 # 5. Record progress
 track scrap add "Completed Google OAuth. Tests passing."
@@ -252,8 +253,7 @@ When all TODOs marked done:
 4. **Push changes**
    ```bash
    cd /path/to/repository
-   git checkout task/PROJ-123
-   git push origin task/PROJ-123
+   jj git push --bookmark task/PROJ-123
    ```
 
 5. **Archive or keep**
@@ -268,10 +268,10 @@ When all TODOs marked done:
 ```bash
 track status
 # Work on TODO 1
-git commit -m "..."
+jj describe -m "..."
 track todo done 1
 # Work on TODO 2
-git commit -m "..."
+jj describe -m "..."
 track scrap add "Completed TODO 2"
 track todo done 2
 ```
@@ -279,12 +279,12 @@ track todo done 2
 ### Parallel Work (Multiple Terminals)
 ```bash
 # Terminal 1: TODO 3
-cd /path/to/worktree-todo-3
+cd "$(track todo workspace 3)"
 # ... implement ...
 track todo done 3
 
 # Terminal 2: TODO 4 (parallel)
-cd /path/to/worktree-todo-4
+cd "$(track todo workspace 4)"
 # ... implement ...
 track todo done 4
 ```
@@ -292,14 +292,14 @@ track todo done 4
 ### Incremental Progress
 ```bash
 # Start work
-cd /path/to/worktree
+cd "$(track todo workspace 2)"
 
 # Partial progress
-git commit -m "WIP: OAuth client setup"
+jj describe -m "WIP: OAuth client setup"
 track scrap add "Progress: Client setup done, working on token exchange"
 
 # Continue
-git commit -m "Complete OAuth flow"
+jj describe -m "Complete OAuth flow"
 track scrap add "OAuth flow complete. Tests passing."
 
 # Finish
@@ -311,10 +311,10 @@ track todo done 2
 ## For LLM Agents
 
 1. **Always check status first**: `track status`
-2. **Commit frequently**: Logical, incremental commits
+2. **Describe frequently**: Logical, incremental change summaries
 3. **Document as you go**: Add scraps for important decisions
 4. **Test before completing**: Verify tests pass
-5. **Clean state required**: All changes committed before `track todo done`
+5. **Clean state required**: All changes described before `track todo done`
 6. **Use scraps for context**: Help future understanding
 
 ---
@@ -327,8 +327,8 @@ track todo done 2
 | `track scrap add "<note>"` | Record progress |
 | `track scrap list` | View all scraps |
 | `track todo done <index>` | Complete TODO |
-| `git status` | Check uncommitted changes |
-| `git commit -m "..."` | Commit changes |
+| `jj status` | Check uncommitted changes |
+| `jj describe -m "..."` | Describe changes |
 
 ---
 
@@ -336,9 +336,8 @@ track todo done 2
 
 **`track todo done` fails with "uncommitted changes":**
 ```bash
-git status
-git add .
-git commit -m "..."
+jj status
+jj describe -m "..."
 track todo done <index>
 ```
 
@@ -348,9 +347,9 @@ track status  # See all pending TODOs
 # Start with lowest numbered or follow dependencies
 ```
 
-**Worktree path doesn't exist:**
+**Workspace path doesn't exist:**
 ```bash
-track sync         # Create worktrees
+track sync         # Create workspaces
 track status       # Verify created
 ```
 
@@ -365,6 +364,6 @@ track todo done 3  # Can complete before TODO 2
 # Before marking done
 cargo test
 # Fix failures
-git add . && git commit -m "Fix tests"
+jj describe -m "Fix tests"
 track todo done <index>
 ```

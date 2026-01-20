@@ -1,6 +1,6 @@
 //! MiniJinja template engine setup.
 
-use minijinja::{path_loader, Environment};
+use minijinja::{path_loader, AutoEscape, Environment};
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -15,6 +15,13 @@ impl Templates {
     pub fn new(template_dir: PathBuf) -> Self {
         let mut env = Environment::new();
         env.set_loader(path_loader(template_dir));
+        env.set_auto_escape_callback(|name| {
+            if name.ends_with(".html") {
+                AutoEscape::Html
+            } else {
+                AutoEscape::None
+            }
+        });
 
         Self { env }
     }
@@ -22,6 +29,13 @@ impl Templates {
     /// Create template engine with embedded templates (for distribution)
     pub fn embedded() -> Self {
         let mut env = Environment::new();
+        env.set_auto_escape_callback(|name| {
+            if name.ends_with(".html") {
+                AutoEscape::Html
+            } else {
+                AutoEscape::None
+            }
+        });
 
         // Embed templates at compile time
         env.add_template("base.html", include_str!("../../templates/base.html"))

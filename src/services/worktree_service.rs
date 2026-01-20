@@ -1,10 +1,16 @@
 use crate::db::Database;
 use crate::models::{RepoLink, Worktree};
 use crate::utils::{Result, TrackError};
-use chrono::Utc;
-use rusqlite::{params, OptionalExtension};
+use chrono::{DateTime, Utc};
+use rusqlite::{params, types::Type, OptionalExtension};
 use std::path::Path;
 use std::process::Command;
+
+fn parse_datetime(value: String) -> rusqlite::Result<DateTime<Utc>> {
+    value
+        .parse()
+        .map_err(|e| rusqlite::Error::FromSqlConversionFailure(0, Type::Text, Box::new(e)))
+}
 
 pub struct WorktreeService<'a> {
     db: &'a Database,
@@ -61,7 +67,27 @@ impl<'a> WorktreeService<'a> {
         // Create worktree
         self.create_git_worktree(repo_path, &worktree_path, &branch_name)?;
 
-        // Register in database
+        let worktree = self.insert_worktree_record(
+            task_id,
+            &worktree_path,
+            &branch_name,
+            repo_path,
+            todo_id,
+            is_base,
+        )?;
+
+        Ok(worktree)
+    }
+
+    fn insert_worktree_record(
+        &self,
+        task_id: i64,
+        worktree_path: &str,
+        branch_name: &str,
+        repo_path: &str,
+        todo_id: Option<i64>,
+        is_base: bool,
+    ) -> Result<Worktree> {
         let now = Utc::now().to_rfc3339();
         let conn = self.db.get_connection();
 
@@ -73,6 +99,60 @@ impl<'a> WorktreeService<'a> {
         let worktree_id = conn.last_insert_rowid();
         self.db.increment_rev("worktrees")?;
         self.get_worktree(worktree_id)
+    }
+
+    pub fn add_existing_worktree(
+        &self,
+        task_id: i64,
+        repo_path: &str,
+        branch: &str,
+        todo_id: Option<i64>,
+        is_base: bool,
+        worktree_path: Option<&str>,
+    ) -> Result<Worktree> {
+        if !self.is_git_repository(repo_path)? {
+            return Err(TrackError::NotGitRepository(repo_path.to_string()));
+        }
+
+        let resolved_path = if let Some(path) = worktree_path {
+            path.to_string()
+        } else {
+            self.determine_worktree_path(repo_path, branch)?
+        };
+
+        self.create_git_worktree_for_existing_branch(repo_path, &resolved_path, branch)?;
+
+        self.insert_worktree_record(task_id, &resolved_path, branch, repo_path, todo_id, is_base)
+    }
+
+    pub fn recreate_worktree(&self, worktree: &Worktree, force: bool) -> Result<Worktree> {
+        let repo_path = worktree.base_repo.as_ref().ok_or_else(|| {
+            TrackError::Other("Worktree has no base repository reference".to_string())
+        })?;
+
+        if Path::new(&worktree.path).exists() {
+            if self.has_uncommitted_changes(&worktree.path)? && !force {
+                return Err(TrackError::Other(format!(
+                    "Worktree {} has uncommitted changes. Use --force to recreate.",
+                    worktree.path
+                )));
+            }
+
+            self.remove_git_worktree(repo_path, &worktree.path)?;
+        }
+
+        let conn = self.db.get_connection();
+        conn.execute("DELETE FROM worktrees WHERE id = ?1", params![worktree.id])?;
+        self.db.increment_rev("worktrees")?;
+
+        self.add_existing_worktree(
+            worktree.task_id,
+            repo_path,
+            &worktree.branch,
+            worktree.todo_id,
+            worktree.is_base,
+            Some(&worktree.path),
+        )
     }
 
     pub fn get_worktree(&self, worktree_id: i64) -> Result<Worktree> {
@@ -91,7 +171,7 @@ impl<'a> WorktreeService<'a> {
                     branch: row.get(3)?,
                     base_repo: row.get(4)?,
                     status: row.get(5)?,
-                    created_at: row.get::<_, String>(6)?.parse().unwrap(),
+                    created_at: parse_datetime(row.get::<_, String>(6)?)?,
                     todo_id: row.get(7)?,
                     is_base: is_base != 0,
                 })
@@ -117,7 +197,7 @@ impl<'a> WorktreeService<'a> {
                     branch: row.get(3)?,
                     base_repo: row.get(4)?,
                     status: row.get(5)?,
-                    created_at: row.get::<_, String>(6)?.parse().unwrap(),
+                    created_at: parse_datetime(row.get::<_, String>(6)?)?,
                     todo_id: row.get(7)?,
                     is_base: is_base != 0,
                 })
@@ -140,7 +220,7 @@ impl<'a> WorktreeService<'a> {
                     worktree_id: row.get(1)?,
                     url: row.get(2)?,
                     kind: row.get(3)?,
-                    created_at: row.get::<_, String>(4)?.parse().unwrap(),
+                    created_at: parse_datetime(row.get::<_, String>(4)?)?,
                 })
             })?
             .collect::<std::result::Result<Vec<_>, _>>()?;
@@ -172,6 +252,27 @@ impl<'a> WorktreeService<'a> {
             .output()?;
 
         Ok(output.status.success())
+    }
+
+    pub fn bookmark_exists_in_repo(&self, repo_path: &str, bookmark: &str) -> Result<bool> {
+        let jj_dir = Path::new(repo_path).join(".jj");
+        if jj_dir.exists() {
+            let output = Command::new("jj")
+                .args(["-R", repo_path, "bookmark", "list", bookmark])
+                .output()?;
+
+            if !output.status.success() {
+                return Ok(false);
+            }
+
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            let exists = stdout
+                .lines()
+                .any(|line| line.trim_start().starts_with(&format!("{}:", bookmark)));
+            return Ok(exists);
+        }
+
+        self.branch_exists(repo_path, bookmark)
     }
 
     fn branch_exists(&self, repo_path: &str, branch: &str) -> Result<bool> {
@@ -208,8 +309,9 @@ impl<'a> WorktreeService<'a> {
     }
 
     fn determine_worktree_path(&self, repo_path: &str, branch: &str) -> Result<String> {
+        let sanitized_branch = branch.replace(['/', '\\'], "_");
         let repo_path = Path::new(repo_path);
-        let worktree_path = repo_path.join(branch);
+        let worktree_path = repo_path.join(sanitized_branch);
 
         Ok(worktree_path.to_string_lossy().to_string())
     }
@@ -230,6 +332,24 @@ impl<'a> WorktreeService<'a> {
                 branch,
                 worktree_path,
             ])
+            .output()?;
+
+        if !output.status.success() {
+            let error = String::from_utf8_lossy(&output.stderr);
+            return Err(TrackError::Git(error.to_string()));
+        }
+
+        Ok(())
+    }
+
+    fn create_git_worktree_for_existing_branch(
+        &self,
+        repo_path: &str,
+        worktree_path: &str,
+        branch: &str,
+    ) -> Result<()> {
+        let output = Command::new("git")
+            .args(["-C", repo_path, "worktree", "add", worktree_path, branch])
             .output()?;
 
         if !output.status.success() {
@@ -311,7 +431,7 @@ impl<'a> WorktreeService<'a> {
                     branch: row.get(3)?,
                     base_repo: row.get(4)?,
                     status: row.get(5)?,
-                    created_at: row.get::<_, String>(6)?.parse().unwrap(),
+                    created_at: parse_datetime(row.get::<_, String>(6)?)?,
                     todo_id: row.get(7)?,
                     is_base: is_base != 0,
                 })
@@ -337,7 +457,7 @@ impl<'a> WorktreeService<'a> {
                     branch: row.get(3)?,
                     base_repo: row.get(4)?,
                     status: row.get(5)?,
-                    created_at: row.get::<_, String>(6)?.parse().unwrap(),
+                    created_at: parse_datetime(row.get::<_, String>(6)?)?,
                     todo_id: row.get(7)?,
                     is_base: is_base != 0,
                 })
@@ -509,7 +629,7 @@ mod tests {
         let result = service.determine_worktree_path(repo_path, branch).unwrap();
 
         let expected = Path::new(repo_path)
-            .join(branch)
+            .join("feature_test")
             .to_string_lossy()
             .to_string();
         assert_eq!(result, expected);

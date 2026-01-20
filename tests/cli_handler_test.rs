@@ -199,6 +199,152 @@ fn test_todo_delete_force() {
 }
 
 #[test]
+fn test_todo_workspace_requires_current_repo() {
+    let db = Database::new_in_memory().unwrap();
+    let handler = CommandHandler::from_db(db);
+    let db = handler.get_db();
+    let task_service = TaskService::new(db);
+    let todo_service = TodoService::new(db);
+    let repo_service = RepoService::new(db);
+
+    let task = task_service.create_task("Task", None, None, None).unwrap();
+    let _todo = todo_service.add_todo(task.id, "Worktree", true).unwrap();
+
+    let temp_dir = tempfile::tempdir().unwrap();
+    let repo_path = temp_dir.path().join("repo");
+    std::fs::create_dir_all(&repo_path).unwrap();
+    std::process::Command::new("git")
+        .args(["init", repo_path.to_str().unwrap()])
+        .output()
+        .expect("Failed to init git repo");
+    std::process::Command::new("git")
+        .args([
+            "-C",
+            repo_path.to_str().unwrap(),
+            "config",
+            "user.email",
+            "test@test.com",
+        ])
+        .output()
+        .unwrap();
+    std::process::Command::new("git")
+        .args([
+            "-C",
+            repo_path.to_str().unwrap(),
+            "config",
+            "user.name",
+            "Test",
+        ])
+        .output()
+        .unwrap();
+    std::fs::write(repo_path.join("README.md"), "init").unwrap();
+    std::process::Command::new("git")
+        .args(["-C", repo_path.to_str().unwrap(), "add", "."])
+        .output()
+        .unwrap();
+    std::process::Command::new("git")
+        .args(["-C", repo_path.to_str().unwrap(), "commit", "-m", "init"])
+        .output()
+        .unwrap();
+
+    repo_service
+        .add_repo(task.id, repo_path.to_str().unwrap(), None, None)
+        .unwrap();
+
+    let original_dir = std::env::current_dir().unwrap();
+    std::env::set_current_dir(temp_dir.path()).unwrap();
+
+    let cmd = Commands::Todo(TodoCommands::Workspace {
+        id: 1,
+        recreate: false,
+        force: false,
+        all: false,
+    });
+    let result = handler.handle(cmd);
+
+    std::env::set_current_dir(original_dir).unwrap();
+
+    assert!(result.is_err());
+    assert!(result
+        .unwrap_err()
+        .to_string()
+        .contains("Current directory is not a registered repo"));
+}
+
+#[test]
+fn test_todo_workspace_accepts_subdir_repo() {
+    let db = Database::new_in_memory().unwrap();
+    let handler = CommandHandler::from_db(db);
+    let db = handler.get_db();
+    let task_service = TaskService::new(db);
+    let todo_service = TodoService::new(db);
+    let repo_service = RepoService::new(db);
+    let worktree_service = WorktreeService::new(db);
+
+    let task = task_service.create_task("Task", None, None, None).unwrap();
+    let _todo = todo_service.add_todo(task.id, "Worktree", false).unwrap();
+
+    let temp_dir = tempfile::tempdir().unwrap();
+    let repo_path = temp_dir.path().join("repo");
+    std::fs::create_dir_all(&repo_path).unwrap();
+    std::process::Command::new("git")
+        .args(["init", repo_path.to_str().unwrap()])
+        .output()
+        .expect("Failed to init git repo");
+    std::process::Command::new("git")
+        .args([
+            "-C",
+            repo_path.to_str().unwrap(),
+            "config",
+            "user.email",
+            "test@test.com",
+        ])
+        .output()
+        .unwrap();
+    std::process::Command::new("git")
+        .args([
+            "-C",
+            repo_path.to_str().unwrap(),
+            "config",
+            "user.name",
+            "Test",
+        ])
+        .output()
+        .unwrap();
+    std::fs::write(repo_path.join("README.md"), "init").unwrap();
+    std::process::Command::new("git")
+        .args(["-C", repo_path.to_str().unwrap(), "add", "."])
+        .output()
+        .unwrap();
+    std::process::Command::new("git")
+        .args(["-C", repo_path.to_str().unwrap(), "commit", "-m", "init"])
+        .output()
+        .unwrap();
+
+    repo_service
+        .add_repo(task.id, repo_path.to_str().unwrap(), None, None)
+        .unwrap();
+
+    let subdir = repo_path.join("nested");
+    std::fs::create_dir_all(&subdir).unwrap();
+    let original_dir = std::env::current_dir().unwrap();
+    std::env::set_current_dir(&subdir).unwrap();
+
+    let cmd = Commands::Todo(TodoCommands::Workspace {
+        id: 1,
+        recreate: false,
+        force: false,
+        all: false,
+    });
+    handler.handle(cmd).unwrap();
+
+    std::env::set_current_dir(original_dir).unwrap();
+
+    let worktrees = worktree_service.list_worktrees(task.id).unwrap();
+    assert_eq!(worktrees.len(), 1);
+}
+
+#[test]
 fn test_list_repo_links_manual() {
     // Tests WorktreeService::list_repo_links by manually inserting data
     use chrono::Utc;

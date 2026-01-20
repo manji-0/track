@@ -24,7 +24,7 @@ track todo add "Add sync API endpoint in backend" --worktree
 track todo add "Implement sync client in frontend" --worktree
 track todo add "Add integration tests"
 
-# Create branches and worktrees in all repos
+# Create bookmarks and workspaces in all repos
 track sync
 ```
 
@@ -32,23 +32,24 @@ track sync
 
 ```bash
 # Backend work
-cd /home/user/projects/backend/task/PROJ-789-todo-1
+cd "$(track todo workspace 1)"
+jj status
 # ... implement API ...
-git commit -m "Add sync API endpoint"
+jj describe -m "Add sync API endpoint"
 track scrap add "Backend API complete. Returns user delta."
 track todo done 1
 
 # Frontend work
-cd /home/user/projects/frontend/task/PROJ-789-todo-2
+cd "$(track todo workspace 2)"
+jj status
 # ... implement client ...
-git commit -m "Implement sync client"
+jj describe -m "Implement sync client"
 track todo done 2
 
-# Integration tests (no worktree)
+# Integration tests (no workspace)
 cd /home/user/projects/backend
-git checkout task/PROJ-789
 # ... write tests ...
-git commit -m "Add integration tests"
+jj describe -m "Add integration tests"
 track todo done 3
 ```
 
@@ -63,9 +64,10 @@ Working on multiple TODOs simultaneously.
 **Terminal 1: TODO 2**
 ```bash
 track status
-cd /path/to/worktree-todo-2
+cd "$(track todo workspace 2)"
+jj status
 # ... work on feature A ...
-git commit -m "Implement feature A"
+jj describe -m "Implement feature A"
 track scrap add "Feature A complete"
 track todo done 2
 ```
@@ -73,9 +75,10 @@ track todo done 2
 **Terminal 2: TODO 3** (parallel)
 ```bash
 track status
-cd /path/to/worktree-todo-3
+cd "$(track todo workspace 3)"
+jj status
 # ... work on feature B ...
-git commit -m "Implement feature B"
+jj describe -m "Implement feature B"
 track scrap add "Feature B complete"
 track todo done 3
 ```
@@ -83,7 +86,7 @@ track todo done 3
 ### Benefits
 
 - Work on independent features simultaneously
-- Avoid branch switching overhead
+- Avoid bookmark switching overhead
 - Test features in isolation
 - Merge when ready
 
@@ -100,7 +103,7 @@ track new "Fix memory leak" \
   --ticket GH-456 \
   --ticket-url https://github.com/org/repo/issues/456
 
-# Branch created: task/GH-456
+# Bookmark created: task/GH-456
 ```
 
 ### Jira Integration
@@ -110,7 +113,7 @@ track new "API v2 migration" \
   --ticket TECH-789 \
   --ticket-url https://jira.company.com/browse/TECH-789
 
-# Branch created: task/TECH-789
+# Bookmark created: task/TECH-789
 ```
 
 ### Switching by Ticket
@@ -175,25 +178,26 @@ Breaking work into small, testable commits.
 track todo add "Implement OAuth2 flow" --worktree
 track sync
 
-cd /path/to/worktree
+cd "$(track todo workspace 1)"
+jj status
 
 # Step 1: Setup
 # ... add dependencies ...
-git commit -m "Add OAuth2 dependencies"
+jj describe -m "Add OAuth2 dependencies"
 track scrap add "Added google-auth-library v2.5.0"
 
 # Step 2: Basic flow
 # ... implement core logic ...
-git commit -m "Implement basic OAuth2 flow"
+jj describe -m "Implement basic OAuth2 flow"
 track scrap add "Core flow working, needs error handling"
 
 # Step 3: Error handling
 # ... add error handling ...
-git commit -m "Add OAuth2 error handling"
+jj describe -m "Add OAuth2 error handling"
 
 # Step 4: Tests
 # ... write tests ...
-git commit -m "Add OAuth2 tests"
+jj describe -m "Add OAuth2 tests"
 track scrap add "All tests passing. Coverage 95%."
 
 # Complete
@@ -224,14 +228,15 @@ track sync
 ### Implementation
 
 ```bash
-cd /path/to/worktree
+cd "$(track todo workspace 1)"
+jj status
 
 # Quick investigation
 track scrap add "Issue: JWT refresh token not updating expiry"
 
 # Fix
 # ... implement fix ...
-git commit -m "Fix JWT refresh token expiry update"
+jj describe -m "Fix JWT refresh token expiry update"
 
 # Test
 cargo test
@@ -242,8 +247,7 @@ track todo done 1
 
 # Push for immediate deployment
 cd /path/to/main/repo
-git checkout task/BUG-999
-git push origin task/BUG-999
+jj git push --bookmark task/BUG-999
 ```
 
 ---
@@ -259,7 +263,7 @@ track new "Research authentication providers"
 
 track desc "Evaluate OAuth2 providers for enterprise SSO"
 
-# Research TODOs (no worktrees needed)
+# Research TODOs (no workspaces needed)
 track todo add "Research Okta integration options"
 track todo add "Evaluate Auth0 pricing"
 track todo add "Compare Azure AD features"
@@ -277,7 +281,7 @@ track todo done 3
 
 # Create summary document
 # ... write comparison doc ...
-git commit -m "Add provider comparison document"
+jj describe -m "Add provider comparison document"
 track scrap add "Recommendation: Azure AD for cost, Okta for features"
 track todo done 4
 ```
@@ -290,22 +294,22 @@ Using track in team environments.
 
 ### Branch Naming
 
-With ticket integration, branches are consistent:
+With ticket integration, bookmarks are consistent:
 
 ```bash
 # Task created: PROJ-123
-# Base branch: task/PROJ-123
-# TODO branches: task/PROJ-123-todo-1, task/PROJ-123-todo-2, etc.
+# Base bookmark: task/PROJ-123
+# TODO bookmarks: task/PROJ-123-todo-1, task/PROJ-123-todo-2, etc.
 ```
 
 ### Sharing Work
 
 ```bash
-# Push task branch
-git push origin task/PROJ-123
+# Push task bookmark
+jj git push --bookmark task/PROJ-123
 
 # Team member can pull and continue
-git checkout task/PROJ-123
+jj git fetch
 
 # Use track to see context
 track switch t:PROJ-123
@@ -362,9 +366,9 @@ track sync
 ### Parallel Work
 ```bash
 # Terminal 1
-cd /worktree-todo-2
+cd "$(track todo workspace 2)"
 # Terminal 2
-cd /worktree-todo-3
+cd "$(track todo workspace 3)"
 ```
 
 ### Ticket Switching
@@ -373,20 +377,20 @@ track switch t:PROJ-123
 track archive t:PROJ-456
 ```
 
-### Incremental Commits
+### Incremental Changes
 ```bash
-git commit -m "Step 1: ..."
+jj describe -m "Step 1: ..."
 track scrap add "Progress note"
-git commit -m "Step 2: ..."
+jj describe -m "Step 2: ..."
 ```
 
 ---
 
 ## Best Practices
 
-1. **Use tickets**: Enable consistent branch naming
-2. **Use worktrees**: For complex or parallel work
-3. **Commit frequently**: Small, logical commits
+1. **Use tickets**: Enable consistent bookmark naming
+2. **Use workspaces**: For complex or parallel work
+3. **Describe frequently**: Small, logical changes
 4. **Use scraps liberally**: Document decisions and progress
 5. **Review status often**: `track status` before and after work
 6. **Clean up regularly**: Archive completed tasks

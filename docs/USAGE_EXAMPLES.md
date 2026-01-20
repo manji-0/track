@@ -14,16 +14,16 @@ track new "Fix authentication timeout" \
 track scrap add "Issue occurs after 30 minutes of inactivity"
 track scrap add "Likely related to JWT expiration handling"
 
-# 3. Add TODO with worktree for isolated work
+# 3. Add TODO with workspace for isolated work
 track todo add "Fix token refresh logic" --worktree
 
-# 4. Setup worktree
+# 4. Setup workspace
 track repo add .
 track sync
 
 # 5. Work in isolation
-cd task/BUG-456-todo-1
-# ... make changes, test, commit ...
+cd "$(track todo workspace 1)"
+# ... make changes, test, jj describe ...
 
 # 6. Complete and merge
 track todo done 1  # Automatically merges and cleans up
@@ -50,16 +50,16 @@ track link add https://api-docs.example.com "API Spec"
 
 # 4. Work through TODOs
 track todo done 1  # Complete design
-track sync         # Create worktrees for #2 and #3
+track sync         # Create workspaces for #2 and #3
 
 # Work on backend
-cd task/FEAT-789-todo-2
+cd "$(track todo workspace 2)"
 # ... implement API ...
 track scrap add "Using PostgreSQL for user data storage"
 track todo done 2
 
 # Work on frontend
-cd ../task/FEAT-789-todo-3
+cd "$(track todo workspace 3)"
 # ... build components ...
 track todo done 3
 
@@ -91,23 +91,36 @@ track link add https://swagger.io "Swagger Editor"
 track status
 ```
 
-## Workflow with Git Worktrees
+## Workflow with JJ Workspaces
 
 ```bash
-# Register repository and sync (creates task branches and worktrees)
+# Register repository and sync (creates task bookmarks and workspaces)
 track repo add /path/to/repo
 track sync
 
 # This creates:
-# - Branch: task/AUTH-456 (base task branch)
-# - Worktree: /path/to/repo/task/AUTH-456-todo-2 (for TODO #2)
+# - Bookmark: task/AUTH-456 (base task bookmark)
+# - Workspace: /path/to/repo/task/AUTH-456-todo-2 (for TODO #2)
 
-# Navigate to worktree and work on TODO
-cd /path/to/repo/task/AUTH-456-todo-2
-# ... make changes, commit ...
+# Navigate to workspace and work on TODO
+cd "$(track todo workspace 2)"
+# ... make changes, jj describe ...
 
-# Complete TODO (automatically merges and cleans up worktree)
+# Complete TODO (automatically merges and cleans up workspace)
 track todo done 2
+```
+
+### Recreate a Workspace
+
+```bash
+# Recreate a workspace from the latest task bookmark
+track todo workspace 2 --recreate
+
+# Force recreation even if there are local changes
+track todo workspace 2 --recreate --force
+
+# Operate across all registered repos
+track todo workspace 2 --recreate --all
 ```
 
 ## Task Aliases
@@ -256,17 +269,17 @@ track scrap list
 
 **Web UI:** Click the 📝 button on any todo to jump to its related scraps. The scrap will be highlighted and scrolled into view.
 
-## Branch Naming Convention
+## Bookmark Naming Convention
 
-For tasks with registered tickets, the ticket ID is automatically used in branch names:
+For tasks with registered tickets, the ticket ID is automatically used in bookmark names:
 
 ```bash
 # When ticket PROJ-123 is registered and sync is run:
 track sync
-# → Creates branch: task/PROJ-123 (base task branch)
+# → Creates bookmark: task/PROJ-123 (base task bookmark)
 
 # When TODO #1 has --worktree flag:
 track todo add "Implement login" --worktree
 track sync
-# → Creates branch: task/PROJ-123-todo-1 (TODO work branch)
+# → Creates bookmark: task/PROJ-123-todo-1 (TODO work bookmark)
 ```

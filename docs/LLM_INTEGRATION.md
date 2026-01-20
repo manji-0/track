@@ -18,7 +18,7 @@ Skills use progressive disclosure:
 
 ## Main Skill: track-task-management
 
-**Purpose**: Manages development tasks with integrated Git worktrees.
+**Purpose**: Manages development tasks with integrated JJ workspaces.
 
 **Use when**: Creating tasks, adding TODOs, working through task lists, or managing development workflows.
 
@@ -49,7 +49,7 @@ For quick CLI reference:
 track llm-help
 ```
 
-Outputs comprehensive guide with commands, ticket integration, and worktree details.
+Outputs comprehensive guide with commands, ticket integration, and workspace details.
 
 ## Installation
 

@@ -90,7 +90,7 @@ Or reference in comments:
 ```python
 # Following skills/track-task-management/references/executing-tasks.md:
 # 1. Check status with track status
-# 2. Navigate to worktree
+# 2. Navigate to workspace
 # 3. Implement changes
 ```
 
@@ -182,7 +182,7 @@ Try this prompt with your LLM agent:
 Can you read the file at skills/track-task-management/SKILL.md and summarize the main concepts?
 ```
 
-**Expected response**: Agent summarizes the key concepts (task management, worktrees, TODOs, ticket integration, scraps).
+**Expected response**: Agent summarizes the key concepts (task management, workspaces, TODOs, ticket integration, scraps).
 
 ### Test 2: Use a Skill
 
@@ -299,7 +299,7 @@ Following the track-task-management/references/creating-tasks.md skill, create a
 
 ```bash
 cd /path/to/track
-git pull origin main
+jj git fetch
 ```
 
 Skills are version-controlled with the repository.

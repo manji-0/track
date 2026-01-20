@@ -3,13 +3,13 @@
   <h1>Track</h1>
 </div>
 
-A lightweight CLI tool for managing development tasks with integrated Git worktree support.
+A lightweight CLI tool for managing development tasks with integrated JJ workspace support.
 
 ## Features
 
 - **Context-based Task Management**: Switch to a task and all operations apply automatically
 - **Ticket Integration**: Seamlessly integrate with Jira, GitHub Issues, and GitLab Issues
-- **Git Worktree Management**: Automatically manage isolated working directories for parallel development
+- **JJ Workspace Management**: Automatically manage isolated working directories for parallel development
 - **Web UI**: Modern browser-based interface with real-time updates
 
 
@@ -35,14 +35,23 @@ track new "Implement User Authentication" \
 track todo add "Design database schema"
 track todo add "Implement JWT token generation" --worktree
 
+# Register repo and sync workspaces
+track repo add .
+track sync
+
 # Add reference links
 track link add https://jwt.io/introduction "JWT Documentation"
 
 # Record work notes
 track scrap add "Using bcrypt for password hashing"
 
+# Work in the TODO workspace
+cd "$(track todo workspace 2)"
+jj status
+jj describe -m "Implement JWT token generation"
+
 # Mark TODO as complete
-track todo done 1
+track todo done 2
 
 # View current task status
 track status
@@ -81,10 +90,11 @@ track status
 
 | Command | Description |
 |---------|-------------|
-| `track todo add <text> [--worktree]` | Add a TODO (optionally create worktrees) |
+| `track todo add <text> [--worktree]` | Add a TODO (optionally create workspaces) |
 | `track todo list` | Display TODO list |
 | `track todo update <index> <status>` | Update TODO status |
-| `track todo done <index>` | Complete a TODO (merges and removes worktrees) |
+| `track todo done <index>` | Complete a TODO (merges and removes workspaces) |
+| `track todo workspace <index> [--recreate --force --all]` | Show or recreate workspaces for a TODO |
 | `track todo next <index>` | Move a TODO to the front (make it the next todo to work on) |
 | `track todo delete <index>` | Delete a TODO |
 | `track todo delete <index> --force` | Delete without confirmation |
@@ -109,7 +119,7 @@ track status
 | Command | Description |
 |---------|-------------|
 | `track repo add [path]` | Register a repository to the current task |
-| `track repo add --base <branch>` | Register repository with custom base branch |
+| `track repo add --base <bookmark>` | Register repository with custom base bookmark |
 | `track repo list` | Display registered repositories |
 | `track repo remove <id>` | Remove a repository registration |
 
@@ -117,7 +127,7 @@ track status
 
 | Command | Description |
 |---------|-------------|
-| `track sync` | Sync repositories and setup task branches |
+| `track sync` | Sync repositories and setup task bookmarks |
 
 ### Web UI
 
@@ -140,6 +150,7 @@ The Web UI provides a modern, browser-based interface with real-time updates via
 - **Real-time Updates**: All changes are instantly reflected across all connected browsers.
 - **Focus Mode**: Toggle between overview and focus modes to concentrate on the current task.
 - **Dark/Light Theme**: Automatic theme switching with calendar color adaptation.
+- **Safe Markdown Rendering**: Markdown is sanitized and raw HTML is stripped; links open safely in a new tab.
 
 ### Shell Completion
 
@@ -191,8 +202,8 @@ For detailed information on the following features, see [docs/USAGE_EXAMPLES.md]
 - **Task Aliases**: Assign human-readable aliases to tasks
 - **Task Templates**: Create new tasks from existing task templates
 - **Ticket Reference**: Reference tasks by ticket ID
-- **Branch Naming Convention**: Automatic branch naming based on ticket IDs
-- **Git Worktree Workflows**: Detailed workflows for parallel development
+- **Bookmark Naming Convention**: Automatic bookmark naming based on ticket IDs
+- **JJ Workspace Workflows**: Detailed workflows for parallel development
 
 ## Database
 

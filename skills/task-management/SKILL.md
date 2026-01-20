@@ -1,17 +1,17 @@
 ---
 name: track-task-management
-description: Manages development tasks with integrated Git worktrees, WebUI, and link management. Use when creating tasks, adding TODOs, working through task lists, managing references, or when the user mentions 'track' CLI, task management, or worktrees.
+description: Manages development tasks with integrated JJ workspaces, WebUI, and link management. Use when creating tasks, adding TODOs, working through task lists, managing references, or when the user mentions 'track' CLI, task management, or workspaces.
 license: MIT
 compatibility: Requires track CLI installed
 metadata:
   author: track
   version: 1.1.0
-  tags: [task-management, git, worktrees, todo, productivity, webui, markdown]
+  tags: [task-management, jj, workspaces, todo, productivity, webui, markdown]
 ---
 
 # Track Task Management
 
-Lightweight CLI tool for managing development tasks with integrated Git worktree support.
+Lightweight CLI tool for managing development tasks with integrated JJ workspace support.
 
 ## Quick Start
 
@@ -31,8 +31,19 @@ track new "Fix login bug" --ticket PROJ-123 --ticket-url https://jira.example.co
 # Simple TODO
 track todo add "Create dark mode CSS variables"
 
-# TODO with isolated worktree
+# TODO with isolated workspace
 track todo add "Implement theme switcher" --worktree
+```
+
+### Working in a Workspace
+
+```bash
+track sync
+cd "$(track todo workspace 1)"
+
+# Check bookmark and describe changes
+jj status
+jj describe -m "Implement theme switcher"
 ```
 
 ### Checking Status
@@ -55,15 +66,16 @@ track status
 | `track switch t:<ticket>` | Switch by ticket reference |
 | `track switch a:<alias>` | Switch by alias |
 | `track todo add "<text>"` | Add TODO |
-| `track todo add "<text>" --worktree` | Add TODO with worktree |
+| `track todo add "<text>" --worktree` | Add TODO with workspace |
+| `track todo workspace <index>` | Show or recreate TODO workspace |
 | `track todo done <index>` | Complete TODO |
 | `track todo next <index>` | Move TODO to front (make it next) |
 | `track link add <url>` | Add reference link |
 | `track link add <url> --title "<title>"` | Add link with title |
 | `track repo add [path]` | Register repository |
-| `track repo add --base <branch>` | Register with base branch |
+| `track repo add --base <bookmark>` | Register with base bookmark |
 | `track scrap add "<note>"` | Record progress note |
-| `track sync` | Create branches and worktrees |
+| `track sync` | Create bookmarks and workspaces |
 | `track config set-calendar <id>` | Set Google Calendar ID |
 | `track config show` | Show current configuration |
 | `track webui` | Start web-based UI |
@@ -80,21 +92,21 @@ For detailed step-by-step workflows, see:
 ## Key Concepts
 
 ### Ticket Integration
-Link tasks to external tickets (Jira, GitHub, GitLab). Ticket IDs are automatically used in branch names.
+Link tasks to external tickets (Jira, GitHub, GitLab). Ticket IDs are automatically used in bookmark names.
 
 ```bash
 track new "Feature" --ticket PROJ-123
-# Creates branch: task/PROJ-123
+# Creates bookmark: task/PROJ-123
 ```
 
-### Git Worktrees
+### JJ Workspaces
 Automatically create isolated working directories for each TODO, enabling parallel development.
 
 ```bash
 track todo add "Refactor auth" --worktree
-track sync  # Creates worktree at: /repo/task/PROJ-123-todo-1
-cd /repo/task/PROJ-123-todo-1
-# ... work, commit ...
+track sync  # Creates workspace at: /repo/task/PROJ-123-todo-1
+cd "$(track todo workspace 1)"
+# ... work, jj describe ...
 track todo done 1  # Automatically merges and cleans up
 ```
 
@@ -146,12 +158,12 @@ track webui  # Access at http://localhost:3000
 ### Standard Workflow Pattern
 
 1. **Sync first** (MANDATORY): `track sync`
-2. **Verify branch**: `git branch --show-current` (must be task branch, not main/master)
+2. **Verify bookmark**: `jj status` (must be task bookmark, not main/master)
 3. **Check context**: `track status`
 4. **Identify next action**: Look at pending TODOs
-5. **Navigate to worktree** (if applicable)
+5. **Navigate to workspace**: `track todo workspace <index>`
 6. **Implement changes** and test
-7. **Commit changes**: `git commit -m "..."`
+7. **Describe changes**: `jj describe -m "..."`
 8. **Record progress**: `track scrap add "..."`
 9. **Complete**: `track todo done <index>`
 10. **Repeat** for next TODO
@@ -159,12 +171,12 @@ track webui  # Access at http://localhost:3000
 ### Important Notes
 
 - **ALWAYS run `track sync` before making code changes**
-- **ALWAYS verify you are on task branch, not main/master/develop**
+- **ALWAYS verify you are on task bookmark, not main/master/develop**
 - Always run `track status` first to understand current state
 - TODO, Link, and Repository indices are task-scoped (not global)
-- Commit all changes before `track todo done`
+- Describe all changes before `track todo done`
 - Use scraps to document decisions and findings (supports Markdown)
-- Ticket IDs in branch names when linked
+- Ticket IDs in bookmark names when linked
 - Use `track webui` for visual interface with real-time updates
 - Template feature available for recurring workflows
 

@@ -1,8 +1,8 @@
-# Worktree Sync Feature Design
+# Workspace Sync Feature Design
 
 ## Overview
 
-The worktree sync feature enables automatic management of Git worktrees linked to tasks and TODOs. This design introduces repository management at the task level and integrates worktree lifecycle with TODO completion.
+The workspace sync feature enables automatic management of JJ workspaces linked to tasks and TODOs. This design introduces repository management at the task level and integrates workspace lifecycle with TODO completion.
 
 ## Key Features
 
@@ -12,59 +12,73 @@ Tasks can have multiple associated repositories. Each repository is registered w
 
 **Commands:**
 - `track repo add [path]` - Register a repository to the current task (defaults to current directory)
-- `track repo add --base <branch>` - Register repository with custom base branch
+- `track repo add --base <bookmark>` - Register repository with custom base bookmark
 - `track repo list` - List all repositories registered to the current task
 - `track repo remove <id>` - Remove a repository registration
 
-### 2. Worktree Sync (`track sync`)
+### 2. Workspace Sync (`track sync`)
 
-Synchronizes the task's registered repositories with the task branch.
+Synchronizes the task's registered repositories with the task bookmark.
 
 **Behavior:**
 1. For each registered repository in the current task:
-   - Checkout the task branch (create if doesn't exist)
-   - Task branch name is determined by:
+   - Ensure the task bookmark exists (create if it doesn't)
+   - Move the workspace to the task bookmark
+   - Task bookmark name is determined by:
      - If ticket is registered: `task/<ticket_id>` (e.g., `task/PROJ-123`)
      - If no ticket: `task/task-<task_id>` (e.g., `task/task-5`)
-2. Set up any necessary worktrees for active TODOs
+2. Set up any necessary workspaces for active TODOs
 
 **Command:**
 ```bash
 track sync
 ```
 
-### 3. TODO-Worktree Integration
+### 3. TODO-Workspace Integration
 
-#### Adding TODOs with Worktree
+#### Adding TODOs with Workspace
 
 `track todo add <text> --worktree`
 
 **Behavior:**
 1. Create the TODO with `worktree_requested` flag set to true
 2. Helper message prompts user to run `track sync`
-3. Worktree is **not** created immediately
+3. Workspace is **not** created immediately
 
-To create the worktrees, run:
+To create the workspaces, run:
 ```bash
 track sync
 ```
 This will:
 1. Iterate through pending TODOs
 2. For each registered repository:
-   - Create worktree at: `<repo_path>/<branch_name>`
-   - Create git_item record linked to the TODO
+   - Create workspace at: `<repo_path>/<bookmark_name>`
+   - Create workspace record (git_item) linked to the TODO
+
+#### Managing TODO Workspaces
+
+`track todo workspace <index> [--recreate --force --all]`
+
+**Behavior:**
+1. Resolve task-scoped index to internal TODO ID.
+2. If `--all` is not set, resolve the current repo from the working directory.
+3. If a workspace exists, print its path (or all paths with `--all`).
+4. If no workspace exists, create it from the TODO bookmark.
+5. If `--recreate` is set:
+   - Abort if uncommitted changes are present unless `--force` is set.
+   - Recreate the workspace from the latest bookmark.
 
 #### Completing TODOs
 
 `track todo done <id>`
 
 **Behavior:**
-1. Find all worktrees associated with the TODO
-2. For each worktree:
-   - Check for uncommitted changes (warn if found)
-   - Merge worktree branch into task branch
-   - Remove worktree directory
-   - Delete git_item record
+1. Find all workspaces associated with the TODO
+2. For each workspace:
+   - Check for uncommitted changes with `jj status` (warn if found)
+   - Merge or rebase the workspace bookmark into the task bookmark
+   - Remove workspace directory
+   - Delete workspace record (git_item)
 3. Update TODO status to 'done'
 
 
@@ -75,10 +89,10 @@ This will:
 `track archive <task_id>`
 
 **Behavior:**
-1. Check for uncommitted changes in all worktrees associated with the task (both TODO worktrees and any others).
+1. Check for uncommitted changes in all workspaces associated with the task (both TODO workspaces and any others).
 2. If changes exist, warn and require confirmation.
-3. For each worktree:
-   - Remove the worktree directory (`git worktree remove`)
+3. For each workspace:
+   - Forget the workspace (`jj workspace forget <name>`) and remove the directory
    - Delete the `git_items` record
 4. Update task status to 'archived'
 
@@ -91,7 +105,7 @@ CREATE TABLE task_repos (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     task_id INTEGER NOT NULL,
     repo_path TEXT NOT NULL,
-    base_branch TEXT,              -- Optional base branch for worktree merges
+    base_bookmark TEXT,            -- Optional base bookmark for workspace merges
     base_commit_hash TEXT,         -- Commit hash when repository was registered
     created_at TEXT NOT NULL,
     FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
@@ -104,22 +118,22 @@ CREATE INDEX idx_task_repos_task_id ON task_repos(task_id);
 ### Existing Tables
 
 No changes needed to existing tables. The `git_items` table already has:
-- `todo_id` - Links worktree to a TODO
-- `is_base` - Distinguishes base worktrees from TODO worktrees
+- `todo_id` - Links a workspace to a TODO
+- `is_base` - Distinguishes base workspaces from TODO workspaces
 
-## Branch Naming Convention
+## Bookmark Naming Convention
 
-### Task Branch (Base Branch)
+### Task Bookmark (Base Bookmark)
 
-| Condition | Branch Name | Example |
-|-----------|-------------|---------|
+| Condition | Bookmark Name | Example |
+|-----------|---------------|---------|
 | Ticket registered | `task/<ticket_id>` | `task/PROJ-123` |
 | No ticket | `task/task-<task_id>` | `task/task-5` |
 
-### TODO Worktree Branch
+### TODO Workspace Bookmark
 
-| Condition | Branch Name | Example |
-|-----------|-------------|---------|
+| Condition | Bookmark Name | Example |
+|-----------|---------------|---------|
 | Ticket registered | `<ticket_id>-todo-<task_index>` | `PROJ-123-todo-1` |
 | No ticket | `task-<task_id>-todo-<task_index>` | `task-5-todo-1` |
 
@@ -136,28 +150,28 @@ track repo add .
 cd /path/to/frontend-repo
 track repo add .
 
-# 3. Sync repositories (creates task branches)
+# 3. Sync repositories (creates task bookmarks)
 track sync
-# → Creates branch task/PROJ-123 in both repos
+# → Creates bookmark task/PROJ-123 in both repos
 
-# 4. Add TODO with worktree
+# 4. Add TODO with workspace
 track todo add "Add login endpoint" --worktree
 # → Creates TODO #1 (task-scoped index)
-# → Schedules worktree creation
+# → Schedules workspace creation
 
-# 5. Create the worktrees
+# 5. Create the workspaces
 track sync
-# → Creates worktree at: api-repo/PROJ-123-todo-1
-# → Creates worktree at: frontend-repo/PROJ-123-todo-1
+# → Creates workspace at: api-repo/PROJ-123-todo-1
+# → Creates workspace at: frontend-repo/PROJ-123-todo-1
 
-# 6. Work in the worktree
-cd /path/to/api-repo/PROJ-123-todo-1
-# ... make changes, commit ...
+# 6. Work in the workspace
+cd "$(track todo workspace 1)"
+# ... make changes, jj describe ...
 
 # 7. Complete the TODO
 track todo done 1
 # → Merges PROJ-123-todo-1 into task/PROJ-123
-# → Removes worktree directories
+# → Removes workspace directories
 # → Marks TODO as done
 ```
 
@@ -169,37 +183,37 @@ track todo done 1
 3. Add `track repo` CLI commands
 
 ### Phase 2: Worktree Sync
-1. Implement task branch determination logic
-2. Implement `worktree sync` command
+1. Implement task bookmark determination logic
+2. Implement `workspace sync` command
 3. Add tests for sync functionality
 
 ### Phase 3: TODO-Worktree Integration
 1. Add `--worktree` flag to `todo add`
-2. Implement automatic worktree creation
-3. Enhance `todo done` to handle worktree merging
+2. Implement automatic workspace creation
+3. Enhance `todo done` to handle workspace merging
 4. Add comprehensive tests
 
 ## Error Handling
 
 ### Repository Registration
-- Error if path is not a Git repository
+- Error if path is not a JJ repository (missing `.jj` directory)
 - Error if path is already registered for the task
 - Error if no current task is set
 
-### Worktree Sync
+### Workspace Sync
 - Skip repositories that don't exist
-- Warn if repository is in a dirty state
-- Error if branch creation fails
+- Error if repository has uncommitted changes (excluding workspace directories)
+- Error if bookmark creation fails
 
 ### TODO Completion
-- Warn if worktree has uncommitted changes
+- Warn if workspace has uncommitted changes
 - Prompt for confirmation before merging
 - Error if merge conflicts occur
 - Rollback on failure
 
 ## Future Enhancements
 
-- `track worktree sync --force` - Force sync even with dirty state
+- `track workspace sync --force` - Force sync even with dirty state
 - `track repo sync` - Pull latest changes from remote
-- `track todo add --no-worktree` - Explicitly skip worktree creation
+- `track todo add --no-worktree` - Explicitly skip workspace creation
 - Automatic PR creation on TODO completion

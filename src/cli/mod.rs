@@ -202,6 +202,24 @@ pub enum TodoCommands {
         id: i64,
     },
 
+    /// Create or show worktrees for a TODO in the current repo
+    Workspace {
+        /// TODO ID
+        id: i64,
+
+        /// Recreate worktrees from the latest bookmark
+        #[arg(long)]
+        recreate: bool,
+
+        /// Force recreation even if uncommitted changes exist
+        #[arg(short, long)]
+        force: bool,
+
+        /// Operate on all registered repos for the task
+        #[arg(long)]
+        all: bool,
+    },
+
     /// Delete a TODO
     Delete {
         /// TODO ID

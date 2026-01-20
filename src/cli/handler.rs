@@ -3,6 +3,7 @@ use crate::cli::{
     ScrapCommands, TodoCommands,
 };
 use crate::db::Database;
+use crate::models::TaskRepo;
 use crate::services::{
     LinkService, RepoService, ScrapService, TaskService, TodoService, WorktreeService,
 };
@@ -10,6 +11,7 @@ use crate::utils::{Result, TrackError};
 use chrono::Local;
 use prettytable::{format, Cell, Row, Table};
 use std::io::{self, Write};
+use std::path::{Path, PathBuf};
 
 pub struct CommandHandler {
     db: Database,
@@ -674,6 +676,183 @@ impl CommandHandler {
                 todo_service.update_status(todo.id, "done")?;
                 println!("Marked TODO #{} as done.", id);
             }
+            TodoCommands::Workspace {
+                id,
+                recreate,
+                force,
+                all,
+            } => {
+                let todo = todo_service.get_todo_by_index(current_task_id, id)?;
+                let worktree_service = WorktreeService::new(&self.db);
+                let repo_service = RepoService::new(&self.db);
+                let repos = repo_service.list_repos(current_task_id)?;
+
+                if repos.is_empty() {
+                    return Err(TrackError::Other(
+                        "No repositories registered for this task.".to_string(),
+                    ));
+                }
+
+                let target_repos = if all {
+                    repos
+                } else {
+                    let current_path = std::env::current_dir()
+                        .and_then(|path| path.canonicalize())
+                        .map_err(|e| {
+                            TrackError::Other(format!("Failed to resolve current path: {}", e))
+                        })?;
+
+                    let mut matching: Vec<(TaskRepo, PathBuf)> = repos
+                        .into_iter()
+                        .filter_map(|repo| {
+                            let repo_path = PathBuf::from(&repo.repo_path);
+                            let repo_path = repo_path.canonicalize().ok()?;
+                            if current_path.starts_with(&repo_path) {
+                                Some((repo, repo_path))
+                            } else {
+                                None
+                            }
+                        })
+                        .collect();
+
+                    matching.sort_by_key(|(_, repo_path)| repo_path.to_string_lossy().len());
+                    let repo = matching.pop().map(|(repo, _)| repo).ok_or_else(|| {
+                        TrackError::Other(
+                            "Current directory is not a registered repo for this task.".to_string(),
+                        )
+                    })?;
+                    vec![repo]
+                };
+
+                let worktrees = worktree_service.list_worktrees(current_task_id)?;
+                let task_service = TaskService::new(&self.db);
+                let task = task_service.get_task(current_task_id)?;
+                let branch_name = worktree_service.get_todo_branch_name(
+                    current_task_id,
+                    task.ticket_id.as_deref(),
+                    todo.task_index,
+                )?;
+
+                let mut output_paths: Vec<String> = Vec::new();
+
+                for repo in target_repos {
+                    let mut todo_worktrees: Vec<_> = worktrees
+                        .iter()
+                        .filter(|wt| {
+                            wt.todo_id == Some(todo.id)
+                                && wt.base_repo.as_deref() == Some(repo.repo_path.as_str())
+                        })
+                        .cloned()
+                        .collect();
+
+                    if !todo_worktrees.is_empty() {
+                        if !recreate {
+                            output_paths.extend(
+                                todo_worktrees.iter().map(|worktree| worktree.path.clone()),
+                            );
+                            continue;
+                        }
+
+                        if !force {
+                            for worktree in &todo_worktrees {
+                                if Path::new(&worktree.path).exists()
+                                    && worktree_service.has_uncommitted_changes(&worktree.path)?
+                                {
+                                    return Err(TrackError::Other(format!(
+                                        "Worktree {} has uncommitted changes. Use --force to recreate.",
+                                        worktree.path
+                                    )));
+                                }
+                            }
+                        }
+
+                        for worktree in todo_worktrees.drain(..) {
+                            if !worktree_service.bookmark_exists_in_repo(
+                                repo.repo_path.as_str(),
+                                &worktree.branch,
+                            )? {
+                                if Path::new(&worktree.path).exists() {
+                                    output_paths.push(worktree.path.clone());
+                                }
+                                if all {
+                                    eprintln!(
+                                        "Skipping recreate for {} (missing branch/bookmark).",
+                                        worktree.path
+                                    );
+                                    continue;
+                                }
+                                return Err(TrackError::Other(format!(
+                                    "Bookmark {} not found in {}.",
+                                    worktree.branch, repo.repo_path
+                                )));
+                            }
+
+                            let recreated = worktree_service.recreate_worktree(&worktree, force)?;
+                            output_paths.push(recreated.path);
+                        }
+                    } else {
+                        if recreate
+                            && !worktree_service
+                                .bookmark_exists_in_repo(repo.repo_path.as_str(), &branch_name)?
+                        {
+                            if all {
+                                eprintln!(
+                                    "Skipping create for {} (missing branch/bookmark).",
+                                    repo.repo_path
+                                );
+                                continue;
+                            }
+                            return Err(TrackError::Other(format!(
+                                "Bookmark {} not found in {}.",
+                                branch_name, repo.repo_path
+                            )));
+                        }
+
+                        let created = match worktree_service.add_worktree(
+                            current_task_id,
+                            &repo.repo_path,
+                            None,
+                            task.ticket_id.as_deref(),
+                            Some(todo.id),
+                            false,
+                        ) {
+                            Ok(worktree) => worktree,
+                            Err(TrackError::BranchExists(_)) => worktree_service
+                                .add_existing_worktree(
+                                    current_task_id,
+                                    &repo.repo_path,
+                                    &branch_name,
+                                    Some(todo.id),
+                                    false,
+                                    None,
+                                )?,
+                            Err(e) => return Err(e),
+                        };
+
+                        output_paths.push(created.path);
+                    }
+                }
+
+                if output_paths.is_empty() {
+                    return Err(TrackError::Other(
+                        "No worktree paths available for this TODO.".to_string(),
+                    ));
+                }
+
+                if all {
+                    for path in output_paths {
+                        println!("{}", path);
+                    }
+                } else {
+                    println!("{}", output_paths[0]);
+                    if output_paths.len() > 1 {
+                        eprintln!(
+                            "Multiple worktrees exist for TODO #{}. Using first path.",
+                            id
+                        );
+                    }
+                }
+            }
             TodoCommands::Delete { id, force } => {
                 // Resolve task_index to internal ID
                 let todo = todo_service.get_todo_by_index(current_task_id, id)?;
@@ -813,6 +992,9 @@ impl CommandHandler {
 
         println!("Syncing task branch: {}\n", task_branch);
 
+        let worktree_service = WorktreeService::new(&self.db);
+        let existing_worktrees = worktree_service.list_worktrees(current_task_id)?;
+
         for repo in &repos {
             println!("Repository: {}", repo.repo_path);
 
@@ -820,6 +1002,54 @@ impl CommandHandler {
             if !std::path::Path::new(&repo.repo_path).exists() {
                 println!("  ⚠ Repository not found, skipping\n");
                 continue;
+            }
+
+            let status_output = std::process::Command::new("git")
+                .args(["-C", &repo.repo_path, "status", "--porcelain"])
+                .output()?;
+
+            if !status_output.status.success() {
+                return Err(TrackError::Other(format!(
+                    "Failed to check status for {}",
+                    repo.repo_path
+                )));
+            }
+
+            let repo_root = Path::new(&repo.repo_path)
+                .canonicalize()
+                .map_err(|e| TrackError::Other(format!("Failed to resolve repo path: {}", e)))?;
+            let repo_worktrees: Vec<PathBuf> = existing_worktrees
+                .iter()
+                .filter(|wt| wt.base_repo.as_deref() == Some(repo.repo_path.as_str()))
+                .filter_map(|wt| Path::new(&wt.path).canonicalize().ok())
+                .filter_map(|wt_path| wt_path.strip_prefix(&repo_root).ok().map(PathBuf::from))
+                .collect();
+
+            let status_stdout = String::from_utf8_lossy(&status_output.stdout);
+            let mut has_changes = false;
+
+            for line in status_stdout.lines() {
+                let path = line.get(3..).unwrap_or("").trim();
+                if path.is_empty() {
+                    continue;
+                }
+
+                let path = Path::new(path);
+                let is_worktree = repo_worktrees
+                    .iter()
+                    .any(|worktree_path| path.starts_with(worktree_path));
+
+                if !is_worktree {
+                    has_changes = true;
+                    break;
+                }
+            }
+
+            if has_changes {
+                return Err(TrackError::Other(format!(
+                    "Repository {} has uncommitted changes. Please clean before sync.",
+                    repo.repo_path
+                )));
             }
 
             // Check if branch exists
@@ -880,7 +1110,6 @@ impl CommandHandler {
         // Check for pending worktrees
         println!("Checking for pending worktrees...");
         let todo_service = TodoService::new(&self.db);
-        let worktree_service = WorktreeService::new(&self.db);
         let todos = todo_service.list_todos(current_task_id)?;
 
         for todo in todos {
@@ -1185,15 +1414,15 @@ impl CommandHandler {
 
 **BEFORE making ANY code changes, you MUST:**
 
-1. Run `track sync` to create/checkout the task branch
-2. Verify you are on the correct branch (NOT main/master/develop)
+1. Run `track sync` to create/move to the task bookmark
+2. Verify you are on the correct bookmark (NOT main/master/develop)
 3. ONLY THEN begin coding
 
 **FAILURE TO FOLLOW THIS WORKFLOW WILL RESULT IN:**
-- Commits on the wrong branch (main/master)
+- Changes on the wrong bookmark (main/master)
 - Merge conflicts that are difficult to resolve
 - Loss of work isolation between tasks
-- Broken git history
+- Broken change history
 
 ---
 
@@ -1205,11 +1434,11 @@ When you start working on a task, follow these steps **IN ORDER**:
 ```bash
 track sync
 ```
-This creates the task branch and checks it out. **Do NOT skip this step.**
+This creates the task bookmark and moves the workspace. **Do NOT skip this step.**
 
-### Step 2: Verify Branch
+### Step 2: Verify Bookmark
 ```bash
-git branch --show-current
+jj status
 ```
 Confirm the output shows `task/<ticket-id>` or `task/task-<id>`.
 **If you see main/master/develop, STOP and run `track sync` again.**
@@ -1218,19 +1447,22 @@ Confirm the output shows `task/<ticket-id>` or `task/task-<id>`.
 ```bash
 track status
 ```
-Understand the current task, pending TODOs, and worktree paths.
+Understand the current task, pending TODOs, and workspace paths.
 
-### Step 4: Navigate to Worktree (if applicable)
-If `track status` shows worktree paths, navigate to the appropriate one before making changes.
+### Step 4: Navigate to Workspace
+```bash
+# Use track todo workspace to find the workspace path
+cd "$(track todo workspace <index>)"
+```
 
 ### Step 5: Execute Work
-- Implement the required changes
-- Run tests to verify
-- Commit your changes with meaningful messages
+- Implement the required changes.
+- Run tests and checks.
+- Use `jj describe` to record the change summary.
 
 ### Step 6: Record Progress
 ```bash
-track scrap add "Completed feature X, test Y passing"
+track scrap add "<note>"
 ```
 
 ### Step 7: Complete TODO
@@ -1245,7 +1477,7 @@ Continue with the next pending TODO until all are complete.
 
 ## Overview
 
-`track` is a CLI tool for managing development tasks, TODOs, and git worktrees.
+`track` is a CLI tool for managing development tasks, TODOs, and jj workspaces.
 This guide explains the standard workflow for completing tasks.
 
 ## Complete Task Workflow
@@ -1262,15 +1494,15 @@ This guide explains the standard workflow for completing tasks.
 
 3. **Link Ticket** (if not done during creation): `track ticket <ticket_id> <url>`
    - Associates a Jira/GitHub/GitLab ticket with the task.
-   - Enables ticket-based references and automatic branch naming.
+   - Enables ticket-based references and automatic bookmark naming.
 
 4. **Register Repositories**: `track repo add [path]`
    - Register working repositories (default: current directory).
-   - Optionally specify base branch: `track repo add --base <branch>`
+   - Optionally specify base bookmark: `track repo add --base <bookmark>`
    - Run this for each repository involved in the task.
 
 5. **Add TODOs**: `track todo add "<content>" [--worktree]`
-   - Add actionable items. Use `--worktree` flag to schedule worktree creation.
+   - Add actionable items. Use `--worktree` flag to schedule workspace creation.
 
 6. **Add Links**: `track link add <url> [--title "<title>"]`
    - Add reference links (documentation, PRs, issues, etc.)
@@ -1278,28 +1510,29 @@ This guide explains the standard workflow for completing tasks.
 ### Phase 2: Task Execution (LLM or Human)
 
 7. **Sync Repositories**: `track sync` **(MANDATORY FIRST STEP)**
-   - Creates task branch on all registered repos.
-   - Checks out the task branch.
-   - Creates worktrees for TODOs that requested them.
+   - Creates task bookmarks on all registered repos.
+   - Moves workspaces to the task bookmark.
+   - Creates workspaces for TODOs that requested them.
+   - Sync aborts if the repo has uncommitted changes.
    - **You MUST run this before making any code changes.**
 
-8. **Verify Branch**: `git branch --show-current`
-   - **STOP if output is main/master/develop. Run `track sync` again.**
+8. **Verify Bookmark**: `jj status`
+   - **STOP if you are not on the task bookmark. Run `track sync` again.**
 
 9. **Check Current State**: `track status`
-   - Shows current task, TODOs, worktrees, links, and recent scraps.
+   - Shows current task, TODOs, workspaces, links, and recent scraps.
    - Use `track status --json` for structured output.
    - Use `track status --all` to show all scraps instead of recent ones.
 
 10. **Execute TODOs**:
-    - Navigate to worktree path if applicable (shown in `track status`).
+    - Run `track todo workspace <index>` to get the workspace path.
     - Implement the required changes.
     - Run tests to verify.
     - Use `track scrap add "<note>"` to record findings, decisions, or progress.
 
 11. **Complete TODO**: `track todo done <index>`
     - Marks the TODO as done.
-    - If worktree exists: merges changes to task branch and removes worktree.
+    - If workspace exists: merges changes to task bookmark and removes workspace.
 
 12. **Repeat** until all TODOs are complete.
 
@@ -1307,8 +1540,8 @@ This guide explains the standard workflow for completing tasks.
 
 | Command | Description |
 |---------|-------------|
-| `track sync` | **MANDATORY FIRST STEP** - Sync branches and create worktrees |
-| `track status` | Show current task, TODOs, worktrees, links |
+| `track sync` | **MANDATORY FIRST STEP** - Sync bookmarks and create workspaces |
+| `track status` | Show current task, TODOs, workspaces, links |
 | `track status --json` | JSON output for programmatic access |
 | `track status --all` | Show all scraps instead of recent |
 | `track new "<name>"` | Create new task |
@@ -1320,18 +1553,19 @@ This guide explains the standard workflow for completing tasks.
 | `track switch <id>` | Switch to another task |
 | `track switch t:<ticket_id>` | Switch by ticket reference |
 | `track switch a:<alias>` | Switch by alias |
-| `track archive [task_ref]` | Archive task (removes worktrees) |
+| `track archive [task_ref]` | Archive task (removes workspaces) |
 | `track alias set <alias>` | Set alias for current task |
 | `track alias set <alias> --force` | Overwrite existing alias on another task |
 | `track alias remove` | Remove alias from current task |
 | `track repo add [path]` | Register repository (default: current dir) |
-| `track repo add --base <branch>` | Register with custom base branch |
+| `track repo add --base <bookmark>` | Register with custom base bookmark |
 | `track repo list` | List registered repositories |
 | `track repo remove <index>` | Remove repository by task-scoped index |
 | `track todo add "<text>"` | Add TODO |
-| `track todo add "<text>" --worktree` | Add TODO with worktree |
+| `track todo add "<text>" --worktree` | Add TODO with workspace |
 | `track todo list` | List TODOs |
-| `track todo done <index>` | Complete TODO (merges worktree if exists) |
+| `track todo workspace <index>` | Show or recreate TODO workspace |
+| `track todo done <index>` | Complete TODO (merges workspace if exists) |
 | `track todo update <index> <status>` | Update TODO status |
 | `track todo delete <index>` | Delete TODO |
 | `track link add <url>` | Add reference link |
@@ -1390,13 +1624,13 @@ track archive t:PROJ-123
 track status t:PROJ-123
 ```
 
-### Automatic Branch Naming
-When a ticket is linked, `track sync` automatically uses the ticket ID in branch names:
+### Automatic Bookmark Naming
+When a ticket is linked, `track sync` automatically uses the ticket ID in bookmark names:
 
-- **With ticket**: `task/PROJ-123` (and `task/PROJ-123-todo-1` for TODO worktrees)
-- **Without ticket**: `task/task-42` (and `task/task-42-todo-1` for TODO worktrees)
+- **With ticket**: `task/PROJ-123` (and `task/PROJ-123-todo-1` for TODO workspaces)
+- **Without ticket**: `task/task-42` (and `task/task-42-todo-1` for TODO workspaces)
 
-This makes it easy to correlate branches with tickets in your issue tracker.
+This makes it easy to correlate bookmarks with tickets in your issue tracker.
 
 ## Template Feature
 
@@ -1431,33 +1665,35 @@ Access at: http://localhost:3000
 ## Important Notes
 
 - **ALWAYS run `track sync` before making code changes.**
-- **ALWAYS verify you are on the task branch, not main/master/develop.**
+- **ALWAYS verify you are on the task bookmark, not main/master/develop.**
 - TODO, Link, and Repository indices are **task-scoped**, not global.
-- `track todo done` automatically merges and removes associated worktrees.
+- Use `track todo workspace <index>` to find the workspace path.
+- `track sync` aborts if the repo has uncommitted changes.
+- `track todo done` automatically merges and removes associated workspaces.
 - Always register repos with `track repo add` before running `track sync`.
 - Use `track scrap add` to document decisions and findings during work.
-- Ticket IDs are used in branch names when linked (e.g., `task/PROJ-123`).
-- Scraps support Markdown formatting and are rendered as HTML in WebUI.
+- Ticket IDs are used in bookmark names when linked (e.g., `task/PROJ-123`).
+- Scraps support Markdown formatting and are sanitized for WebUI rendering.
 
 ## Detailed Specifications
 
-### Worktree Location
-Worktrees are created as subdirectories inside the registered repository:
-- **Path**: `<repo_root>/<branch_name>`
-- **Example**: `/src/my-app/task/PROJ-123-todo-1`
+### Workspace Location
+Workspaces are created as subdirectories inside the registered repository:
+- **Path**: `<repo_root>/<bookmark_name>` (slashes are replaced with `_`)
+- **Example**: `/src/my-app/task_PROJ-123-todo-1`
 
 ### TODO Completion Process
 Executing `track todo done <index>` performs the following:
-1. **Checks** for uncommitted changes in the TODO worktree (must be clean).
-2. **Merges** the TODO branch into the Task Base branch (in the base worktree).
-3. **Removes** the TODO worktree directory and DB record.
+1. **Checks** for uncommitted changes in the TODO workspace (must be clean).
+2. **Merges** the TODO bookmark into the Task Base bookmark (in the base workspace).
+3. **Removes** the TODO workspace directory and DB record.
 4. **Updates** TODO status to 'done'.
 
 ### Archive Process
 Executing `track archive` performs the following:
-1. **Checks** for uncommitted changes in all worktrees.
-2. **Prompts** for confirmation if dirty worktrees are found.
-3. **Removes** all worktrees associated with the task.
+1. **Checks** for uncommitted changes in all workspaces.
+2. **Prompts** for confirmation if dirty workspaces are found.
+3. **Removes** all workspaces associated with the task.
 4. **Marks** the task as archived.
 "#
         );

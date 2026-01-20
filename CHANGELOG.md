@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-01-20
+
+### Added
+- `track todo workspace` for showing/recreating TODO workspaces (`--recreate`, `--force`, `--all`)
+- JJ-first workflow guidance across CLI help and docs
+
+### Changed
+- `track sync` now aborts on dirty repos (excluding workspace directories)
+- Workspaces paths sanitize bookmark names (slashes replaced with `_`)
+- Markdown rendering is sanitized and templates auto-escape to mitigate XSS
+
+### Fixed
+- Todo reordering uses collision-safe temporary indices
+- Timestamp parsing errors now surface as database conversion failures
+
 ## [0.3.6] - 2026-01-06
 
 ### Changed

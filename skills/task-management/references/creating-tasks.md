@@ -43,7 +43,7 @@ track new "Dark mode" --ticket GH-456 \
 **What happens:**
 - Creates new task in database
 - Switches to new task (sets as current)
-- Links ticket if provided (enables ticket-based branch naming)
+- Links ticket if provided (enables ticket-based bookmark naming)
 
 ---
 
@@ -80,7 +80,7 @@ track repo add
 # Specific path
 track repo add /home/user/projects/my-app
 
-# With specific base branch
+# With specific base bookmark
 track repo add --base develop
 
 # Multiple repositories
@@ -90,8 +90,8 @@ track repo add /home/user/projects/backend --base main
 
 **What happens:**
 - Registers repository for current task
-- Optionally specifies base branch (where TODOs will merge to)
-- Later, `track sync` creates branches and worktrees in these repos
+- Optionally specifies base bookmark (where TODOs will merge to)
+- Later, `track sync` creates bookmarks and workspaces in these repos
 
 ---
 
@@ -102,7 +102,7 @@ track repo add /home/user/projects/backend --base main
 track todo add "<description>"
 ```
 
-**TODO with worktree (for isolated work):**
+**TODO with workspace (for isolated work):**
 ```bash
 track todo add "<description>" --worktree
 ```
@@ -134,7 +134,7 @@ track status
 **Verify:**
 - Task name and description are correct
 - All TODOs are listed
-- Worktree markers shown where expected
+- Workspace markers shown where expected
 
 ---
 
@@ -145,8 +145,8 @@ track sync
 ```
 
 **What happens:**
-- Creates task branch on all registered repos
-- Creates worktrees for TODOs with `--worktree` flag
+- Creates task bookmarks on all registered repos
+- Creates workspaces for TODOs with `--worktree` flag
 - Prepares development environment
 
 **Note:** Can be deferred until ready to start coding.
@@ -155,7 +155,7 @@ track sync
 
 ## Common Patterns
 
-### Simple Task (No Worktrees)
+### Simple Task (No Workspaces)
 ```bash
 track new "Update documentation"
 track desc "Update README and add API examples"
@@ -164,7 +164,7 @@ track todo add "Add API usage examples"
 track todo add "Update changelog"
 ```
 
-### Complex Feature with Worktrees
+### Complex Feature with Workspaces
 ```bash
 track new "Add payment integration" \
   --ticket PROJ-789 \
@@ -210,7 +210,7 @@ After completing this workflow:
 - ✅ Task description documented
 - ✅ Repository(ies) registered
 - ✅ TODO list with actionable items
-- ✅ (Optional) Branches and worktrees created
+- ✅ (Optional) Bookmarks and workspaces created
 
 ## Next Steps
 
@@ -226,11 +226,10 @@ See [executing-tasks.md](executing-tasks.md) for working through TODOs.
 | `track new "<name>" --ticket <id> --ticket-url <url>` | Create with ticket |
 | `track desc "<text>"` | Add description |
 | `track repo add [path]` | Register repository |
-| `track repo add --base <branch>` | Register repository with base branch |
-| `track todo add "<text>"` | Add TODO |
-| `track todo add "<text>" --worktree` | Add TODO with worktree |
+| `track repo add --base <bookmark>` | Register repository with base bookmark |
+| `track todo add "<text>" --worktree` | Add TODO with workspace |
 | `track status` | Review setup |
-| `track sync` | Create branches/worktrees |
+| `track sync` | Create bookmarks/workspaces |
 
 ---
 
@@ -244,6 +243,6 @@ See [executing-tasks.md](executing-tasks.md) for working through TODOs.
 - Run `track repo add [path]` before `track sync`
 - Verify with `track repo list`
 
-**Worktrees not created:**
+**Workspaces not created:**
 - Ensure `--worktree` flag used with `track todo add`
-- Run `track sync` to create worktrees
+- Run `track sync` to create workspaces

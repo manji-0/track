@@ -1,9 +1,15 @@
 use crate::db::Database;
 use crate::models::{Todo, TodoStatus};
 use crate::utils::{Result, TrackError};
-use chrono::Utc;
-use rusqlite::params;
+use chrono::{DateTime, Utc};
+use rusqlite::{params, types::Type};
 use std::str::FromStr;
+
+fn parse_datetime(value: String) -> rusqlite::Result<DateTime<Utc>> {
+    value
+        .parse()
+        .map_err(|e| rusqlite::Error::FromSqlConversionFailure(0, Type::Text, Box::new(e)))
+}
 
 pub struct TodoService<'a> {
     db: &'a Database,
@@ -56,8 +62,11 @@ impl<'a> TodoService<'a> {
                     content: row.get(3)?,
                     status: row.get(4)?,
                     worktree_requested: row.get(5)?,
-                    created_at: row.get::<_, String>(6)?.parse().unwrap(),
-                    completed_at: row.get::<_, Option<String>>(7)?.map(|s| s.parse().unwrap()),
+                    created_at: parse_datetime(row.get::<_, String>(6)?)?,
+                    completed_at: row
+                        .get::<_, Option<String>>(7)?
+                        .map(parse_datetime)
+                        .transpose()?,
                 })
             })
             .map_err(|_| TrackError::TodoNotFound(todo_id))?;
@@ -80,8 +89,11 @@ impl<'a> TodoService<'a> {
                     content: row.get(3)?,
                     status: row.get(4)?,
                     worktree_requested: row.get(5)?,
-                    created_at: row.get::<_, String>(6)?.parse().unwrap(),
-                    completed_at: row.get::<_, Option<String>>(7)?.map(|s| s.parse().unwrap()),
+                    created_at: parse_datetime(row.get::<_, String>(6)?)?,
+                    completed_at: row
+                        .get::<_, Option<String>>(7)?
+                        .map(parse_datetime)
+                        .transpose()?,
                 })
             })?
             .collect::<std::result::Result<Vec<_>, _>>()?;
@@ -104,8 +116,11 @@ impl<'a> TodoService<'a> {
                     content: row.get(3)?,
                     status: row.get(4)?,
                     worktree_requested: row.get(5)?,
-                    created_at: row.get::<_, String>(6)?.parse().unwrap(),
-                    completed_at: row.get::<_, Option<String>>(7)?.map(|s| s.parse().unwrap()),
+                    created_at: parse_datetime(row.get::<_, String>(6)?)?,
+                    completed_at: row
+                        .get::<_, Option<String>>(7)?
+                        .map(parse_datetime)
+                        .transpose()?,
                 })
             })
             .map_err(|_| {
@@ -206,14 +221,14 @@ impl<'a> TodoService<'a> {
             let min_index = pending_todos[0].1;
 
             // Update all pending todos with new task_index values
-            // We use a temporary offset to avoid UNIQUE constraint violations
-            let temp_offset = 10000;
+            // Use negative temporary indices to avoid UNIQUE constraint violations
+            let temp_base = -(reordered.len() as i64) - 1;
 
             // First, move all to temporary indices
             for (i, (id, _)) in reordered.iter().enumerate() {
                 conn.execute(
                     "UPDATE todos SET task_index = ?1 WHERE id = ?2",
-                    params![temp_offset + i as i64, id],
+                    params![temp_base - i as i64, id],
                 )?;
             }
 

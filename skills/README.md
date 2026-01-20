@@ -14,13 +14,13 @@ Agent Skills are structured workflow guides following the official Agent Skills 
 
 ### [track-task-management](track-task-management/SKILL.md)
 
-**Purpose**: Manages development tasks with integrated Git worktrees, WebUI, and link management.
+**Purpose**: Manages development tasks with integrated JJ workspaces, WebUI, and link management.
 
 **Use when**: Creating tasks, adding TODOs, working through task lists, managing references, or managing development workflows.
 
 **Key features:**
 - Task and TODO management with task-scoped indices
-- Git worktree integration for parallel development
+- JJ workspace integration for parallel development
 - Ticket integration (Jira, GitHub, GitLab)
 - Progress tracking with Markdown-enabled scraps
 - Link management for references
@@ -43,6 +43,9 @@ track link add https://docs.example.com/api --title "API Docs"
 
 # Sync and work
 track sync
+cd "$(track todo workspace 1)"
+jj status
+jj describe -m "Implement core logic"
 track todo done 1
 ```
 
@@ -131,28 +134,30 @@ track-task-management/
 ### Standard Pattern
 
 1. **Run `track sync`** BEFORE any code changes (MANDATORY)
-2. **Verify branch** with `git branch --show-current` (must be task branch)
+2. **Verify bookmark** with `jj status` (must be task bookmark)
 3. **Check `SKILL.md`** for overview and quick start
 4. **Identify user's goal** (creating task vs. executing vs. advanced)
 5. **Load relevant reference** only if needed:
-   - Creating task → `references/creating-tasks.md`
-   - Executing task → `references/executing-tasks.md`
-   - Advanced use case → `references/advanced-workflows.md`
+    - Creating task → `references/creating-tasks.md`
+    - Executing task → `references/executing-tasks.md`
+    - Advanced use case → `references/advanced-workflows.md`
 6. **Follow workflow** step-by-step
 7. **Use examples** as templates
 
 ### Quick Commands
 
 Always available in `SKILL.md`:
-- `track sync` - **MANDATORY FIRST STEP** - Sync branches and create worktrees
+- `track sync` - **MANDATORY FIRST STEP** - Sync bookmarks and create workspaces
 - `track status` - Check current state
 - `track new` - Create task
 - `track todo add` - Add TODO
+- `track todo workspace` - Show TODO workspace
 - `track todo done` - Complete TODO
 - `track link add` - Add reference link
 - `track scrap add` - Record note
 - `track webui` - Start web UI
 - `track llm-help` - Show comprehensive help
+
 
 ---
 

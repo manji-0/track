@@ -81,7 +81,7 @@ This document describes the test configuration and strategy for the `track` CLI 
 
 **Basic CRUD Operations**:
 - `test_add_todo_success`: Success case for adding TODO
-- `test_add_todo_with_worktree_success`: Adding TODO with worktree
+- `test_add_todo_with_worktree_success`: Adding TODO with workspace
 - `test_get_todo_success`: Success case for TODO retrieval
 - `test_get_todo_not_found`: Error handling for non-existent TODO
 - `test_list_todos`: TODO list retrieval
@@ -131,20 +131,20 @@ This document describes the test configuration and strategy for the `track` CLI 
 **Number of Tests**: 5
 
 - `test_add_repo_success`: Success case for repository registration
-- `test_add_repo_not_git`: Error handling for non-Git directory
+- `test_add_repo_not_git`: Error handling for non-JJ directory
 - `test_add_repo_duplicate`: Error handling for duplicate repository
 - `test_list_repos`: Repository list retrieval
 - `test_remove_repo`: Repository removal
 
 **Coverage**: ✅ Complete
 - All public methods
-- Git validation logic
+- JJ validation logic
 - Duplicate checks
 
-#### 7. WorktreeService (`src/services/worktree_service.rs`)
+#### 7. WorkspaceService (`src/services/worktree_service.rs`)
 **Number of Tests**: 13
 
-**Branch Name Determination Logic (6 Tests)**:
+**Bookmark Name Determination Logic (6 Tests)**:
 - `test_determine_branch_name_with_explicit_branch_and_ticket`
 - `test_determine_branch_name_with_explicit_branch_only`
 - `test_determine_branch_name_with_ticket_and_todo`
@@ -152,21 +152,21 @@ This document describes the test configuration and strategy for the `track` CLI 
 - `test_determine_branch_name_base_with_ticket`
 - `test_determine_branch_name_base_without_ticket`
 
-**Worktree Operations (6 Tests)**:
-- `test_add_worktree_and_get`: Worktree addition and retrieval
-- `test_list_worktrees`: Worktree list retrieval
-- `test_remove_worktree`: Worktree removal
-- `test_get_base_worktree`: Base worktree retrieval
-- `test_get_worktree_by_todo`: Retrieval of worktree by TODO
-- `test_determine_worktree_path`: Worktree path determination
+**Workspace Operations (6 Tests)**:
+- `test_add_worktree_and_get`: Workspace addition and retrieval
+- `test_list_worktrees`: Workspace list retrieval
+- `test_remove_worktree`: Workspace removal
+- `test_get_base_worktree`: Base workspace retrieval
+- `test_get_worktree_by_todo`: Retrieval of workspace by TODO
+- `test_determine_worktree_path`: Workspace path determination
 
-**Git Operations (1 Test)**:
+**JJ Operations (1 Test)**:
 - `test_has_uncommitted_changes`: Detection of uncommitted changes
 
 **Coverage**: ✅ Complete
 - All public methods
-- All patterns of branch naming strategy
-- Integration tests using actual Git repositories
+- All patterns of bookmark naming strategy
+- Integration tests using actual JJ repositories
 
 #### 8. CommandHandler (`src/cli/handler.rs`)
 **Number of Tests**: 1
@@ -186,8 +186,8 @@ This document describes the test configuration and strategy for the `track` CLI 
 
 2. **test_repo_worktree_workflow**
    - Repository registration
-   - Base worktree creation
-   - Worktree list retrieval
+   - Base workspace creation
+   - Workspace list retrieval
    - Repository removal
 
 3. **test_task_switching**
@@ -246,7 +246,7 @@ cargo tarpaulin --out Html
 
 ### 2. Integration Tests
 - Test workflows combining multiple services
-- Use actual Git repositories (managed by tempfile)
+- Use actual JJ repositories (managed by tempfile)
 - Cover end-to-end scenarios
 
 ### 3. Test Data Management
@@ -263,7 +263,7 @@ cargo tarpaulin --out Html
 - ✅ **TodoService**: 100% - All public methods
 - ✅ **LinkService/ScrapService**: 100% - All public methods
 - ✅ **RepoService**: 100% - All public methods
-- ✅ **WorktreeService**: 100% - All public methods
+- ✅ **WorkspaceService**: 100% - All public methods
 - ⚠️ **CommandHandler**: Partial - LLM help only
 
 ### Error Handling
