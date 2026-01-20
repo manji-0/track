@@ -1,5 +1,27 @@
+use std::process::Command;
 use track::db::Database;
 use track::services::{RepoService, TaskService, TodoService, WorktreeService};
+
+fn init_jj_repo(path: &str) {
+    Command::new("jj")
+        .args(["git", "init", path])
+        .output()
+        .unwrap();
+}
+
+fn describe_change(path: &str, message: &str) {
+    Command::new("jj")
+        .args(["-R", path, "describe", "-m", message])
+        .output()
+        .unwrap();
+}
+
+fn new_change(path: &str) {
+    Command::new("jj")
+        .args(["-R", path, "new"])
+        .output()
+        .unwrap();
+}
 
 /// Integration test: Full workflow from task creation to worktree management
 #[test]
@@ -50,7 +72,6 @@ fn test_full_task_workflow() {
 #[test]
 fn test_repo_worktree_workflow() {
     use std::fs;
-    use std::process::Command;
 
     let db = Database::new_in_memory().unwrap();
     let task_service = TaskService::new(&db);
@@ -62,35 +83,16 @@ fn test_repo_worktree_workflow() {
         .create_task("Repo Test Task", None, Some("PROJ-123"), None)
         .unwrap();
 
-    // Create a temporary git repository
+    // Create a temporary JJ repository
     let temp_dir = tempfile::tempdir().unwrap();
     let repo_path = temp_dir.path().to_str().unwrap();
 
-    Command::new("git")
-        .args(["init", repo_path])
-        .output()
-        .unwrap();
+    init_jj_repo(repo_path);
 
-    // Configure git user
-    Command::new("git")
-        .args(["-C", repo_path, "config", "user.email", "test@example.com"])
-        .output()
-        .unwrap();
-    Command::new("git")
-        .args(["-C", repo_path, "config", "user.name", "Test User"])
-        .output()
-        .unwrap();
-
-    // Create initial commit
+    // Create initial change
     fs::write(temp_dir.path().join("README.md"), "# Test Repo").unwrap();
-    Command::new("git")
-        .args(["-C", repo_path, "add", "."])
-        .output()
-        .unwrap();
-    Command::new("git")
-        .args(["-C", repo_path, "commit", "-m", "Initial commit"])
-        .output()
-        .unwrap();
+    describe_change(repo_path, "Initial commit");
+    new_change(repo_path);
 
     // Register repository
     let repo = repo_service

@@ -88,7 +88,7 @@ track todo done 3
 - Work on independent features simultaneously
 - Avoid bookmark switching overhead
 - Test features in isolation
-- Merge when ready
+- Rebase when ready
 
 ---
 

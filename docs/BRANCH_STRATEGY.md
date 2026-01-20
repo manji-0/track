@@ -2,7 +2,7 @@
 
 track adopts a hierarchical bookmark strategy using JJ workspaces to manage tasks and subtasks (TODOs) efficiently. This strategy ensures independent working environments for granular units of work while maintaining a clean task history.
 
-## Concept: Hierarchical Branching
+## Concept: Hierarchical Bookmarks
 
 ```mermaid
 gitGraph
@@ -39,7 +39,7 @@ The workflow consists of three layers:
     -   Corresponds to a `track` TODO.
     -   Used for implementing a specific, small unit of work.
     -   Created via `track todo add --worktree` followed by `track sync`.
-    -   Automatically merged back to the Feature Base Bookmark and deleted upon completion (`track todo done`).
+    -   Automatically rebased onto the Feature Base Bookmark and deleted upon completion (`track todo done`).
 
 ## Workflow
 
@@ -84,14 +84,14 @@ Work in the generated workspace. When finished, use `track todo done` to automat
 
 ```bash
 # 1. Checks for uncommitted changes
-# 2. Merges 'PROJ-123-todo-1' into 'task/PROJ-123'
+# 2. Rebases 'PROJ-123-todo-1' onto 'task/PROJ-123'
 # 3. Removes the workspace
 track todo done 1
 ```
 
 ### 6. Finish Task
 
-Once all TODOs are done and merged into the base bookmark, you can create a PR from the base bookmark to main.
+Once all TODOs are done and rebased onto the base bookmark, you can create a PR from the base bookmark to main.
 
 ```bash
 track archive t:PROJ-123

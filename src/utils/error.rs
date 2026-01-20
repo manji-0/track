@@ -1,7 +1,7 @@
 //! Error types for the track CLI application.
 //!
 //! This module defines all error types that can occur during track operations,
-//! including database errors, Git errors, validation errors, and user-facing error messages.
+//! including database errors, JJ errors, validation errors, and user-facing error messages.
 
 use thiserror::Error;
 
@@ -42,14 +42,14 @@ pub enum TrackError {
     #[error("Invalid status: {0}")]
     InvalidStatus(String),
 
-    #[error("Git error: {0}")]
-    Git(String),
+    #[error("JJ error: {0}")]
+    Jj(String),
 
-    #[error("Path '{0}' is not a Git repository")]
-    NotGitRepository(String),
+    #[error("Path '{0}' is not a JJ repository")]
+    NotJjRepository(String),
 
-    #[error("Branch '{0}' already exists")]
-    BranchExists(String),
+    #[error("Bookmark '{0}' already exists")]
+    BookmarkExists(String),
 
     #[error("Invalid URL format: {0}")]
     InvalidUrl(String),

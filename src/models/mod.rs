@@ -1,7 +1,7 @@
 //! Data models for the track CLI application.
 //!
 //! This module defines the core data structures used throughout the application,
-//! including tasks, TODOs, links, scraps, and Git-related items.
+//! including tasks, TODOs, links, scraps, and JJ-related items.
 
 use chrono::{DateTime, Utc};
 use serde::Serialize;
@@ -105,7 +105,7 @@ fn render_markdown_with_links(content: &str) -> String {
 /// Represents a development task.
 ///
 /// A task is the primary organizational unit in track. Each task can have multiple TODOs,
-/// links, scraps, and associated Git repositories.
+/// links, scraps, and associated JJ repositories.
 #[derive(Debug, Clone, Serialize)]
 pub struct Task {
     pub id: i64,
@@ -122,7 +122,7 @@ pub struct Task {
 /// Represents a TODO item within a task.
 ///
 /// TODOs are task-scoped action items. Each TODO has a task-specific index
-/// and can optionally request a Git worktree for isolated development.
+/// and can optionally request a JJ workspace for isolated development.
 #[derive(Debug, Clone, Serialize)]
 pub struct Todo {
     #[serde(skip)]
@@ -208,10 +208,10 @@ impl Scrap {
     }
 }
 
-/// Represents a Git worktree associated with a task or TODO.
+/// Represents a JJ workspace associated with a task or TODO.
 ///
-/// Worktrees track both base repositories and TODO-specific worktrees,
-/// including their paths, branches, and relationships.
+/// Worktrees track both base repositories and TODO-specific workspaces,
+/// including their paths, bookmarks, and relationships.
 #[derive(Debug, Clone, Serialize)]
 pub struct Worktree {
     pub id: i64,
@@ -247,7 +247,7 @@ pub struct RepoLink {
 
 /// Represents a repository associated with a task.
 ///
-/// TaskRepos link Git repositories to tasks, allowing multiple repositories
+/// TaskRepos link JJ repositories to tasks, allowing multiple repositories
 /// to be managed within a single task context.
 #[derive(Debug, Clone, Serialize)]
 pub struct TaskRepo {

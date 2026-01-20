@@ -30,9 +30,9 @@ impl<'a> WorktreeService<'a> {
         todo_id: Option<i64>,
         is_base: bool,
     ) -> Result<Worktree> {
-        // Verify it's a git repository
-        if !self.is_git_repository(repo_path)? {
-            return Err(TrackError::NotGitRepository(repo_path.to_string()));
+        // Verify it's a JJ repository
+        if !self.is_jj_repository(repo_path)? {
+            return Err(TrackError::NotJjRepository(repo_path.to_string()));
         }
 
         // Fetch todo_index if todo_id is present
@@ -53,19 +53,22 @@ impl<'a> WorktreeService<'a> {
             None
         };
 
-        // Determine branch name
+        // Determine bookmark name
         let branch_name = self.determine_branch_name(branch, ticket_id, task_id, todo_index)?;
 
-        // Check if branch already exists
-        if self.branch_exists(repo_path, &branch_name)? {
-            return Err(TrackError::BranchExists(branch_name));
+        // Check if bookmark already exists
+        if self.bookmark_exists(repo_path, &branch_name)? {
+            return Err(TrackError::BookmarkExists(branch_name));
         }
 
-        // Determine worktree path
+        // Determine workspace path
         let worktree_path = self.determine_worktree_path(repo_path, &branch_name)?;
 
-        // Create worktree
-        self.create_git_worktree(repo_path, &worktree_path, &branch_name)?;
+        let task_bookmark = self.task_bookmark_name(task_id, ticket_id);
+        let base_revset = if is_base { "@" } else { task_bookmark.as_str() };
+
+        // Create workspace and bookmark
+        self.create_jj_workspace(repo_path, &worktree_path, &branch_name, base_revset)?;
 
         let worktree = self.insert_worktree_record(
             task_id,
@@ -110,8 +113,8 @@ impl<'a> WorktreeService<'a> {
         is_base: bool,
         worktree_path: Option<&str>,
     ) -> Result<Worktree> {
-        if !self.is_git_repository(repo_path)? {
-            return Err(TrackError::NotGitRepository(repo_path.to_string()));
+        if !self.is_jj_repository(repo_path)? {
+            return Err(TrackError::NotJjRepository(repo_path.to_string()));
         }
 
         let resolved_path = if let Some(path) = worktree_path {
@@ -120,7 +123,7 @@ impl<'a> WorktreeService<'a> {
             self.determine_worktree_path(repo_path, branch)?
         };
 
-        self.create_git_worktree_for_existing_branch(repo_path, &resolved_path, branch)?;
+        self.create_jj_workspace_for_existing_bookmark(repo_path, &resolved_path, branch)?;
 
         self.insert_worktree_record(task_id, &resolved_path, branch, repo_path, todo_id, is_base)
     }
@@ -138,7 +141,7 @@ impl<'a> WorktreeService<'a> {
                 )));
             }
 
-            self.remove_git_worktree(repo_path, &worktree.path)?;
+            self.remove_jj_workspace(repo_path, &worktree.path)?;
         }
 
         let conn = self.db.get_connection();
@@ -232,9 +235,9 @@ impl<'a> WorktreeService<'a> {
         let worktree = self.get_worktree(worktree_id)?;
 
         if !keep_files {
-            // Remove git worktree
+            // Remove JJ workspace
             if let Some(base_repo) = &worktree.base_repo {
-                self.remove_git_worktree(base_repo, &worktree.path)?;
+                self.remove_jj_workspace(base_repo, &worktree.path)?;
             }
         }
 
@@ -246,41 +249,33 @@ impl<'a> WorktreeService<'a> {
         Ok(())
     }
 
-    fn is_git_repository(&self, path: &str) -> Result<bool> {
-        let output = Command::new("git")
-            .args(["-C", path, "rev-parse", "--git-dir"])
-            .output()?;
-
-        Ok(output.status.success())
+    fn is_jj_repository(&self, path: &str) -> Result<bool> {
+        let jj_dir = Path::new(path).join(".jj");
+        Ok(jj_dir.exists())
     }
 
     pub fn bookmark_exists_in_repo(&self, repo_path: &str, bookmark: &str) -> Result<bool> {
-        let jj_dir = Path::new(repo_path).join(".jj");
-        if jj_dir.exists() {
-            let output = Command::new("jj")
-                .args(["-R", repo_path, "bookmark", "list", bookmark])
-                .output()?;
-
-            if !output.status.success() {
-                return Ok(false);
-            }
-
-            let stdout = String::from_utf8_lossy(&output.stdout);
-            let exists = stdout
-                .lines()
-                .any(|line| line.trim_start().starts_with(&format!("{}:", bookmark)));
-            return Ok(exists);
-        }
-
-        self.branch_exists(repo_path, bookmark)
+        self.bookmark_exists(repo_path, bookmark)
     }
 
-    fn branch_exists(&self, repo_path: &str, branch: &str) -> Result<bool> {
-        let output = Command::new("git")
-            .args(["-C", repo_path, "rev-parse", "--verify", branch])
+    fn bookmark_exists(&self, repo_path: &str, bookmark: &str) -> Result<bool> {
+        if !self.is_jj_repository(repo_path)? {
+            return Err(TrackError::NotJjRepository(repo_path.to_string()));
+        }
+
+        let output = Command::new("jj")
+            .current_dir(repo_path)
+            .args(["-R", repo_path, "bookmark", "list", bookmark])
             .output()?;
 
-        Ok(output.status.success())
+        if !output.status.success() {
+            return Ok(false);
+        }
+
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        Ok(stdout
+            .lines()
+            .any(|line| line.trim_start().starts_with(&format!("{}:", bookmark))))
     }
 
     fn determine_branch_name(
@@ -308,6 +303,14 @@ impl<'a> WorktreeService<'a> {
         }
     }
 
+    fn task_bookmark_name(&self, task_id: i64, ticket_id: Option<&str>) -> String {
+        if let Some(ticket) = ticket_id {
+            format!("task/{}", ticket)
+        } else {
+            format!("task/task-{}", task_id)
+        }
+    }
+
     fn determine_worktree_path(&self, repo_path: &str, branch: &str) -> Result<String> {
         let sanitized_branch = branch.replace(['/', '\\'], "_");
         let repo_path = Path::new(repo_path);
@@ -316,65 +319,106 @@ impl<'a> WorktreeService<'a> {
         Ok(worktree_path.to_string_lossy().to_string())
     }
 
-    fn create_git_worktree(
+    fn create_jj_workspace(
         &self,
         repo_path: &str,
         worktree_path: &str,
-        branch: &str,
+        bookmark: &str,
+        base_revset: &str,
     ) -> Result<()> {
-        let output = Command::new("git")
+        let output = Command::new("jj")
+            .current_dir(repo_path)
             .args([
-                "-C",
+                "-R",
                 repo_path,
-                "worktree",
+                "workspace",
                 "add",
-                "-b",
-                branch,
                 worktree_path,
+                "-r",
+                base_revset,
             ])
             .output()?;
 
         if !output.status.success() {
             let error = String::from_utf8_lossy(&output.stderr);
-            return Err(TrackError::Git(error.to_string()));
+            return Err(TrackError::Jj(error.to_string()));
+        }
+
+        let bookmark_output = Command::new("jj")
+            .current_dir(worktree_path)
+            .args([
+                "-R",
+                worktree_path,
+                "bookmark",
+                "create",
+                bookmark,
+                "-r",
+                "@",
+            ])
+            .output()?;
+
+        if !bookmark_output.status.success() {
+            let error = String::from_utf8_lossy(&bookmark_output.stderr);
+            return Err(TrackError::Jj(error.to_string()));
         }
 
         Ok(())
     }
 
-    fn create_git_worktree_for_existing_branch(
+    fn create_jj_workspace_for_existing_bookmark(
         &self,
         repo_path: &str,
         worktree_path: &str,
-        branch: &str,
+        bookmark: &str,
     ) -> Result<()> {
-        let output = Command::new("git")
-            .args(["-C", repo_path, "worktree", "add", worktree_path, branch])
+        let output = Command::new("jj")
+            .current_dir(repo_path)
+            .args(["-R", repo_path, "workspace", "add", worktree_path])
             .output()?;
 
         if !output.status.success() {
             let error = String::from_utf8_lossy(&output.stderr);
-            return Err(TrackError::Git(error.to_string()));
+            return Err(TrackError::Jj(error.to_string()));
+        }
+
+        let edit_output = Command::new("jj")
+            .current_dir(worktree_path)
+            .args(["-R", worktree_path, "edit", bookmark])
+            .output()?;
+
+        if !edit_output.status.success() {
+            let error = String::from_utf8_lossy(&edit_output.stderr);
+            return Err(TrackError::Jj(error.to_string()));
         }
 
         Ok(())
     }
 
-    fn remove_git_worktree(&self, repo_path: &str, worktree_path: &str) -> Result<()> {
-        let output = Command::new("git")
-            .args(["-C", repo_path, "worktree", "remove", worktree_path])
+    fn remove_jj_workspace(&self, repo_path: &str, worktree_path: &str) -> Result<()> {
+        let workspace_name = Path::new(worktree_path)
+            .file_name()
+            .and_then(|name| name.to_str())
+            .ok_or_else(|| TrackError::Other("Failed to determine workspace name".to_string()))?;
+
+        let output = Command::new("jj")
+            .current_dir(repo_path)
+            .args(["-R", repo_path, "workspace", "forget", workspace_name])
             .output()?;
 
         if !output.status.success() {
             let error = String::from_utf8_lossy(&output.stderr);
-            return Err(TrackError::Git(error.to_string()));
+            return Err(TrackError::Jj(error.to_string()));
+        }
+
+        if Path::new(worktree_path).exists() {
+            std::fs::remove_dir_all(worktree_path)?;
         }
 
         Ok(())
     }
 
-    /// Calculates the expected branch name for a TODO item.
-    /// This allows clients to know the branch name even before the worktree is created.
+    /// Calculates the expected bookmark name for a TODO item.
+    /// This allows clients to know the bookmark name even before the workspace is created.
     pub fn get_todo_branch_name(
         &self,
         task_id: i64,
@@ -382,6 +426,15 @@ impl<'a> WorktreeService<'a> {
         todo_index: i64,
     ) -> Result<String> {
         self.determine_branch_name(None, ticket_id, task_id, Some(todo_index))
+    }
+
+    fn get_task_ticket_id(&self, task_id: i64) -> Result<Option<String>> {
+        let conn = self.db.get_connection();
+        let mut stmt = conn.prepare("SELECT ticket_id FROM tasks WHERE id = ?1")?;
+        let ticket_id = stmt
+            .query_row(params![task_id], |row| row.get(0))
+            .optional()?;
+        Ok(ticket_id)
     }
 
     pub fn complete_worktree_for_todo(&self, todo_id: i64) -> Result<Option<String>> {
@@ -398,18 +451,21 @@ impl<'a> WorktreeService<'a> {
             // Fall back to the base repository path (main repository directory)
             // The TODO worktree's base_repo field points to the main repository
             wt.base_repo.clone().ok_or_else(|| {
-                TrackError::Other("TODO worktree has no base repository reference".to_string())
+                TrackError::Other("TODO workspace has no base repository reference".to_string())
             })?
         };
 
         if self.has_uncommitted_changes(&wt.path)? {
             return Err(TrackError::Other(format!(
-                "Worktree {} has uncommitted changes. Please commit or stash them.",
+                "Workspace {} has uncommitted changes. Please clean or snapshot them.",
                 wt.path
             )));
         }
 
-        self.merge_branch(&merge_target_path, &wt.branch)?;
+        let ticket_id = self.get_task_ticket_id(wt.task_id)?;
+        let task_bookmark = self.task_bookmark_name(wt.task_id, ticket_id.as_deref());
+
+        self.integrate_todo_bookmark(&merge_target_path, &wt.branch, &task_bookmark)?;
         self.remove_worktree(wt.id, false)?;
 
         Ok(Some(wt.branch))
@@ -468,22 +524,69 @@ impl<'a> WorktreeService<'a> {
     }
 
     pub fn has_uncommitted_changes(&self, path: &str) -> Result<bool> {
-        let output = Command::new("git")
-            .args(["-C", path, "status", "--porcelain"])
+        let output = Command::new("jj")
+            .current_dir(path)
+            .args(["-R", path, "diff", "--summary"])
             .output()?;
 
         Ok(!output.stdout.is_empty())
     }
 
-    fn merge_branch(&self, target_path: &str, branch: &str) -> Result<()> {
-        let output = Command::new("git")
-            .args(["-C", target_path, "merge", "--no-ff", branch])
+    fn integrate_todo_bookmark(
+        &self,
+        target_path: &str,
+        todo_bookmark: &str,
+        task_bookmark: &str,
+    ) -> Result<()> {
+        let rebase_output = Command::new("jj")
+            .current_dir(target_path)
+            .args([
+                "-R",
+                target_path,
+                "rebase",
+                "-r",
+                todo_bookmark,
+                "-d",
+                task_bookmark,
+            ])
             .output()?;
 
-        if !output.status.success() {
-            let error = String::from_utf8_lossy(&output.stderr);
-            return Err(TrackError::Git(format!("Merge failed: {}", error)));
+        if !rebase_output.status.success() {
+            let error = String::from_utf8_lossy(&rebase_output.stderr);
+            return Err(TrackError::Jj(format!("Rebase failed: {}", error)));
         }
+
+        let move_output = Command::new("jj")
+            .current_dir(target_path)
+            .args([
+                "-R",
+                target_path,
+                "bookmark",
+                "move",
+                task_bookmark,
+                "-t",
+                todo_bookmark,
+            ])
+            .output()?;
+
+        if !move_output.status.success() {
+            let error = String::from_utf8_lossy(&move_output.stderr);
+            return Err(TrackError::Jj(format!("Bookmark move failed: {}", error)));
+        }
+
+        let edit_output = Command::new("jj")
+            .current_dir(target_path)
+            .args(["-R", target_path, "edit", task_bookmark])
+            .output()?;
+
+        if !edit_output.status.success() {
+            let error = String::from_utf8_lossy(&edit_output.stderr);
+            return Err(TrackError::Jj(format!(
+                "Workspace update failed: {}",
+                error
+            )));
+        }
+
         Ok(())
     }
 }
@@ -492,9 +595,38 @@ impl<'a> WorktreeService<'a> {
 mod tests {
     use super::*;
     use crate::db::Database;
+    use std::process::Command;
 
     fn setup_db() -> Database {
         Database::new_in_memory().unwrap()
+    }
+
+    fn init_jj_repo(path: &str) {
+        Command::new("jj")
+            .args(["git", "init", path])
+            .output()
+            .unwrap();
+    }
+
+    fn describe_change(path: &str, message: &str) {
+        Command::new("jj")
+            .args(["-R", path, "describe", "-m", message])
+            .output()
+            .unwrap();
+    }
+
+    fn new_change(path: &str) {
+        Command::new("jj")
+            .args(["-R", path, "new"])
+            .output()
+            .unwrap();
+    }
+
+    fn create_bookmark(path: &str, name: &str) {
+        Command::new("jj")
+            .args(["-R", path, "bookmark", "create", name, "-r", "@"])
+            .output()
+            .unwrap();
     }
 
     #[test]
@@ -565,22 +697,11 @@ mod tests {
     #[test]
     fn test_has_uncommitted_changes() {
         use std::fs::File;
-        use std::process::Command;
-        // Setup temp git repo
+        // Setup temp JJ repo
         let temp_dir = tempfile::tempdir().unwrap();
         let path = temp_dir.path().to_str().unwrap();
 
-        Command::new("git").args(["init", path]).output().unwrap();
-
-        // Configure user for commit
-        Command::new("git")
-            .args(["-C", path, "config", "user.email", "test@example.com"])
-            .output()
-            .unwrap();
-        Command::new("git")
-            .args(["-C", path, "config", "user.name", "Test User"])
-            .output()
-            .unwrap();
+        init_jj_repo(path);
 
         let db = setup_db();
         let service = WorktreeService::new(&db);
@@ -590,22 +711,11 @@ mod tests {
 
         // Create a file (untracked)
         File::create(temp_dir.path().join("test.txt")).unwrap();
-        // Untracked files count as changes with --porcelain
         assert!(service.has_uncommitted_changes(path).unwrap());
 
-        // Commit it
-        Command::new("git")
-            .args(["-C", path, "add", "."])
-            .output()
-            .unwrap();
-        // Staged changes
-        assert!(service.has_uncommitted_changes(path).unwrap());
-
-        Command::new("git")
-            .args(["-C", path, "commit", "-m", "init"])
-            .output()
-            .unwrap();
-        // Clean
+        // Record the change and move to a clean working copy
+        describe_change(path, "init");
+        new_change(path);
         assert!(!service.has_uncommitted_changes(path).unwrap());
 
         // Modify
@@ -639,7 +749,6 @@ mod tests {
     fn test_add_worktree_and_get() {
         use crate::services::TaskService;
         use std::fs;
-        use std::process::Command;
 
         let db = setup_db();
         let task_service = TaskService::new(&db);
@@ -650,35 +759,15 @@ mod tests {
             .create_task("Test Task", None, Some("PROJ-100"), None)
             .unwrap();
 
-        // Create a temporary git repository
+        // Create a temporary JJ repository
         let temp_dir = tempfile::tempdir().unwrap();
         let repo_path = temp_dir.path().to_str().unwrap();
 
-        Command::new("git")
-            .args(["init", repo_path])
-            .output()
-            .unwrap();
+        init_jj_repo(repo_path);
 
-        // Configure git user
-        Command::new("git")
-            .args(["-C", repo_path, "config", "user.email", "test@example.com"])
-            .output()
-            .unwrap();
-        Command::new("git")
-            .args(["-C", repo_path, "config", "user.name", "Test User"])
-            .output()
-            .unwrap();
-
-        // Create initial commit
+        // Create initial change
         fs::write(temp_dir.path().join("README.md"), "# Test").unwrap();
-        Command::new("git")
-            .args(["-C", repo_path, "add", "."])
-            .output()
-            .unwrap();
-        Command::new("git")
-            .args(["-C", repo_path, "commit", "-m", "Initial commit"])
-            .output()
-            .unwrap();
+        describe_change(repo_path, "Initial commit");
 
         // Add base worktree
         let worktree = service
@@ -699,7 +788,6 @@ mod tests {
     fn test_list_worktrees() {
         use crate::services::{TaskService, TodoService};
         use std::fs;
-        use std::process::Command;
 
         let db = setup_db();
         let task_service = TaskService::new(&db);
@@ -714,33 +802,13 @@ mod tests {
         // Create a TODO
         let todo = todo_service.add_todo(task.id, "Test TODO", true).unwrap();
 
-        // Create a temporary git repository
+        // Create a temporary JJ repository
         let temp_dir = tempfile::tempdir().unwrap();
         let repo_path = temp_dir.path().to_str().unwrap();
 
-        Command::new("git")
-            .args(["init", repo_path])
-            .output()
-            .unwrap();
-
-        Command::new("git")
-            .args(["-C", repo_path, "config", "user.email", "test@example.com"])
-            .output()
-            .unwrap();
-        Command::new("git")
-            .args(["-C", repo_path, "config", "user.name", "Test User"])
-            .output()
-            .unwrap();
-
+        init_jj_repo(repo_path);
         fs::write(temp_dir.path().join("README.md"), "# Test").unwrap();
-        Command::new("git")
-            .args(["-C", repo_path, "add", "."])
-            .output()
-            .unwrap();
-        Command::new("git")
-            .args(["-C", repo_path, "commit", "-m", "Initial commit"])
-            .output()
-            .unwrap();
+        describe_change(repo_path, "Initial commit");
 
         // Add base worktree
         service
@@ -777,7 +845,6 @@ mod tests {
     fn test_remove_worktree() {
         use crate::services::TaskService;
         use std::fs;
-        use std::process::Command;
 
         let db = setup_db();
         let task_service = TaskService::new(&db);
@@ -790,29 +857,9 @@ mod tests {
         let temp_dir = tempfile::tempdir().unwrap();
         let repo_path = temp_dir.path().to_str().unwrap();
 
-        Command::new("git")
-            .args(["init", repo_path])
-            .output()
-            .unwrap();
-
-        Command::new("git")
-            .args(["-C", repo_path, "config", "user.email", "test@example.com"])
-            .output()
-            .unwrap();
-        Command::new("git")
-            .args(["-C", repo_path, "config", "user.name", "Test User"])
-            .output()
-            .unwrap();
-
+        init_jj_repo(repo_path);
         fs::write(temp_dir.path().join("README.md"), "# Test").unwrap();
-        Command::new("git")
-            .args(["-C", repo_path, "add", "."])
-            .output()
-            .unwrap();
-        Command::new("git")
-            .args(["-C", repo_path, "commit", "-m", "Initial commit"])
-            .output()
-            .unwrap();
+        describe_change(repo_path, "Initial commit");
 
         let worktree = service
             .add_worktree(task.id, repo_path, None, Some("PROJ-300"), None, true)
@@ -838,7 +885,6 @@ mod tests {
     fn test_get_base_worktree() {
         use crate::services::{TaskService, TodoService};
         use std::fs;
-        use std::process::Command;
 
         let db = setup_db();
         let task_service = TaskService::new(&db);
@@ -854,29 +900,9 @@ mod tests {
         let temp_dir = tempfile::tempdir().unwrap();
         let repo_path = temp_dir.path().to_str().unwrap();
 
-        Command::new("git")
-            .args(["init", repo_path])
-            .output()
-            .unwrap();
-
-        Command::new("git")
-            .args(["-C", repo_path, "config", "user.email", "test@example.com"])
-            .output()
-            .unwrap();
-        Command::new("git")
-            .args(["-C", repo_path, "config", "user.name", "Test User"])
-            .output()
-            .unwrap();
-
+        init_jj_repo(repo_path);
         fs::write(temp_dir.path().join("README.md"), "# Test").unwrap();
-        Command::new("git")
-            .args(["-C", repo_path, "add", "."])
-            .output()
-            .unwrap();
-        Command::new("git")
-            .args(["-C", repo_path, "commit", "-m", "Initial commit"])
-            .output()
-            .unwrap();
+        describe_change(repo_path, "Initial commit");
 
         // Add base worktree
         let base_wt = service
@@ -907,7 +933,6 @@ mod tests {
     fn test_get_worktree_by_todo() {
         use crate::services::{TaskService, TodoService};
         use std::fs;
-        use std::process::Command;
 
         let db = setup_db();
         let task_service = TaskService::new(&db);
@@ -923,29 +948,10 @@ mod tests {
         let temp_dir = tempfile::tempdir().unwrap();
         let repo_path = temp_dir.path().to_str().unwrap();
 
-        Command::new("git")
-            .args(["init", repo_path])
-            .output()
-            .unwrap();
-
-        Command::new("git")
-            .args(["-C", repo_path, "config", "user.email", "test@example.com"])
-            .output()
-            .unwrap();
-        Command::new("git")
-            .args(["-C", repo_path, "config", "user.name", "Test User"])
-            .output()
-            .unwrap();
-
+        init_jj_repo(repo_path);
         fs::write(temp_dir.path().join("README.md"), "# Test").unwrap();
-        Command::new("git")
-            .args(["-C", repo_path, "add", "."])
-            .output()
-            .unwrap();
-        Command::new("git")
-            .args(["-C", repo_path, "commit", "-m", "Initial commit"])
-            .output()
-            .unwrap();
+        describe_change(repo_path, "Initial commit");
+        create_bookmark(repo_path, "task/PROJ-500");
 
         // Add TODO worktree
         let todo_wt = service
@@ -992,7 +998,6 @@ mod tests {
     fn test_get_worktree_by_todo_is_base_field() {
         use crate::services::{TaskService, TodoService};
         use std::fs;
-        use std::process::Command;
 
         let db = setup_db();
         let task_service = TaskService::new(&db);
@@ -1008,29 +1013,10 @@ mod tests {
         let temp_dir = tempfile::tempdir().unwrap();
         let repo_path = temp_dir.path().to_str().unwrap();
 
-        Command::new("git")
-            .args(["init", repo_path])
-            .output()
-            .unwrap();
-
-        Command::new("git")
-            .args(["-C", repo_path, "config", "user.email", "test@example.com"])
-            .output()
-            .unwrap();
-        Command::new("git")
-            .args(["-C", repo_path, "config", "user.name", "Test User"])
-            .output()
-            .unwrap();
-
+        init_jj_repo(repo_path);
         fs::write(temp_dir.path().join("README.md"), "# Test").unwrap();
-        Command::new("git")
-            .args(["-C", repo_path, "add", "."])
-            .output()
-            .unwrap();
-        Command::new("git")
-            .args(["-C", repo_path, "commit", "-m", "Initial commit"])
-            .output()
-            .unwrap();
+        describe_change(repo_path, "Initial commit");
+        create_bookmark(repo_path, "task/PROJ-502");
 
         // Add TODO worktree (not base)
         service
@@ -1059,10 +1045,7 @@ mod tests {
 
         let temp_dir = tempfile::tempdir().unwrap();
         let repo_path = temp_dir.path().to_str().unwrap();
-        std::process::Command::new("git")
-            .args(["init", repo_path])
-            .output()
-            .unwrap();
+        init_jj_repo(repo_path);
 
         let result = service.add_worktree(
             1, // task_id
@@ -1085,47 +1068,24 @@ mod tests {
         let db = setup_db();
         let service = WorktreeService::new(&db);
 
-        // 1. Invalid Git Repo
+        // 1. Invalid JJ Repo
         let temp_dir = tempfile::tempdir().unwrap();
         let path = temp_dir.path().to_str().unwrap();
-        // Don't init git
+        // Don't init jj
 
         let result = service.add_worktree(1, path, Some("b"), None, None, false);
-        assert!(matches!(result, Err(TrackError::NotGitRepository(_))));
+        assert!(matches!(result, Err(TrackError::NotJjRepository(_))));
 
-        // 2. Branch Exists
+        // 2. Bookmark Exists
         let temp_dir2 = tempfile::tempdir().unwrap();
         let repo_path = temp_dir2.path().to_str().unwrap();
-        std::process::Command::new("git")
-            .args(["init", repo_path])
-            .output()
-            .unwrap();
-        std::process::Command::new("git")
-            .args(["-C", repo_path, "config", "user.email", "test@example.com"])
-            .output()
-            .unwrap();
-        std::process::Command::new("git")
-            .args(["-C", repo_path, "config", "user.name", "Test"])
-            .output()
-            .unwrap();
+        init_jj_repo(repo_path);
         std::fs::write(std::path::Path::new(repo_path).join("README.md"), "init").unwrap();
-        std::process::Command::new("git")
-            .args(["-C", repo_path, "add", "."])
-            .output()
-            .unwrap();
-        std::process::Command::new("git")
-            .args(["-C", repo_path, "commit", "-m", "init"])
-            .output()
-            .unwrap();
-
-        // Create branch manualy
-        std::process::Command::new("git")
-            .args(["-C", repo_path, "branch", "existing-branch"])
-            .output()
-            .unwrap();
+        describe_change(repo_path, "init");
+        create_bookmark(repo_path, "existing-branch");
 
         let result = service.add_worktree(1, repo_path, Some("existing-branch"), None, None, false);
-        // Should detect branch exists
-        assert!(matches!(result, Err(TrackError::BranchExists(_))));
+        // Should detect bookmark exists
+        assert!(matches!(result, Err(TrackError::BookmarkExists(_))));
     }
 }

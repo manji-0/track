@@ -93,7 +93,7 @@ track status
 | `track todo add <text> [--worktree]` | Add a TODO (optionally create workspaces) |
 | `track todo list` | Display TODO list |
 | `track todo update <index> <status>` | Update TODO status |
-| `track todo done <index>` | Complete a TODO (merges and removes workspaces) |
+| `track todo done <index>` | Complete a TODO (rebases and removes workspaces) |
 | `track todo workspace <index> [--recreate --force --all]` | Show or recreate workspaces for a TODO |
 | `track todo next <index>` | Move a TODO to the front (make it the next todo to work on) |
 | `track todo delete <index>` | Delete a TODO |

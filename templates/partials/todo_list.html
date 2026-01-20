@@ -9,7 +9,7 @@
         <div class="input-form-container">
             <form hx-post="/api/todo" hx-swap="none" hx-on::after-request="this.reset()" class="input-group">
                 <input type="text" name="content" placeholder="Add a new todo..." required autocomplete="off">
-                <label class="checkbox-container" title="Create a git worktree for this todo">
+                <label class="checkbox-container" title="Create a JJ workspace for this todo">
                     <input type="checkbox" name="create_worktree" value="true">
                     <span class="icon">🌿</span>
                 </label>
@@ -29,7 +29,7 @@
                         <span class="todo-index">{{ todo.todo_id }}</span>
                         <span class="todo-content">{{ todo.content_html | safe }}</span>
                         {% if todo.worktree_requested %}
-                        <span class="worktree-icon" title="Worktree requested">🌿</span>
+                        <span class="worktree-icon" title="Workspace requested">🌿</span>
                         {% endif %}
                         <span
                             class="todo-status {% if todo.is_in_progress %}in-progress{% else %}{{ todo.status }}{% endif %}">{%

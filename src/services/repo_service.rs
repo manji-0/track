@@ -25,10 +25,10 @@ impl<'a> RepoService<'a> {
         // Resolve to absolute path
         let abs_path = self.resolve_absolute_path(repo_path)?;
 
-        // Validate it's a Git repository
-        if !self.is_git_repository(&abs_path)? {
+        // Validate it's a JJ repository
+        if !self.is_jj_repository(&abs_path)? {
             return Err(TrackError::Other(format!(
-                "{} is not a Git repository",
+                "{} is not a JJ repository",
                 abs_path.display()
             )));
         }
@@ -140,10 +140,10 @@ impl<'a> RepoService<'a> {
         }
     }
 
-    /// Check if a path is a Git repository
-    fn is_git_repository(&self, path: &Path) -> Result<bool> {
-        let git_dir = path.join(".git");
-        Ok(git_dir.exists())
+    /// Check if a path is a JJ repository
+    fn is_jj_repository(&self, path: &Path) -> Result<bool> {
+        let jj_dir = path.join(".jj");
+        Ok(jj_dir.exists())
     }
 }
 
@@ -167,10 +167,10 @@ mod tests {
             .create_task("Test Task", None, None, None)
             .unwrap();
 
-        // Create a temporary git repository
+        // Create a temporary JJ repository
         let temp_dir = std::env::temp_dir().join(format!("test_repo_{}", std::process::id()));
         std::fs::create_dir_all(&temp_dir).unwrap();
-        std::fs::create_dir(temp_dir.join(".git")).unwrap();
+        std::fs::create_dir(temp_dir.join(".jj")).unwrap();
 
         // Add the repository
         let repo = repo_service
@@ -193,7 +193,7 @@ mod tests {
             .create_task("Test Task", None, None, None)
             .unwrap();
 
-        // Create a temporary directory without .git
+        // Create a temporary directory without .jj
         let temp_dir = std::env::temp_dir().join(format!("test_not_git_{}", std::process::id()));
         std::fs::create_dir_all(&temp_dir).unwrap();
 
@@ -203,7 +203,7 @@ mod tests {
         assert!(result
             .unwrap_err()
             .to_string()
-            .contains("not a Git repository"));
+            .contains("not a JJ repository"));
 
         // Cleanup
         std::fs::remove_dir_all(&temp_dir).ok();
@@ -221,7 +221,7 @@ mod tests {
 
         let temp_dir = std::env::temp_dir().join(format!("test_dup_repo_{}", std::process::id()));
         std::fs::create_dir_all(&temp_dir).unwrap();
-        std::fs::create_dir(temp_dir.join(".git")).unwrap();
+        std::fs::create_dir(temp_dir.join(".jj")).unwrap();
 
         // Add the repository twice
         repo_service
@@ -249,15 +249,15 @@ mod tests {
             .create_task("Test Task", None, None, None)
             .unwrap();
 
-        // Create two temporary git repositories
+        // Create two temporary JJ repositories
         let temp_dir1 =
             std::env::temp_dir().join(format!("test_list_repo1_{}", std::process::id()));
         let temp_dir2 =
             std::env::temp_dir().join(format!("test_list_repo2_{}", std::process::id()));
         std::fs::create_dir_all(&temp_dir1).unwrap();
         std::fs::create_dir_all(&temp_dir2).unwrap();
-        std::fs::create_dir(temp_dir1.join(".git")).unwrap();
-        std::fs::create_dir(temp_dir2.join(".git")).unwrap();
+        std::fs::create_dir(temp_dir1.join(".jj")).unwrap();
+        std::fs::create_dir(temp_dir2.join(".jj")).unwrap();
 
         // Add both repositories
         repo_service
@@ -289,7 +289,7 @@ mod tests {
         let temp_dir =
             std::env::temp_dir().join(format!("test_remove_repo_{}", std::process::id()));
         std::fs::create_dir_all(&temp_dir).unwrap();
-        std::fs::create_dir(temp_dir.join(".git")).unwrap();
+        std::fs::create_dir(temp_dir.join(".jj")).unwrap();
 
         let repo = repo_service
             .add_repo(task.id, temp_dir.to_str().unwrap(), None, None)
@@ -315,7 +315,7 @@ mod tests {
 
         let temp_dir = std::env::temp_dir().join(format!("test_repo_base_{}", std::process::id()));
         std::fs::create_dir_all(&temp_dir).unwrap();
-        std::fs::create_dir(temp_dir.join(".git")).unwrap();
+        std::fs::create_dir(temp_dir.join(".jj")).unwrap();
 
         // Add repository with base branch and commit hash
         let base_branch = "main".to_string();

@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-01-20
+
+### Changed
+- `track sync` is JJ-only and focuses on bookmark/workspace setup for the current task
+- LLM help and skill guides now include JJ bookmark verification steps (`jj status`, `jj bookmark list -r @`)
+- TODO completion guidance now reflects rebase + bookmark move behavior in JJ workflows
+- Package metadata updated for JJ workspace terminology
+
+### Fixed
+- JJ workspace commands run from the correct working directory
+
 ## [0.4.0] - 2026-01-20
 
 ### Added

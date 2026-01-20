@@ -50,6 +50,7 @@ track llm-help
 ```
 
 Outputs comprehensive guide with commands, ticket integration, and workspace details.
+Includes JJ bookmark verification steps (`jj status`, `jj bookmark list -r @`).
 
 ## Installation
 

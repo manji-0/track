@@ -90,7 +90,7 @@ track repo add /home/user/projects/backend --base main
 
 **What happens:**
 - Registers repository for current task
-- Optionally specifies base bookmark (where TODOs will merge to)
+- Optionally specifies base bookmark (where TODOs will rebase onto)
 - Later, `track sync` creates bookmarks and workspaces in these repos
 
 ---
@@ -121,7 +121,7 @@ track todo add "Implement GitHub OAuth flow" --worktree
 **When to use `--worktree`:**
 - Complex changes requiring isolation
 - Working on multiple TODOs in parallel
-- Need to keep changes separate before merging
+- Need to keep changes separate before rebasing
 
 ---
 
@@ -147,6 +147,7 @@ track sync
 **What happens:**
 - Creates task bookmarks on all registered repos
 - Creates workspaces for TODOs with `--worktree` flag
+- Moves each workspace to the task bookmark (verify with `jj bookmark list -r @`)
 - Prepares development environment
 
 **Note:** Can be deferred until ready to start coding.

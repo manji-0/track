@@ -41,8 +41,9 @@ track todo add "Implement theme switcher" --worktree
 track sync
 cd "$(track todo workspace 1)"
 
-# Check bookmark and describe changes
+# Verify bookmark and describe changes
 jj status
+jj bookmark list -r @
 jj describe -m "Implement theme switcher"
 ```
 
@@ -107,8 +108,9 @@ track todo add "Refactor auth" --worktree
 track sync  # Creates workspace at: /repo/task/PROJ-123-todo-1
 cd "$(track todo workspace 1)"
 # ... work, jj describe ...
-track todo done 1  # Automatically merges and cleans up
+track todo done 1  # Automatically rebases and cleans up
 ```
+
 
 ### Task-Scoped Indices
 TODO, Link, and Repository indices (1, 2, 3...) are scoped to each task, not global.
@@ -171,12 +173,12 @@ track webui  # Access at http://localhost:3000
 ### Important Notes
 
 - **ALWAYS run `track sync` before making code changes**
-- **ALWAYS verify you are on task bookmark, not main/master/develop**
+- **ALWAYS verify you are on task bookmark, not main/master/develop** (`jj status` + `jj bookmark list -r @`)
 - Always run `track status` first to understand current state
 - TODO, Link, and Repository indices are task-scoped (not global)
 - Describe all changes before `track todo done`
 - Use scraps to document decisions and findings (supports Markdown)
-- Ticket IDs in bookmark names when linked
+- Ticket IDs appear in bookmark names when linked
 - Use `track webui` for visual interface with real-time updates
 - Template feature available for recurring workflows
 

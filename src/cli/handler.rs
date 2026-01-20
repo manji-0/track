@@ -326,9 +326,9 @@ impl CommandHandler {
             }
         }
 
-        // Display base branch (the task branch that serves as merge target for TODO worktrees)
+        // Display base bookmark (the task bookmark that serves as integration target for TODO workspaces)
         let base_branch = if let Some(base_wt) = worktrees.iter().find(|wt| wt.is_base) {
-            // If base worktree exists, use its branch
+            // If base workspace exists, use its bookmark
             base_wt.branch.clone()
         } else {
             // Otherwise, calculate the task branch name (same logic as in handle_sync)
@@ -339,7 +339,7 @@ impl CommandHandler {
             }
         };
 
-        println!("**Base Branch:** `{}`", base_branch);
+        println!("**Base Bookmark:** `{}`", base_branch);
 
         println!();
 
@@ -390,9 +390,9 @@ impl CommandHandler {
                 // Find and display worktree for this TODO
                 for worktree in &worktrees {
                     if worktree.todo_id == Some(todo.id) {
-                        println!("  - **Worktree:**");
+                        println!("  - **Workspace:**");
                         println!("    - **Path:** `{}`", worktree.path);
-                        println!("    - **Branch:** `{}`", worktree.branch);
+                        println!("    - **Bookmark:** `{}`", worktree.branch);
 
                         let repo_links = worktree_service.list_repo_links(worktree.id)?;
                         if !repo_links.is_empty() {
@@ -477,13 +477,13 @@ impl CommandHandler {
         let orphan_worktrees: Vec<_> = worktrees.iter().filter(|wt| wt.todo_id.is_none()).collect();
 
         if !orphan_worktrees.is_empty() {
-            println!("## Worktrees");
+            println!("## Workspaces");
             println!();
             for worktree in orphan_worktrees {
-                println!("### Worktree #{}", worktree.id);
+                println!("### Workspace #{}", worktree.id);
                 println!();
                 println!("- **Path:** `{}`", worktree.path);
-                println!("- **Branch:** `{}`", worktree.branch);
+                println!("- **Bookmark:** `{}`", worktree.branch);
 
                 let repo_links = worktree_service.list_repo_links(worktree.id)?;
                 if !repo_links.is_empty() {
@@ -581,12 +581,12 @@ impl CommandHandler {
         }
 
         if !dirty_worktrees.is_empty() {
-            println!("WARNING: The following worktrees have uncommitted changes:");
+            println!("WARNING: The following workspaces have uncommitted changes:");
             for wt in &dirty_worktrees {
                 println!("  #{} {}", wt.id, wt.path);
             }
             println!();
-            print!("Archive and remove worktrees anyway? [y/N]: ");
+            print!("Archive and remove workspaces anyway? [y/N]: ");
             io::stdout().flush()?;
             let mut input = String::new();
             io::stdin().read_line(&mut input)?;
@@ -599,14 +599,14 @@ impl CommandHandler {
 
         // 3. Remove worktrees
         if !worktrees.is_empty() {
-            println!("Cleaning up worktrees...");
+            println!("Cleaning up workspaces...");
             for worktree in worktrees {
                 match worktree_service.remove_worktree(worktree.id, false) {
                     Ok(_) => {
-                        println!("  Removed worktree #{}: {}", worktree.id, worktree.path);
+                        println!("  Removed workspace #{}: {}", worktree.id, worktree.path);
                     }
                     Err(e) => {
-                        eprintln!("  Error removing worktree #{}: {}", worktree.id, e);
+                        eprintln!("  Error removing workspace #{}: {}", worktree.id, e);
                         // We continue even if one fails
                     }
                 }
@@ -632,7 +632,7 @@ impl CommandHandler {
                 println!("Added TODO #{}: {}", todo.task_index, todo.content);
 
                 if worktree {
-                    println!("Worktree creation scheduled for 'track sync'");
+                    println!("Workspace creation scheduled for 'track sync'");
                 }
             }
             TodoCommands::List => {
@@ -668,7 +668,7 @@ impl CommandHandler {
                 let worktree_service = WorktreeService::new(&self.db);
                 if let Some(branch) = worktree_service.complete_worktree_for_todo(todo.id)? {
                     println!(
-                        "Merged and removed worktree for TODO #{} (branch: {}).",
+                        "Rebased and removed workspace for TODO #{} (bookmark: {}).",
                         id, branch
                     );
                 }
@@ -759,7 +759,7 @@ impl CommandHandler {
                                     && worktree_service.has_uncommitted_changes(&worktree.path)?
                                 {
                                     return Err(TrackError::Other(format!(
-                                        "Worktree {} has uncommitted changes. Use --force to recreate.",
+                                        "Workspace {} has uncommitted changes. Use --force to recreate.",
                                         worktree.path
                                     )));
                                 }
@@ -817,7 +817,7 @@ impl CommandHandler {
                             false,
                         ) {
                             Ok(worktree) => worktree,
-                            Err(TrackError::BranchExists(_)) => worktree_service
+                            Err(TrackError::BookmarkExists(_)) => worktree_service
                                 .add_existing_worktree(
                                     current_task_id,
                                     &repo.repo_path,
@@ -835,7 +835,7 @@ impl CommandHandler {
 
                 if output_paths.is_empty() {
                     return Err(TrackError::Other(
-                        "No worktree paths available for this TODO.".to_string(),
+                        "No workspace paths available for this TODO.".to_string(),
                     ));
                 }
 
@@ -847,7 +847,7 @@ impl CommandHandler {
                     println!("{}", output_paths[0]);
                     if output_paths.len() > 1 {
                         eprintln!(
-                            "Multiple worktrees exist for TODO #{}. Using first path.",
+                            "Multiple workspaces exist for TODO #{}. Using first path.",
                             id
                         );
                     }
@@ -983,14 +983,14 @@ impl CommandHandler {
             ));
         }
 
-        // Determine task branch name
-        let task_branch = if let Some(ticket_id) = &task.ticket_id {
+        // Determine task bookmark name
+        let task_bookmark = if let Some(ticket_id) = &task.ticket_id {
             format!("task/{}", ticket_id)
         } else {
             format!("task/task-{}", task.id)
         };
 
-        println!("Syncing task branch: {}\n", task_branch);
+        println!("Syncing task bookmark: {}\n", task_bookmark);
 
         let worktree_service = WorktreeService::new(&self.db);
         let existing_worktrees = worktree_service.list_worktrees(current_task_id)?;
@@ -1004,8 +1004,8 @@ impl CommandHandler {
                 continue;
             }
 
-            let status_output = std::process::Command::new("git")
-                .args(["-C", &repo.repo_path, "status", "--porcelain"])
+            let status_output = std::process::Command::new("jj")
+                .args(["-R", &repo.repo_path, "diff", "--summary"])
                 .output()?;
 
             if !status_output.status.success() {
@@ -1029,7 +1029,7 @@ impl CommandHandler {
             let mut has_changes = false;
 
             for line in status_stdout.lines() {
-                let path = line.get(3..).unwrap_or("").trim();
+                let path = line.split_whitespace().last().unwrap_or("").trim();
                 if path.is_empty() {
                     continue;
                 }
@@ -1047,68 +1047,66 @@ impl CommandHandler {
 
             if has_changes {
                 return Err(TrackError::Other(format!(
-                    "Repository {} has uncommitted changes. Please clean before sync.",
+                    "Repository {} has pending changes in the base workspace. Please clean before sync.",
                     repo.repo_path
                 )));
             }
 
-            // Check if branch exists
-            let branch_check = std::process::Command::new("git")
-                .args(["-C", &repo.repo_path, "rev-parse", "--verify", &task_branch])
-                .output();
+            // Check if bookmark exists
+            let bookmark_exists =
+                worktree_service.bookmark_exists_in_repo(&repo.repo_path, &task_bookmark)?;
 
-            let branch_exists = branch_check.map(|o| o.status.success()).unwrap_or(false);
-
-            if !branch_exists {
-                // Determine the base for creating the task branch
+            if !bookmark_exists {
+                // Determine the base for creating the task bookmark
                 let base_ref = if let Some(ref base_branch) = repo.base_branch {
-                    // Use registered base branch
                     base_branch.clone()
                 } else if let Some(ref base_hash) = repo.base_commit_hash {
-                    // Use registered base commit hash
                     base_hash.clone()
                 } else {
-                    // Fallback: use current branch (for backward compatibility)
-                    let current_branch_output = std::process::Command::new("git")
-                        .args(["-C", &repo.repo_path, "rev-parse", "--abbrev-ref", "HEAD"])
-                        .output()?;
-                    String::from_utf8_lossy(&current_branch_output.stdout)
-                        .trim()
-                        .to_string()
+                    "@".to_string()
                 };
 
-                // Create task branch from base
-                let create_result = std::process::Command::new("git")
-                    .args(["-C", &repo.repo_path, "branch", &task_branch, &base_ref])
-                    .status();
+                let create_result = std::process::Command::new("jj")
+                    .args([
+                        "-R",
+                        &repo.repo_path,
+                        "bookmark",
+                        "create",
+                        &task_bookmark,
+                        "-r",
+                        &base_ref,
+                    ])
+                    .output()?;
 
-                if create_result.is_ok() && create_result.unwrap().success() {
-                    println!("  ✓ Branch {} created from {}", task_branch, base_ref);
+                if create_result.status.success() {
+                    println!("  ✓ Bookmark {} created from {}", task_bookmark, base_ref);
                 } else {
+                    let error = String::from_utf8_lossy(&create_result.stderr);
                     println!(
-                        "  ✗ Failed to create branch {} from {}",
-                        task_branch, base_ref
+                        "  ✗ Failed to create bookmark {} from {} ({})",
+                        task_bookmark,
+                        base_ref,
+                        error.trim()
                     );
                     continue;
                 }
             } else {
-                println!("  ✓ Branch {} already exists", task_branch);
+                println!("  ✓ Bookmark {} already exists", task_bookmark);
             }
 
-            // Checkout task branch
-            let checkout_result = std::process::Command::new("git")
-                .args(["-C", &repo.repo_path, "checkout", &task_branch])
+            let edit_result = std::process::Command::new("jj")
+                .args(["-R", &repo.repo_path, "edit", &task_bookmark])
                 .status();
 
-            if checkout_result.is_ok() && checkout_result.unwrap().success() {
-                println!("  ✓ Checked out {}\n", task_branch);
+            if edit_result.is_ok() && edit_result.unwrap().success() {
+                println!("  ✓ Moved workspace to {}\n", task_bookmark);
             } else {
-                println!("  ✗ Failed to checkout {}\n", task_branch);
+                println!("  ✗ Failed to move workspace to {}\n", task_bookmark);
             }
         }
 
         // Check for pending worktrees
-        println!("Checking for pending worktrees...");
+        println!("Checking for pending workspaces...");
         let todo_service = TodoService::new(&self.db);
         let todos = todo_service.list_todos(current_task_id)?;
 
@@ -1129,7 +1127,7 @@ impl CommandHandler {
 
                 if !exists {
                     println!(
-                        "Creating worktree for TODO #{}: {}",
+                        "Creating workspace for TODO #{}: {}",
                         todo.task_index, todo.content
                     );
                     for repo in &repos {
@@ -1143,7 +1141,10 @@ impl CommandHandler {
                         ) {
                             Ok(wt) => println!("  Created {} ({})", wt.path, wt.branch),
                             Err(e) => {
-                                eprintln!("  Error creating worktree for {}: {}", repo.repo_path, e)
+                                eprintln!(
+                                    "  Error creating workspace for {}: {}",
+                                    repo.repo_path, e
+                                )
                             }
                         }
                     }
@@ -1166,53 +1167,78 @@ impl CommandHandler {
             RepoCommands::Add { path, base } => {
                 let repo_path = path.as_deref().unwrap_or(".");
 
-                // Determine base branch and commit hash
-                let (base_branch, base_commit_hash) = if let Some(branch) = base {
-                    // User specified a base branch, get its commit hash
-                    let hash_output = std::process::Command::new("git")
-                        .args(["-C", repo_path, "rev-parse", &branch])
+                // Determine base bookmark and change ID
+                let (base_branch, base_commit_hash) = if let Some(bookmark) = base {
+                    let hash_output = std::process::Command::new("jj")
+                        .args([
+                            "-R",
+                            repo_path,
+                            "log",
+                            "-r",
+                            &bookmark,
+                            "--no-graph",
+                            "-T",
+                            "commit_id",
+                        ])
                         .output()?;
 
                     if !hash_output.status.success() {
                         return Err(TrackError::Other(format!(
-                            "Failed to get commit hash for branch '{}'",
-                            branch
+                            "Failed to get change ID for bookmark '{}'",
+                            bookmark
                         )));
                     }
 
                     let hash = String::from_utf8_lossy(&hash_output.stdout)
                         .trim()
                         .to_string();
-                    (Some(branch), Some(hash))
+                    (Some(bookmark), Some(hash))
                 } else {
-                    // No base branch specified, use current branch
-                    let branch_output = std::process::Command::new("git")
-                        .args(["-C", repo_path, "rev-parse", "--abbrev-ref", "HEAD"])
+                    let bookmark_output = std::process::Command::new("jj")
+                        .args(["-R", repo_path, "bookmark", "list", "-r", "@", "-T", "name"])
                         .output()?;
 
-                    if !branch_output.status.success() {
+                    if !bookmark_output.status.success() {
                         return Err(TrackError::Other(
-                            "Failed to get current branch name".to_string(),
+                            "Failed to resolve current bookmark".to_string(),
                         ));
                     }
 
-                    let branch = String::from_utf8_lossy(&branch_output.stdout)
-                        .trim()
-                        .to_string();
+                    let bookmark = String::from_utf8_lossy(&bookmark_output.stdout)
+                        .lines()
+                        .find(|line| !line.trim().is_empty())
+                        .map(|line| line.trim().to_string());
 
-                    // Get commit hash for current HEAD
-                    let hash_output = std::process::Command::new("git")
-                        .args(["-C", repo_path, "rev-parse", "HEAD"])
-                        .output()?;
+                    let hash = if let Some(ref name) = bookmark {
+                        let hash_output = std::process::Command::new("jj")
+                            .args([
+                                "-R",
+                                repo_path,
+                                "log",
+                                "-r",
+                                name,
+                                "--no-graph",
+                                "-T",
+                                "commit_id",
+                            ])
+                            .output()?;
 
-                    if !hash_output.status.success() {
-                        return Err(TrackError::Other("Failed to get commit hash".to_string()));
-                    }
+                        if !hash_output.status.success() {
+                            return Err(TrackError::Other(
+                                "Failed to get change ID for current bookmark".to_string(),
+                            ));
+                        }
 
-                    let hash = String::from_utf8_lossy(&hash_output.stdout)
-                        .trim()
-                        .to_string();
-                    (Some(branch), Some(hash))
+                        Some(
+                            String::from_utf8_lossy(&hash_output.stdout)
+                                .trim()
+                                .to_string(),
+                        )
+                    } else {
+                        None
+                    };
+
+                    (bookmark, hash)
                 };
 
                 let repo = repo_service.add_repo(
@@ -1224,7 +1250,7 @@ impl CommandHandler {
                 println!("Registered repository: {}", repo.repo_path);
                 if let Some(branch) = base_branch {
                     println!(
-                        "Base branch: {} ({})",
+                        "Base bookmark: {} ({})",
                         branch,
                         &base_commit_hash.unwrap()[..8]
                     );
@@ -1439,6 +1465,7 @@ This creates the task bookmark and moves the workspace. **Do NOT skip this step.
 ### Step 2: Verify Bookmark
 ```bash
 jj status
+jj bookmark list -r @
 ```
 Confirm the output shows `task/<ticket-id>` or `task/task-<id>`.
 **If you see main/master/develop, STOP and run `track sync` again.**
@@ -1477,7 +1504,7 @@ Continue with the next pending TODO until all are complete.
 
 ## Overview
 
-`track` is a CLI tool for managing development tasks, TODOs, and jj workspaces.
+`track` is a CLI tool for managing development tasks, TODOs, and JJ workspaces.
 This guide explains the standard workflow for completing tasks.
 
 ## Complete Task Workflow
@@ -1513,7 +1540,7 @@ This guide explains the standard workflow for completing tasks.
    - Creates task bookmarks on all registered repos.
    - Moves workspaces to the task bookmark.
    - Creates workspaces for TODOs that requested them.
-   - Sync aborts if the repo has uncommitted changes.
+   - Sync aborts if the repo has pending changes.
    - **You MUST run this before making any code changes.**
 
 8. **Verify Bookmark**: `jj status`
@@ -1532,7 +1559,7 @@ This guide explains the standard workflow for completing tasks.
 
 11. **Complete TODO**: `track todo done <index>`
     - Marks the TODO as done.
-    - If workspace exists: merges changes to task bookmark and removes workspace.
+    - If workspace exists: rebases the TODO bookmark onto the task bookmark, moves the task bookmark, and removes the workspace.
 
 12. **Repeat** until all TODOs are complete.
 
@@ -1565,7 +1592,7 @@ This guide explains the standard workflow for completing tasks.
 | `track todo add "<text>" --worktree` | Add TODO with workspace |
 | `track todo list` | List TODOs |
 | `track todo workspace <index>` | Show or recreate TODO workspace |
-| `track todo done <index>` | Complete TODO (merges workspace if exists) |
+| `track todo done <index>` | Complete TODO (rebases workspace if exists) |
 | `track todo update <index> <status>` | Update TODO status |
 | `track todo delete <index>` | Delete TODO |
 | `track link add <url>` | Add reference link |
@@ -1669,7 +1696,7 @@ Access at: http://localhost:3000
 - TODO, Link, and Repository indices are **task-scoped**, not global.
 - Use `track todo workspace <index>` to find the workspace path.
 - `track sync` aborts if the repo has uncommitted changes.
-- `track todo done` automatically merges and removes associated workspaces.
+- `track todo done` automatically rebases and removes associated workspaces.
 - Always register repos with `track repo add` before running `track sync`.
 - Use `track scrap add` to document decisions and findings during work.
 - Ticket IDs are used in bookmark names when linked (e.g., `task/PROJ-123`).

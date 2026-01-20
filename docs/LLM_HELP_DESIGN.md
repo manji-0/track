@@ -29,7 +29,7 @@ This section is placed at the very top to ensure LLM agents see it first.
 **This is the primary section for LLM Agents.** It provides step-by-step instructions with explicit ordering:
 
 1. **Step 1: Sync (REQUIRED)** - `track sync` - Creates and checks out task bookmark
-2. **Step 2: Verify Bookmark** - `jj status` - Confirms correct workspace and bookmark
+2. **Step 2: Verify Bookmark** - `jj status` + `jj bookmark list -r @` - Confirms correct workspace and bookmark
 3. **Step 3: Check Status** - `track status` - Understands current state
 4. **Step 4: Navigate to Workspace** - `track todo workspace <index>`
 5. **Step 5: Execute Work** - Implement changes and run `jj describe`
@@ -54,7 +54,7 @@ The workflow is divided into two phases: **Task Setup** (typically done by a hum
 5. **`track sync`** - **(MANDATORY FIRST STEP)** Create task bookmark and workspaces on all registered repos.
 6. **Verify Bookmark** - `jj status` - Confirm you are on the task bookmark.
 7. **Execute TODOs** - Use `track todo workspace <index>` to find the workspace path. Use `jj describe` to record changes and `track scrap add "<note>"` to record findings.
-8. **`track todo done <index>`** - Mark TODO as complete. Workspaces are automatically merged to the base bookmark.
+8. **`track todo done <index>`** - Mark TODO as complete. Workspaces are automatically rebased onto the base bookmark.
 9. **Repeat until all TODOs are complete.**
 
 ### 4. Key Commands
@@ -86,7 +86,7 @@ The workflow is divided into two phases: **Task Setup** (typically done by a hum
 | `track todo add "<text>" --worktree` | Add TODO with scheduled workspace |
 | `track todo list` | List all TODOs |
 | `track todo workspace <index>` | Show or recreate TODO workspace |
-| `track todo done <index>` | Complete a TODO (merges workspace if exists) |
+| `track todo done <index>` | Complete a TODO (rebases workspace if exists) |
 | `track todo update <index> <status>` | Update TODO status |
 | `track todo delete <index>` | Delete TODO |
 | `track link add <url>` | Add reference link |
@@ -121,7 +121,7 @@ When a ticket is linked, `track sync` uses the ticket ID in bookmark names:
 - **ALWAYS verify you are on the task bookmark, not main/master/develop.**
 - **Task-Scoped Indices**: TODO, Link, and Repository indices are scoped to each task, not global.
 - **Workspace Discovery**: Use `track todo workspace <index>` to find the workspace path.
-- **Workspace Lifecycle**: When `track todo done` is called, associated JJ workspaces are automatically merged into the task base bookmark and removed.
+- **Workspace Lifecycle**: When `track todo done` is called, associated JJ workspaces are automatically rebased onto the task base bookmark and removed.
 - **Scraps**: Use scraps to record intermediate findings, questions, or decisions during work. These are timestamped and preserved with the task. Scraps support Markdown formatting.
 - **Repository Registration**: Always register repositories with `track repo add` before running `track sync`.
 - **Ticket Integration**: Ticket IDs are used in bookmark names when linked (e.g., `task/PROJ-123`).
@@ -143,7 +143,7 @@ Workspaces are created as subdirectories within the registered repository root.
 When you run `track todo done`, the following atomic steps occur:
 1. **Uncommitted Changes Check**: Scans the TODO's workspace. If changes exist, operation aborts (you must commit or stash first).
 2. **Retrieve Base Workspace**: Locates the main task workspace (checked out to the task bookmark).
-3. **Merge**: Merges the TODO workspace's bookmark **into** the Base workspace's bookmark (Task Bookmark).
+3. **Rebase**: Rebases the TODO workspace's bookmark **onto** the Base workspace's bookmark (Task Bookmark).
 4. **Cleanup**: 
    - Deletes the TODO workspace directory.
    - Deletes the workspace record from the database.

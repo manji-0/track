@@ -1,12 +1,12 @@
 [package]
 name = "track"
-version = "0.4.0"
+version = "0.4.1"
 edition = "2021"
 authors = ["manji0"]
-description = "A Git worktree-based task and TODO management CLI tool"
+description = "A JJ workspace-based task and TODO management CLI tool"
 license = "MIT"
 repository = "https://github.com/manji0/track"
-keywords = ["cli", "task-management", "git", "worktree", "productivity"]
+keywords = ["cli", "task-management", "jj", "workspace", "productivity"]
 categories = ["command-line-utilities", "development-tools"]
 readme = "README.md"
 

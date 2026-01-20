@@ -61,6 +61,7 @@ cd /path/to/repository
 ```bash
 pwd        # Check directory
 jj status  # Verify bookmark
+jj bookmark list -r @
 ```
 
 ---
@@ -170,8 +171,9 @@ track todo done 2
 **What happens:**
 1. Checks for uncommitted changes (aborts if any exist)
 2. Rebases workspace bookmark onto task bookmark (if workspace exists)
-3. Removes workspace directory and database record
-4. Marks TODO as `done`
+3. Moves the task bookmark to the rebased change
+4. Removes workspace directory and database record
+5. Marks TODO as `done`
 
 **Output:**
 ```

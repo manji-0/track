@@ -3,6 +3,27 @@ use std::process::Command;
 use track::db::Database;
 use track::services::{TaskService, TodoService, WorktreeService};
 
+fn init_jj_repo(path: &str) {
+    Command::new("jj")
+        .args(["git", "init", path])
+        .output()
+        .unwrap();
+}
+
+fn describe_change(path: &str, message: &str) {
+    Command::new("jj")
+        .args(["-R", path, "describe", "-m", message])
+        .output()
+        .unwrap();
+}
+
+fn new_change(path: &str) {
+    Command::new("jj")
+        .args(["-R", path, "new"])
+        .output()
+        .unwrap();
+}
+
 /// Test complete_worktree_for_todo full workflow
 #[test]
 fn test_complete_worktree_for_todo_full_workflow() {
@@ -16,31 +37,14 @@ fn test_complete_worktree_for_todo_full_workflow() {
         .unwrap();
     let todo = todo_service.add_todo(task.id, "Todo WT", true).unwrap();
 
-    // Setup git repo
+    // Setup JJ repo
     let temp_dir = tempfile::tempdir().unwrap();
     let repo_path = temp_dir.path().to_str().unwrap();
 
-    Command::new("git")
-        .args(["init", repo_path])
-        .output()
-        .unwrap();
-    Command::new("git")
-        .args(["-C", repo_path, "config", "user.email", "test@test.com"])
-        .output()
-        .unwrap();
-    Command::new("git")
-        .args(["-C", repo_path, "config", "user.name", "Test"])
-        .output()
-        .unwrap();
+    init_jj_repo(repo_path);
     fs::write(temp_dir.path().join("README.md"), "init").unwrap();
-    Command::new("git")
-        .args(["-C", repo_path, "add", "."])
-        .output()
-        .unwrap();
-    Command::new("git")
-        .args(["-C", repo_path, "commit", "-m", "init"])
-        .output()
-        .unwrap();
+    describe_change(repo_path, "init");
+    new_change(repo_path);
 
     // Create base worktree
     let base_wt = worktree_service
@@ -65,14 +69,8 @@ fn test_complete_worktree_for_todo_full_workflow() {
         "new feature",
     )
     .unwrap();
-    Command::new("git")
-        .args(["-C", &todo_wt.path, "add", "."])
-        .output()
-        .unwrap();
-    Command::new("git")
-        .args(["-C", &todo_wt.path, "commit", "-m", "add feature"])
-        .output()
-        .unwrap();
+    describe_change(&todo_wt.path, "add feature");
+    new_change(&todo_wt.path);
 
     // Complete the worktree
     let branch_name = worktree_service
@@ -88,7 +86,7 @@ fn test_complete_worktree_for_todo_full_workflow() {
     assert_eq!(worktrees.len(), 1); // Only base remains
     assert!(worktrees[0].is_base);
 
-    // Verify merge happened (feature.txt should exist in base worktree)
+    // Verify rebase integration happened (feature.txt should exist in base worktree)
     assert!(std::path::Path::new(&base_wt.path)
         .join("feature.txt")
         .exists());
@@ -107,31 +105,14 @@ fn test_complete_worktree_with_uncommitted_changes() {
         .unwrap();
     let todo = todo_service.add_todo(task.id, "Todo WT", true).unwrap();
 
-    // Setup git repo
+    // Setup JJ repo
     let temp_dir = tempfile::tempdir().unwrap();
     let repo_path = temp_dir.path().to_str().unwrap();
 
-    Command::new("git")
-        .args(["init", repo_path])
-        .output()
-        .unwrap();
-    Command::new("git")
-        .args(["-C", repo_path, "config", "user.email", "test@test.com"])
-        .output()
-        .unwrap();
-    Command::new("git")
-        .args(["-C", repo_path, "config", "user.name", "Test"])
-        .output()
-        .unwrap();
+    init_jj_repo(repo_path);
     fs::write(temp_dir.path().join("README.md"), "init").unwrap();
-    Command::new("git")
-        .args(["-C", repo_path, "add", "."])
-        .output()
-        .unwrap();
-    Command::new("git")
-        .args(["-C", repo_path, "commit", "-m", "init"])
-        .output()
-        .unwrap();
+    describe_change(repo_path, "init");
+    new_change(repo_path);
 
     // Create base and todo worktrees
     worktree_service
@@ -184,7 +165,7 @@ fn test_complete_worktree_no_worktree() {
     assert!(result.is_none());
 }
 
-/// Test remove_git_worktree actually removes the worktree
+/// Test removing a workspace actually removes the files
 #[test]
 fn test_remove_git_worktree_actually_removes() {
     let db = Database::new_in_memory().unwrap();
@@ -195,31 +176,14 @@ fn test_remove_git_worktree_actually_removes() {
         .create_task("Task", None, Some("RM-100"), None)
         .unwrap();
 
-    // Setup git repo
+    // Setup JJ repo
     let temp_dir = tempfile::tempdir().unwrap();
     let repo_path = temp_dir.path().to_str().unwrap();
 
-    Command::new("git")
-        .args(["init", repo_path])
-        .output()
-        .unwrap();
-    Command::new("git")
-        .args(["-C", repo_path, "config", "user.email", "test@test.com"])
-        .output()
-        .unwrap();
-    Command::new("git")
-        .args(["-C", repo_path, "config", "user.name", "Test"])
-        .output()
-        .unwrap();
+    init_jj_repo(repo_path);
     fs::write(temp_dir.path().join("README.md"), "init").unwrap();
-    Command::new("git")
-        .args(["-C", repo_path, "add", "."])
-        .output()
-        .unwrap();
-    Command::new("git")
-        .args(["-C", repo_path, "commit", "-m", "init"])
-        .output()
-        .unwrap();
+    describe_change(repo_path, "init");
+    new_change(repo_path);
 
     // Create worktree
     let wt = worktree_service
@@ -234,81 +198,4 @@ fn test_remove_git_worktree_actually_removes() {
 
     // Verify worktree path no longer exists
     assert!(!std::path::Path::new(&wt.path).exists());
-}
-
-/// Test merge_branch actually merges changes
-#[test]
-fn test_merge_branch_actually_merges() {
-    let db = Database::new_in_memory().unwrap();
-    let _worktree_service = WorktreeService::new(&db);
-
-    // Setup git repo
-    let temp_dir = tempfile::tempdir().unwrap();
-    let repo_path = temp_dir.path().to_str().unwrap();
-
-    Command::new("git")
-        .args(["init", repo_path])
-        .output()
-        .unwrap();
-    Command::new("git")
-        .args(["-C", repo_path, "config", "user.email", "test@test.com"])
-        .output()
-        .unwrap();
-    Command::new("git")
-        .args(["-C", repo_path, "config", "user.name", "Test"])
-        .output()
-        .unwrap();
-    fs::write(temp_dir.path().join("base.txt"), "base").unwrap();
-    Command::new("git")
-        .args(["-C", repo_path, "add", "."])
-        .output()
-        .unwrap();
-    Command::new("git")
-        .args(["-C", repo_path, "commit", "-m", "init"])
-        .output()
-        .unwrap();
-
-    // Get the initial branch name (could be 'main' or 'master' depending on git config)
-    let branch_output = Command::new("git")
-        .args(["-C", repo_path, "branch", "--show-current"])
-        .output()
-        .unwrap();
-    let initial_branch = String::from_utf8_lossy(&branch_output.stdout)
-        .trim()
-        .to_string();
-
-    // Create feature branch
-    Command::new("git")
-        .args(["-C", repo_path, "checkout", "-b", "feature"])
-        .output()
-        .unwrap();
-    fs::write(temp_dir.path().join("feature.txt"), "feature").unwrap();
-    Command::new("git")
-        .args(["-C", repo_path, "add", "."])
-        .output()
-        .unwrap();
-    Command::new("git")
-        .args(["-C", repo_path, "commit", "-m", "add feature"])
-        .output()
-        .unwrap();
-
-    // Go back to initial branch
-    Command::new("git")
-        .args(["-C", repo_path, "checkout", &initial_branch])
-        .output()
-        .unwrap();
-
-    // feature.txt should NOT exist yet
-    assert!(!std::path::Path::new(repo_path).join("feature.txt").exists());
-
-    // Merge feature branch (using private method via complete workflow is better, but let's test directly via reflection or acceptance)
-    // Since merge_branch is private, we test through complete_worktree_for_todo above
-    // Here we just verify git merge works
-    Command::new("git")
-        .args(["-C", repo_path, "merge", "--no-ff", "feature"])
-        .output()
-        .unwrap();
-
-    // Now feature.txt should exist
-    assert!(std::path::Path::new(repo_path).join("feature.txt").exists());
 }

@@ -5,6 +5,34 @@ use track::services::{
     LinkService, RepoService, ScrapService, TaskService, TodoService, WorktreeService,
 };
 
+fn init_jj_repo(path: &str) {
+    std::process::Command::new("jj")
+        .args(["git", "init", path])
+        .output()
+        .unwrap();
+}
+
+fn describe_change(path: &str, message: &str) {
+    std::process::Command::new("jj")
+        .args(["-R", path, "describe", "-m", message])
+        .output()
+        .unwrap();
+}
+
+fn new_change(path: &str) {
+    std::process::Command::new("jj")
+        .args(["-R", path, "new"])
+        .output()
+        .unwrap();
+}
+
+fn create_bookmark(path: &str, name: &str) {
+    std::process::Command::new("jj")
+        .args(["-R", path, "bookmark", "create", name, "-r", "@"])
+        .output()
+        .unwrap();
+}
+
 #[test]
 fn test_handle_new_creates_and_switches_task() {
     let db = Database::new_in_memory().unwrap();
@@ -136,29 +164,12 @@ fn test_handle_repo_add_remove() {
 
     let temp_dir = tempfile::tempdir().unwrap();
     let repo_path = temp_dir.path().to_str().unwrap().to_string();
-    std::process::Command::new("git")
-        .args(["init", &repo_path])
-        .output()
-        .expect("Failed to init git repo");
+    init_jj_repo(&repo_path);
 
-    // Add initial commit so git has a valid HEAD/branch
-    std::process::Command::new("git")
-        .args(["-C", &repo_path, "config", "user.email", "test@test.com"])
-        .output()
-        .unwrap();
-    std::process::Command::new("git")
-        .args(["-C", &repo_path, "config", "user.name", "Test"])
-        .output()
-        .unwrap();
+    // Add initial change so JJ has a base revision
     std::fs::write(std::path::Path::new(&repo_path).join("README.md"), "init").unwrap();
-    std::process::Command::new("git")
-        .args(["-C", &repo_path, "add", "."])
-        .output()
-        .unwrap();
-    std::process::Command::new("git")
-        .args(["-C", &repo_path, "commit", "-m", "init"])
-        .output()
-        .unwrap();
+    describe_change(&repo_path, "init");
+    new_change(&repo_path);
 
     let cmd = Commands::Repo(RepoCommands::Add {
         path: Some(repo_path.clone()),
@@ -213,39 +224,10 @@ fn test_todo_workspace_requires_current_repo() {
     let temp_dir = tempfile::tempdir().unwrap();
     let repo_path = temp_dir.path().join("repo");
     std::fs::create_dir_all(&repo_path).unwrap();
-    std::process::Command::new("git")
-        .args(["init", repo_path.to_str().unwrap()])
-        .output()
-        .expect("Failed to init git repo");
-    std::process::Command::new("git")
-        .args([
-            "-C",
-            repo_path.to_str().unwrap(),
-            "config",
-            "user.email",
-            "test@test.com",
-        ])
-        .output()
-        .unwrap();
-    std::process::Command::new("git")
-        .args([
-            "-C",
-            repo_path.to_str().unwrap(),
-            "config",
-            "user.name",
-            "Test",
-        ])
-        .output()
-        .unwrap();
+    init_jj_repo(repo_path.to_str().unwrap());
     std::fs::write(repo_path.join("README.md"), "init").unwrap();
-    std::process::Command::new("git")
-        .args(["-C", repo_path.to_str().unwrap(), "add", "."])
-        .output()
-        .unwrap();
-    std::process::Command::new("git")
-        .args(["-C", repo_path.to_str().unwrap(), "commit", "-m", "init"])
-        .output()
-        .unwrap();
+    describe_change(repo_path.to_str().unwrap(), "init");
+    new_change(repo_path.to_str().unwrap());
 
     repo_service
         .add_repo(task.id, repo_path.to_str().unwrap(), None, None)
@@ -287,39 +269,11 @@ fn test_todo_workspace_accepts_subdir_repo() {
     let temp_dir = tempfile::tempdir().unwrap();
     let repo_path = temp_dir.path().join("repo");
     std::fs::create_dir_all(&repo_path).unwrap();
-    std::process::Command::new("git")
-        .args(["init", repo_path.to_str().unwrap()])
-        .output()
-        .expect("Failed to init git repo");
-    std::process::Command::new("git")
-        .args([
-            "-C",
-            repo_path.to_str().unwrap(),
-            "config",
-            "user.email",
-            "test@test.com",
-        ])
-        .output()
-        .unwrap();
-    std::process::Command::new("git")
-        .args([
-            "-C",
-            repo_path.to_str().unwrap(),
-            "config",
-            "user.name",
-            "Test",
-        ])
-        .output()
-        .unwrap();
+    init_jj_repo(repo_path.to_str().unwrap());
     std::fs::write(repo_path.join("README.md"), "init").unwrap();
-    std::process::Command::new("git")
-        .args(["-C", repo_path.to_str().unwrap(), "add", "."])
-        .output()
-        .unwrap();
-    std::process::Command::new("git")
-        .args(["-C", repo_path.to_str().unwrap(), "commit", "-m", "init"])
-        .output()
-        .unwrap();
+    describe_change(repo_path.to_str().unwrap(), "init");
+    new_change(repo_path.to_str().unwrap());
+    create_bookmark(repo_path.to_str().unwrap(), "task/task-1");
 
     repo_service
         .add_repo(task.id, repo_path.to_str().unwrap(), None, None)
@@ -396,30 +350,10 @@ fn test_handle_archive_clean_worktree() {
     let temp_dir = tempfile::tempdir().unwrap();
     let repo_path = temp_dir.path().to_str().unwrap().to_string();
 
-    // Init git repo
-    std::process::Command::new("git")
-        .args(["init", &repo_path])
-        .output()
-        .unwrap();
-    // Config user
-    std::process::Command::new("git")
-        .args(["-C", &repo_path, "config", "user.email", "test@example.com"])
-        .output()
-        .unwrap();
-    std::process::Command::new("git")
-        .args(["-C", &repo_path, "config", "user.name", "Test"])
-        .output()
-        .unwrap();
-    // Commit
+    init_jj_repo(&repo_path);
     std::fs::write(std::path::Path::new(&repo_path).join("README.md"), "init").unwrap();
-    std::process::Command::new("git")
-        .args(["-C", &repo_path, "add", "."])
-        .output()
-        .unwrap();
-    std::process::Command::new("git")
-        .args(["-C", &repo_path, "commit", "-m", "init"])
-        .output()
-        .unwrap();
+    describe_change(&repo_path, "init");
+    new_change(&repo_path);
 
     worktree_service
         .add_worktree(task.id, &repo_path, None, Some("PROJ-999"), None, true)
@@ -457,30 +391,13 @@ fn test_handle_sync() {
         .create_task("Task Sync", None, Some("SYNC-123"), None)
         .unwrap();
 
-    // Setup git repo
+    // Setup JJ repo
     let temp_dir = tempfile::tempdir().unwrap();
     let repo_path = temp_dir.path().to_str().unwrap().to_string();
-    std::process::Command::new("git")
-        .args(["init", &repo_path])
-        .output()
-        .unwrap();
-    std::process::Command::new("git")
-        .args(["-C", &repo_path, "config", "user.email", "test@example.com"])
-        .output()
-        .unwrap();
-    std::process::Command::new("git")
-        .args(["-C", &repo_path, "config", "user.name", "Test"])
-        .output()
-        .unwrap();
+    init_jj_repo(&repo_path);
     std::fs::write(std::path::Path::new(&repo_path).join("README.md"), "init").unwrap();
-    std::process::Command::new("git")
-        .args(["-C", &repo_path, "add", "."])
-        .output()
-        .unwrap();
-    std::process::Command::new("git")
-        .args(["-C", &repo_path, "commit", "-m", "init"])
-        .output()
-        .unwrap();
+    describe_change(&repo_path, "init");
+    new_change(&repo_path);
 
     // Register repo
     repo_service
@@ -495,15 +412,20 @@ fn test_handle_sync() {
     let cmd = Commands::Sync;
     handler.handle(cmd).unwrap();
 
-    // Verify branches created
-    let output = std::process::Command::new("git")
-        .args(["-C", &repo_path, "branch"])
+    // Verify bookmarks created
+    let output = std::process::Command::new("jj")
+        .args(["-R", &repo_path, "bookmark", "list", "task/SYNC-123"])
         .output()
         .unwrap();
     let stdout = String::from_utf8_lossy(&output.stdout);
-
     assert!(stdout.contains("task/SYNC-123"));
-    assert!(stdout.contains("SYNC-123-todo-1"));
+
+    let todo_output = std::process::Command::new("jj")
+        .args(["-R", &repo_path, "bookmark", "list", "SYNC-123-todo-1"])
+        .output()
+        .unwrap();
+    let todo_stdout = String::from_utf8_lossy(&todo_output.stdout);
+    assert!(todo_stdout.contains("SYNC-123-todo-1"));
 
     // Verify worktrees created in DB
     let worktree_service = WorktreeService::new(db);
@@ -535,27 +457,10 @@ fn test_handle_sync_dirty_repo() {
 
     let temp_dir = tempfile::tempdir().unwrap();
     let repo_path = temp_dir.path().to_str().unwrap().to_string();
-    std::process::Command::new("git")
-        .args(["init", &repo_path])
-        .output()
-        .unwrap();
-    std::process::Command::new("git")
-        .args(["-C", &repo_path, "config", "user.email", "test@example.com"])
-        .output()
-        .unwrap();
-    std::process::Command::new("git")
-        .args(["-C", &repo_path, "config", "user.name", "Test"])
-        .output()
-        .unwrap();
+    init_jj_repo(&repo_path);
     std::fs::write(std::path::Path::new(&repo_path).join("README.md"), "init").unwrap();
-    std::process::Command::new("git")
-        .args(["-C", &repo_path, "add", "."])
-        .output()
-        .unwrap();
-    std::process::Command::new("git")
-        .args(["-C", &repo_path, "commit", "-m", "init"])
-        .output()
-        .unwrap();
+    describe_change(&repo_path, "init");
+    new_change(&repo_path);
 
     repo_service
         .add_repo(task.id, &repo_path, None, None)
@@ -567,10 +472,7 @@ fn test_handle_sync_dirty_repo() {
     let result = handler.handle(cmd);
 
     assert!(result.is_err());
-    assert!(result
-        .unwrap_err()
-        .to_string()
-        .contains("uncommitted changes"));
+    assert!(result.unwrap_err().to_string().contains("pending changes"));
 }
 
 #[test]
@@ -586,15 +488,12 @@ fn test_handle_sync_repo_not_found() {
         .unwrap();
 
     // Register non-existent repo
-    // Note: RepoService validates git repos, so we can't directly add invalid ones
+    // Note: RepoService validates JJ repos, so we can't directly add invalid ones
     // Instead, we'll add a valid one and then delete the directory
 
     let temp_dir = tempfile::tempdir().unwrap();
     let repo_path = temp_dir.path().to_str().unwrap().to_string();
-    std::process::Command::new("git")
-        .args(["init", &repo_path])
-        .output()
-        .unwrap();
+    init_jj_repo(&repo_path);
 
     repo_service
         .add_repo(task.id, &repo_path, None, None)
@@ -623,36 +522,16 @@ fn test_handle_sync_branch_already_exists() {
         .create_task("Task", None, Some("SYNC-200"), None)
         .unwrap();
 
-    // Setup git repo
+    // Setup JJ repo
     let temp_dir = tempfile::tempdir().unwrap();
     let repo_path = temp_dir.path().to_str().unwrap().to_string();
-    std::process::Command::new("git")
-        .args(["init", &repo_path])
-        .output()
-        .unwrap();
-    std::process::Command::new("git")
-        .args(["-C", &repo_path, "config", "user.email", "test@test.com"])
-        .output()
-        .unwrap();
-    std::process::Command::new("git")
-        .args(["-C", &repo_path, "config", "user.name", "Test"])
-        .output()
-        .unwrap();
+    init_jj_repo(&repo_path);
     std::fs::write(std::path::Path::new(&repo_path).join("README.md"), "init").unwrap();
-    std::process::Command::new("git")
-        .args(["-C", &repo_path, "add", "."])
-        .output()
-        .unwrap();
-    std::process::Command::new("git")
-        .args(["-C", &repo_path, "commit", "-m", "init"])
-        .output()
-        .unwrap();
+    describe_change(&repo_path, "init");
+    new_change(&repo_path);
 
-    // Pre-create the task branch
-    std::process::Command::new("git")
-        .args(["-C", &repo_path, "branch", "task/SYNC-200"])
-        .output()
-        .unwrap();
+    // Pre-create the task bookmark
+    create_bookmark(&repo_path, "task/SYNC-200");
 
     repo_service
         .add_repo(task.id, &repo_path, None, None)
@@ -662,13 +541,13 @@ fn test_handle_sync_branch_already_exists() {
     let cmd = Commands::Sync;
     handler.handle(cmd).unwrap();
 
-    // Verify branch is checked out
-    let output = std::process::Command::new("git")
-        .args(["-C", &repo_path, "branch", "--show-current"])
+    // Verify task bookmark exists
+    let output = std::process::Command::new("jj")
+        .args(["-R", &repo_path, "bookmark", "list", "task/SYNC-200"])
         .output()
         .unwrap();
-    let current_branch = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    assert_eq!(current_branch, "task/SYNC-200");
+    let current_bookmarks = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    assert!(current_bookmarks.contains("task/SYNC-200"));
 }
 
 #[test]
@@ -685,30 +564,14 @@ fn test_handle_sync_worktree_already_exists() {
         .create_task("Task", None, Some("SYNC-300"), None)
         .unwrap();
 
-    // Setup git repo
+    // Setup JJ repo
     let temp_dir = tempfile::tempdir().unwrap();
     let repo_path = temp_dir.path().to_str().unwrap().to_string();
-    std::process::Command::new("git")
-        .args(["init", &repo_path])
-        .output()
-        .unwrap();
-    std::process::Command::new("git")
-        .args(["-C", &repo_path, "config", "user.email", "test@test.com"])
-        .output()
-        .unwrap();
-    std::process::Command::new("git")
-        .args(["-C", &repo_path, "config", "user.name", "Test"])
-        .output()
-        .unwrap();
+    init_jj_repo(&repo_path);
     std::fs::write(std::path::Path::new(&repo_path).join("README.md"), "init").unwrap();
-    std::process::Command::new("git")
-        .args(["-C", &repo_path, "add", "."])
-        .output()
-        .unwrap();
-    std::process::Command::new("git")
-        .args(["-C", &repo_path, "commit", "-m", "init"])
-        .output()
-        .unwrap();
+    describe_change(&repo_path, "init");
+    new_change(&repo_path);
+    create_bookmark(&repo_path, "task/SYNC-300");
 
     repo_service
         .add_repo(task.id, &repo_path, None, None)
@@ -752,30 +615,13 @@ fn test_handle_sync_skip_done_todos() {
         .create_task("Task", None, Some("SYNC-400"), None)
         .unwrap();
 
-    // Setup git repo
+    // Setup JJ repo
     let temp_dir = tempfile::tempdir().unwrap();
     let repo_path = temp_dir.path().to_str().unwrap().to_string();
-    std::process::Command::new("git")
-        .args(["init", &repo_path])
-        .output()
-        .unwrap();
-    std::process::Command::new("git")
-        .args(["-C", &repo_path, "config", "user.email", "test@test.com"])
-        .output()
-        .unwrap();
-    std::process::Command::new("git")
-        .args(["-C", &repo_path, "config", "user.name", "Test"])
-        .output()
-        .unwrap();
+    init_jj_repo(&repo_path);
     std::fs::write(std::path::Path::new(&repo_path).join("README.md"), "init").unwrap();
-    std::process::Command::new("git")
-        .args(["-C", &repo_path, "add", "."])
-        .output()
-        .unwrap();
-    std::process::Command::new("git")
-        .args(["-C", &repo_path, "commit", "-m", "init"])
-        .output()
-        .unwrap();
+    describe_change(&repo_path, "init");
+    new_change(&repo_path);
 
     repo_service
         .add_repo(task.id, &repo_path, None, None)
@@ -796,7 +642,7 @@ fn test_handle_sync_skip_done_todos() {
 
 #[test]
 fn test_handle_sync_failed_branch_create() {
-    // Test scenario where git branch creation fails
+    // Test scenario where bookmark creation fails
     let db = Database::new_in_memory().unwrap();
     let handler = CommandHandler::from_db(db);
     let db = handler.get_db();
@@ -807,46 +653,29 @@ fn test_handle_sync_failed_branch_create() {
         .create_task("Task", None, Some("SYNC-500"), None)
         .unwrap();
 
-    // Use an invalid repo path to cause git failures
+    // Use an invalid repo path to cause JJ failures
     let temp_dir = tempfile::tempdir().unwrap();
     let repo_path = temp_dir.path().to_str().unwrap().to_string();
-    std::process::Command::new("git")
-        .args(["init", &repo_path])
-        .output()
-        .unwrap();
-    std::process::Command::new("git")
-        .args(["-C", &repo_path, "config", "user.email", "test@test.com"])
-        .output()
-        .unwrap();
-    std::process::Command::new("git")
-        .args(["-C", &repo_path, "config", "user.name", "Test"])
-        .output()
-        .unwrap();
+    init_jj_repo(&repo_path);
     std::fs::write(std::path::Path::new(&repo_path).join("README.md"), "init").unwrap();
-    std::process::Command::new("git")
-        .args(["-C", &repo_path, "add", "."])
-        .output()
-        .unwrap();
-    std::process::Command::new("git")
-        .args(["-C", &repo_path, "commit", "-m", "init"])
-        .output()
-        .unwrap();
+    describe_change(&repo_path, "init");
+    new_change(&repo_path);
 
     repo_service
         .add_repo(task.id, &repo_path, None, None)
         .unwrap();
 
-    // Make the .git directory read-only to cause failures
-    let git_dir = std::path::Path::new(&repo_path).join(".git");
-    let mut perms = std::fs::metadata(&git_dir).unwrap().permissions();
+    // Make the .jj directory read-only to cause failures
+    let jj_dir = std::path::Path::new(&repo_path).join(".jj");
+    let mut perms = std::fs::metadata(&jj_dir).unwrap().permissions();
     perms.set_readonly(true);
-    std::fs::set_permissions(&git_dir, perms).ok(); // May fail on some systems
+    std::fs::set_permissions(&jj_dir, perms).ok(); // May fail on some systems
 
     // Sync should handle failures gracefully (they cause continue, not panic)
     let cmd = Commands::Sync;
     let result = handler.handle(cmd);
 
-    // Should succeed even if git operations failed
+    // Should succeed even if JJ operations failed
     assert!(result.is_ok());
 }
 
@@ -865,32 +694,15 @@ fn test_worktree_complete_with_base_only() {
     let todo = todo_service.add_todo(task.id, "Test TODO", true).unwrap();
 
     let temp_dir = tempfile::tempdir().unwrap();
-    let repo_path = temp_dir.path().to_str().unwrap();
-    std::process::Command::new("git")
-        .args(["init", repo_path])
-        .output()
-        .unwrap();
-    std::process::Command::new("git")
-        .args(["-C", repo_path, "config", "user.email", "test@test.com"])
-        .output()
-        .unwrap();
-    std::process::Command::new("git")
-        .args(["-C", repo_path, "config", "user.name", "Test"])
-        .output()
-        .unwrap();
-    std::fs::write(std::path::Path::new(repo_path).join("README.md"), "init").unwrap();
-    std::process::Command::new("git")
-        .args(["-C", repo_path, "add", "."])
-        .output()
-        .unwrap();
-    std::process::Command::new("git")
-        .args(["-C", repo_path, "commit", "-m", "init"])
-        .output()
-        .unwrap();
+    let repo_path = temp_dir.path().to_str().unwrap().to_string();
+    init_jj_repo(&repo_path);
+    std::fs::write(std::path::Path::new(&repo_path).join("README.md"), "init").unwrap();
+    describe_change(&repo_path, "init");
+    new_change(&repo_path);
 
     // Create only base worktree (is_base=true), no TODO-specific worktree
     let _base_wt = worktree_service
-        .add_worktree(task.id, repo_path, None, Some("WTB-100"), None, true)
+        .add_worktree(task.id, &repo_path, None, Some("WTB-100"), None, true)
         .unwrap();
 
     // Try to complete worktree for TODO - should return None because no TODO-specific worktree exists
@@ -917,27 +729,11 @@ fn test_handle_sync_multiple_todos_different_worktrees() {
 
     let temp_dir = tempfile::tempdir().unwrap();
     let repo_path = temp_dir.path().to_str().unwrap().to_string();
-    std::process::Command::new("git")
-        .args(["init", &repo_path])
-        .output()
-        .unwrap();
-    std::process::Command::new("git")
-        .args(["-C", &repo_path, "config", "user.email", "test@test.com"])
-        .output()
-        .unwrap();
-    std::process::Command::new("git")
-        .args(["-C", &repo_path, "config", "user.name", "Test"])
-        .output()
-        .unwrap();
+    init_jj_repo(&repo_path);
     std::fs::write(std::path::Path::new(&repo_path).join("README.md"), "init").unwrap();
-    std::process::Command::new("git")
-        .args(["-C", &repo_path, "add", "."])
-        .output()
-        .unwrap();
-    std::process::Command::new("git")
-        .args(["-C", &repo_path, "commit", "-m", "init"])
-        .output()
-        .unwrap();
+    describe_change(&repo_path, "init");
+    new_change(&repo_path);
+    create_bookmark(&repo_path, "task/SYNC-600");
 
     repo_service
         .add_repo(task.id, &repo_path, None, None)

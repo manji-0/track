@@ -45,6 +45,7 @@ track link add https://docs.example.com/api --title "API Docs"
 track sync
 cd "$(track todo workspace 1)"
 jj status
+jj bookmark list -r @
 jj describe -m "Implement core logic"
 track todo done 1
 ```
