@@ -522,6 +522,58 @@ fn test_handle_sync() {
 }
 
 #[test]
+fn test_handle_sync_dirty_repo() {
+    let db = Database::new_in_memory().unwrap();
+    let handler = CommandHandler::from_db(db);
+    let db = handler.get_db();
+    let task_service = TaskService::new(db);
+    let repo_service = RepoService::new(db);
+
+    let task = task_service
+        .create_task("Task", None, Some("SYNC-DIRTY"), None)
+        .unwrap();
+
+    let temp_dir = tempfile::tempdir().unwrap();
+    let repo_path = temp_dir.path().to_str().unwrap().to_string();
+    std::process::Command::new("git")
+        .args(["init", &repo_path])
+        .output()
+        .unwrap();
+    std::process::Command::new("git")
+        .args(["-C", &repo_path, "config", "user.email", "test@example.com"])
+        .output()
+        .unwrap();
+    std::process::Command::new("git")
+        .args(["-C", &repo_path, "config", "user.name", "Test"])
+        .output()
+        .unwrap();
+    std::fs::write(std::path::Path::new(&repo_path).join("README.md"), "init").unwrap();
+    std::process::Command::new("git")
+        .args(["-C", &repo_path, "add", "."])
+        .output()
+        .unwrap();
+    std::process::Command::new("git")
+        .args(["-C", &repo_path, "commit", "-m", "init"])
+        .output()
+        .unwrap();
+
+    repo_service
+        .add_repo(task.id, &repo_path, None, None)
+        .unwrap();
+
+    std::fs::write(std::path::Path::new(&repo_path).join("README.md"), "dirty").unwrap();
+
+    let cmd = Commands::Sync;
+    let result = handler.handle(cmd);
+
+    assert!(result.is_err());
+    assert!(result
+        .unwrap_err()
+        .to_string()
+        .contains("uncommitted changes"));
+}
+
+#[test]
 fn test_handle_sync_repo_not_found() {
     let db = Database::new_in_memory().unwrap();
     let handler = CommandHandler::from_db(db);
