@@ -5,32 +5,68 @@ use track::services::{
     LinkService, RepoService, ScrapService, TaskService, TodoService, WorktreeService,
 };
 
-fn init_jj_repo(path: &str) {
+fn jj_available() -> bool {
     std::process::Command::new("jj")
+        .arg("--version")
+        .output()
+        .map(|output| output.status.success())
+        .unwrap_or(false)
+}
+
+fn require_jj() -> bool {
+    if !jj_available() {
+        eprintln!("Skipping test: jj binary not available");
+        return false;
+    }
+    true
+}
+
+fn init_jj_repo(path: &str) {
+    let output = std::process::Command::new("jj")
         .args(["git", "init", path])
         .output()
-        .unwrap();
+        .expect("failed to run jj git init");
+    assert!(
+        output.status.success(),
+        "jj git init failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 }
 
 fn describe_change(path: &str, message: &str) {
-    std::process::Command::new("jj")
+    let output = std::process::Command::new("jj")
         .args(["-R", path, "describe", "-m", message])
         .output()
-        .unwrap();
+        .expect("failed to run jj describe");
+    assert!(
+        output.status.success(),
+        "jj describe failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 }
 
 fn new_change(path: &str) {
-    std::process::Command::new("jj")
+    let output = std::process::Command::new("jj")
         .args(["-R", path, "new"])
         .output()
-        .unwrap();
+        .expect("failed to run jj new");
+    assert!(
+        output.status.success(),
+        "jj new failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 }
 
 fn create_bookmark(path: &str, name: &str) {
-    std::process::Command::new("jj")
+    let output = std::process::Command::new("jj")
         .args(["-R", path, "bookmark", "create", name, "-r", "@"])
         .output()
-        .unwrap();
+        .expect("failed to run jj bookmark create");
+    assert!(
+        output.status.success(),
+        "jj bookmark create failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 }
 
 #[test]
@@ -154,6 +190,9 @@ fn test_handle_scrap_add() {
 
 #[test]
 fn test_handle_repo_add_remove() {
+    if !require_jj() {
+        return;
+    }
     let db = Database::new_in_memory().unwrap();
     let handler = CommandHandler::from_db(db);
     let db = handler.get_db();
@@ -211,6 +250,9 @@ fn test_todo_delete_force() {
 
 #[test]
 fn test_todo_workspace_requires_current_repo() {
+    if !require_jj() {
+        return;
+    }
     let db = Database::new_in_memory().unwrap();
     let handler = CommandHandler::from_db(db);
     let db = handler.get_db();
@@ -255,6 +297,9 @@ fn test_todo_workspace_requires_current_repo() {
 
 #[test]
 fn test_todo_workspace_accepts_subdir_repo() {
+    if !require_jj() {
+        return;
+    }
     let db = Database::new_in_memory().unwrap();
     let handler = CommandHandler::from_db(db);
     let db = handler.get_db();
@@ -336,6 +381,9 @@ fn test_list_repo_links_manual() {
 
 #[test]
 fn test_handle_archive_clean_worktree() {
+    if !require_jj() {
+        return;
+    }
     let db = Database::new_in_memory().unwrap();
     let handler = CommandHandler::from_db(db);
     let db = handler.get_db();
@@ -381,6 +429,9 @@ fn test_handle_archive_clean_worktree() {
 
 #[test]
 fn test_handle_sync() {
+    if !require_jj() {
+        return;
+    }
     let db = Database::new_in_memory().unwrap();
     let handler = CommandHandler::from_db(db);
     let db = handler.get_db();
@@ -445,6 +496,9 @@ fn test_handle_sync() {
 
 #[test]
 fn test_handle_sync_dirty_repo() {
+    if !require_jj() {
+        return;
+    }
     let db = Database::new_in_memory().unwrap();
     let handler = CommandHandler::from_db(db);
     let db = handler.get_db();
@@ -477,6 +531,9 @@ fn test_handle_sync_dirty_repo() {
 
 #[test]
 fn test_handle_sync_repo_not_found() {
+    if !require_jj() {
+        return;
+    }
     let db = Database::new_in_memory().unwrap();
     let handler = CommandHandler::from_db(db);
     let db = handler.get_db();
@@ -512,6 +569,9 @@ fn test_handle_sync_repo_not_found() {
 
 #[test]
 fn test_handle_sync_branch_already_exists() {
+    if !require_jj() {
+        return;
+    }
     let db = Database::new_in_memory().unwrap();
     let handler = CommandHandler::from_db(db);
     let db = handler.get_db();
@@ -552,6 +612,9 @@ fn test_handle_sync_branch_already_exists() {
 
 #[test]
 fn test_handle_sync_worktree_already_exists() {
+    if !require_jj() {
+        return;
+    }
     let db = Database::new_in_memory().unwrap();
     let handler = CommandHandler::from_db(db);
     let db = handler.get_db();
@@ -603,6 +666,9 @@ fn test_handle_sync_worktree_already_exists() {
 
 #[test]
 fn test_handle_sync_skip_done_todos() {
+    if !require_jj() {
+        return;
+    }
     let db = Database::new_in_memory().unwrap();
     let handler = CommandHandler::from_db(db);
     let db = handler.get_db();
@@ -642,6 +708,9 @@ fn test_handle_sync_skip_done_todos() {
 
 #[test]
 fn test_handle_sync_failed_branch_create() {
+    if !require_jj() {
+        return;
+    }
     // Test scenario where bookmark creation fails
     let db = Database::new_in_memory().unwrap();
     let handler = CommandHandler::from_db(db);
@@ -683,6 +752,10 @@ fn test_handle_sync_failed_branch_create() {
 fn test_worktree_complete_with_base_only() {
     use track::services::{TodoService, WorktreeService};
 
+    if !require_jj() {
+        return;
+    }
+
     let db = Database::new_in_memory().unwrap();
     let task_service = TaskService::new(&db);
     let todo_service = TodoService::new(&db);
@@ -715,6 +788,9 @@ fn test_worktree_complete_with_base_only() {
 
 #[test]
 fn test_handle_sync_multiple_todos_different_worktrees() {
+    if !require_jj() {
+        return;
+    }
     let db = Database::new_in_memory().unwrap();
     let handler = CommandHandler::from_db(db);
     let db = handler.get_db();
