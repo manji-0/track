@@ -5,7 +5,12 @@ Track provides **Agent Skills** following the [official Agent Skills specificati
 ## Quick Start for Agents
 
 ```bash
-# Always start with status
+# Always start by syncing and verifying the bookmark
+track sync
+jj status
+jj bookmark list -r @
+
+# Then check task state
 track status
 
 # Reference the main skill
