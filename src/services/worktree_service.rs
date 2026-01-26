@@ -432,9 +432,9 @@ impl<'a> WorktreeService<'a> {
         let conn = self.db.get_connection();
         let mut stmt = conn.prepare("SELECT ticket_id FROM tasks WHERE id = ?1")?;
         let ticket_id = stmt
-            .query_row(params![task_id], |row| row.get(0))
+            .query_row(params![task_id], |row| row.get::<_, Option<String>>(0))
             .optional()?;
-        Ok(ticket_id)
+        Ok(ticket_id.flatten())
     }
 
     pub fn complete_worktree_for_todo(&self, todo_id: i64) -> Result<Option<String>> {

@@ -135,15 +135,16 @@ track-task-management/
 ### Standard Pattern
 
 1. **Run `track sync`** BEFORE any code changes (MANDATORY)
-2. **Verify bookmark** with `jj status` (must be task bookmark)
-3. **Check `SKILL.md`** for overview and quick start
-4. **Identify user's goal** (creating task vs. executing vs. advanced)
-5. **Load relevant reference** only if needed:
+2. **Verify bookmark** with `jj status` + `jj bookmark list -r @` (must be task bookmark)
+3. **Check `track status`** for current task context
+4. **Check `SKILL.md`** for overview and quick start
+5. **Identify user's goal** (creating task vs. executing vs. advanced)
+6. **Load relevant reference** only if needed:
     - Creating task → `references/creating-tasks.md`
     - Executing task → `references/executing-tasks.md`
     - Advanced use case → `references/advanced-workflows.md`
-6. **Follow workflow** step-by-step
-7. **Use examples** as templates
+7. **Follow workflow** step-by-step
+8. **Use examples** as templates
 
 ### Quick Commands
 
