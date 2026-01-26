@@ -22,7 +22,7 @@ jobs:
       - name: Cache dependencies
         uses: Swatinem/rust-cache@v2
       - name: Install jj
-        run: sudo apt-get update && sudo apt-get install -y jujutsu
+        run: cargo install --locked jj-cli
       - name: Verify jj
         run: jj --version
       - name: Check formatting
