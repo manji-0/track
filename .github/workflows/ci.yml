@@ -21,6 +21,10 @@ jobs:
           components: rustfmt, clippy
       - name: Cache dependencies
         uses: Swatinem/rust-cache@v2
+      - name: Install jj
+        run: cargo install --locked jj-cli
+      - name: Verify jj
+        run: jj --version
       - name: Check formatting
         run: cargo fmt -- --check
       - name: Clippy

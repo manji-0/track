@@ -432,9 +432,9 @@ impl<'a> WorktreeService<'a> {
         let conn = self.db.get_connection();
         let mut stmt = conn.prepare("SELECT ticket_id FROM tasks WHERE id = ?1")?;
         let ticket_id = stmt
-            .query_row(params![task_id], |row| row.get(0))
+            .query_row(params![task_id], |row| row.get::<_, Option<String>>(0))
             .optional()?;
-        Ok(ticket_id)
+        Ok(ticket_id.flatten())
     }
 
     pub fn complete_worktree_for_todo(&self, todo_id: i64) -> Result<Option<String>> {
@@ -601,32 +601,68 @@ mod tests {
         Database::new_in_memory().unwrap()
     }
 
-    fn init_jj_repo(path: &str) {
+    fn jj_available() -> bool {
         Command::new("jj")
+            .arg("--version")
+            .output()
+            .map(|output| output.status.success())
+            .unwrap_or(false)
+    }
+
+    fn require_jj() -> bool {
+        if !jj_available() {
+            eprintln!("Skipping test: jj binary not available");
+            return false;
+        }
+        true
+    }
+
+    fn init_jj_repo(path: &str) {
+        let output = Command::new("jj")
             .args(["git", "init", path])
             .output()
-            .unwrap();
+            .expect("failed to run jj git init");
+        assert!(
+            output.status.success(),
+            "jj git init failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
     }
 
     fn describe_change(path: &str, message: &str) {
-        Command::new("jj")
+        let output = Command::new("jj")
             .args(["-R", path, "describe", "-m", message])
             .output()
-            .unwrap();
+            .expect("failed to run jj describe");
+        assert!(
+            output.status.success(),
+            "jj describe failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
     }
 
     fn new_change(path: &str) {
-        Command::new("jj")
+        let output = Command::new("jj")
             .args(["-R", path, "new"])
             .output()
-            .unwrap();
+            .expect("failed to run jj new");
+        assert!(
+            output.status.success(),
+            "jj new failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
     }
 
     fn create_bookmark(path: &str, name: &str) {
-        Command::new("jj")
+        let output = Command::new("jj")
             .args(["-R", path, "bookmark", "create", name, "-r", "@"])
             .output()
-            .unwrap();
+            .expect("failed to run jj bookmark create");
+        assert!(
+            output.status.success(),
+            "jj bookmark create failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
     }
 
     #[test]
@@ -697,6 +733,9 @@ mod tests {
     #[test]
     fn test_has_uncommitted_changes() {
         use std::fs::File;
+        if !require_jj() {
+            return;
+        }
         // Setup temp JJ repo
         let temp_dir = tempfile::tempdir().unwrap();
         let path = temp_dir.path().to_str().unwrap();
@@ -749,6 +788,9 @@ mod tests {
     fn test_add_worktree_and_get() {
         use crate::services::TaskService;
         use std::fs;
+        if !require_jj() {
+            return;
+        }
 
         let db = setup_db();
         let task_service = TaskService::new(&db);
@@ -788,6 +830,9 @@ mod tests {
     fn test_list_worktrees() {
         use crate::services::{TaskService, TodoService};
         use std::fs;
+        if !require_jj() {
+            return;
+        }
 
         let db = setup_db();
         let task_service = TaskService::new(&db);
@@ -845,6 +890,9 @@ mod tests {
     fn test_remove_worktree() {
         use crate::services::TaskService;
         use std::fs;
+        if !require_jj() {
+            return;
+        }
 
         let db = setup_db();
         let task_service = TaskService::new(&db);
@@ -885,6 +933,9 @@ mod tests {
     fn test_get_base_worktree() {
         use crate::services::{TaskService, TodoService};
         use std::fs;
+        if !require_jj() {
+            return;
+        }
 
         let db = setup_db();
         let task_service = TaskService::new(&db);
@@ -933,6 +984,9 @@ mod tests {
     fn test_get_worktree_by_todo() {
         use crate::services::{TaskService, TodoService};
         use std::fs;
+        if !require_jj() {
+            return;
+        }
 
         let db = setup_db();
         let task_service = TaskService::new(&db);
@@ -998,6 +1052,9 @@ mod tests {
     fn test_get_worktree_by_todo_is_base_field() {
         use crate::services::{TaskService, TodoService};
         use std::fs;
+        if !require_jj() {
+            return;
+        }
 
         let db = setup_db();
         let task_service = TaskService::new(&db);
@@ -1040,6 +1097,9 @@ mod tests {
     #[test]
     fn test_add_worktree_with_invalid_todo_id() {
         use crate::utils::TrackError;
+        if !require_jj() {
+            return;
+        }
         let db = setup_db();
         let service = WorktreeService::new(&db);
 
@@ -1077,6 +1137,9 @@ mod tests {
         assert!(matches!(result, Err(TrackError::NotJjRepository(_))));
 
         // 2. Bookmark Exists
+        if !require_jj() {
+            return;
+        }
         let temp_dir2 = tempfile::tempdir().unwrap();
         let repo_path = temp_dir2.path().to_str().unwrap();
         init_jj_repo(repo_path);

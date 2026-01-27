@@ -16,7 +16,21 @@ Complete workflow for working through TODOs and completing tasks.
 
 ## Step-by-Step Workflow
 
-### Step 1: Check Current State
+### Step 1: Sync and Verify Bookmark
+
+```bash
+track sync
+jj status
+jj bookmark list -r @
+```
+
+**Verify:**
+- You are on the task bookmark (not main/master/develop)
+- Workspace is clean and ready for work
+
+---
+
+### Step 2: Check Current State
 
 ```bash
 track status [id]
@@ -30,7 +44,7 @@ track status [id]
 
 ---
 
-### Step 2: Select Next TODO
+### Step 3: Select Next TODO
 
 **Selection strategies:**
 1. **Sequential**: Work through 1 → 2 → 3
@@ -39,7 +53,7 @@ track status [id]
 
 ---
 
-### Step 3: Navigate to Work Location
+### Step 4: Navigate to Work Location
 
 **If TODO has workspace:**
 ```bash
@@ -66,7 +80,7 @@ jj bookmark list -r @
 
 ---
 
-### Step 4: Implement Changes
+### Step 5: Implement Changes
 
 1. **Understand requirements**
    - Review TODO description
@@ -108,7 +122,7 @@ jj bookmark list -r @
 
 ---
 
-### Step 5: Describe Changes
+### Step 6: Describe Changes
 
 **Describe changes before marking TODO done.**
 
@@ -131,7 +145,7 @@ Refs: PROJ-123"
 
 ---
 
-### Step 6: Record Progress
+### Step 7: Record Progress
 
 ```bash
 track scrap add "<note>"
@@ -157,7 +171,7 @@ track scrap add "TODO 2 complete. All tests passing."
 
 ---
 
-### Step 7: Complete the TODO
+### Step 8: Complete the TODO
 
 ```bash
 track todo done <index>
@@ -184,7 +198,7 @@ Removed workspace at /home/user/projects/myapp/task/PROJ-123-todo-2
 
 ---
 
-### Step 8: Continue with Next TODO
+### Step 9: Continue with Next TODO
 
 ```bash
 track status
@@ -196,7 +210,7 @@ track status
 - Next pending TODO identified
 
 **Then:**
-- If more TODOs: **Return to Step 2**
+- If more TODOs: **Return to Step 3**
 - If all done: **Task complete**
 
 ---
