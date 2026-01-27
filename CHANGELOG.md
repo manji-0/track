@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-01-28
+
+### Changed
+- LLM integration docs and skill workflows now start with `track sync` and JJ bookmark verification
+
+### Fixed
+- TODO worktree completion handles NULL ticket IDs without failing
+- CI installs `jj` so JJ-dependent tests run reliably
+
 ## [0.4.1] - 2026-01-20
 
 ### Changed
