@@ -1,3 +1,4 @@
+use std::sync::{Mutex, OnceLock};
 use track::cli::handler::CommandHandler;
 use track::cli::{Commands, LinkCommands, RepoCommands, ScrapCommands, TodoCommands};
 use track::db::Database;
@@ -13,6 +14,11 @@ fn jj_available() -> bool {
         .unwrap_or(false)
 }
 
+fn cwd_lock() -> std::sync::MutexGuard<'static, ()> {
+    static CWD_MUTEX: OnceLock<Mutex<()>> = OnceLock::new();
+    CWD_MUTEX.get_or_init(|| Mutex::new(())).lock().unwrap()
+}
+
 fn require_jj() -> bool {
     if !jj_available() {
         eprintln!("Skipping test: jj binary not available");
@@ -23,6 +29,7 @@ fn require_jj() -> bool {
 
 fn init_jj_repo(path: &str) {
     let output = std::process::Command::new("jj")
+        .current_dir(path)
         .args(["git", "init", path])
         .output()
         .expect("failed to run jj git init");
@@ -35,6 +42,7 @@ fn init_jj_repo(path: &str) {
 
 fn describe_change(path: &str, message: &str) {
     let output = std::process::Command::new("jj")
+        .current_dir(path)
         .args(["-R", path, "describe", "-m", message])
         .output()
         .expect("failed to run jj describe");
@@ -47,6 +55,7 @@ fn describe_change(path: &str, message: &str) {
 
 fn new_change(path: &str) {
     let output = std::process::Command::new("jj")
+        .current_dir(path)
         .args(["-R", path, "new"])
         .output()
         .expect("failed to run jj new");
@@ -59,6 +68,7 @@ fn new_change(path: &str) {
 
 fn create_bookmark(path: &str, name: &str) {
     let output = std::process::Command::new("jj")
+        .current_dir(path)
         .args(["-R", path, "bookmark", "create", name, "-r", "@"])
         .output()
         .expect("failed to run jj bookmark create");
@@ -253,6 +263,7 @@ fn test_todo_workspace_requires_current_repo() {
     if !require_jj() {
         return;
     }
+    let _guard = cwd_lock();
     let db = Database::new_in_memory().unwrap();
     let handler = CommandHandler::from_db(db);
     let db = handler.get_db();
@@ -300,6 +311,7 @@ fn test_todo_workspace_accepts_subdir_repo() {
     if !require_jj() {
         return;
     }
+    let _guard = cwd_lock();
     let db = Database::new_in_memory().unwrap();
     let handler = CommandHandler::from_db(db);
     let db = handler.get_db();
