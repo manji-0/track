@@ -54,6 +54,9 @@ pub enum TrackError {
     #[error("Cannot transition from '{from}' to '{to}'")]
     InvalidStatusTransition { from: String, to: String },
 
+    #[error("TODO cannot be reopened from '{from}'. Add a new TODO instead.")]
+    TodoReopenForbidden { from: String },
+
     #[error(
         "Workspace was merged (bookmark: {bookmark}) but failed to mark TODO #{todo_index} as done: {detail}"
     )]

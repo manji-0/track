@@ -102,6 +102,11 @@ impl<'a> TodoService<'a> {
     /// Applies a validated status transition.
     pub fn transition_status(&self, todo_id: i64, new_status: TodoStatus) -> Result<()> {
         let todo = self.get_todo(todo_id)?;
+        if TodoStatus::is_reopen_attempt(todo.status, new_status) {
+            return Err(TrackError::TodoReopenForbidden {
+                from: todo.status.as_str().to_string(),
+            });
+        }
         if !todo.status.can_transition_to(new_status) {
             return Err(TrackError::InvalidStatusTransition {
                 from: todo.status.as_str().to_string(),
@@ -389,7 +394,7 @@ mod tests {
     }
 
     #[test]
-    fn test_rejects_done_to_pending_transition() {
+    fn test_rejects_reopen_from_done() {
         let db = setup_db();
         let task_id = create_test_task(&db);
         let service = TodoService::new(&db);
@@ -400,7 +405,23 @@ mod tests {
         let result = service.update_status(todo.id, "pending");
         assert!(matches!(
             result,
-            Err(TrackError::InvalidStatusTransition { .. })
+            Err(TrackError::TodoReopenForbidden { .. })
+        ));
+    }
+
+    #[test]
+    fn test_rejects_reopen_from_cancelled() {
+        let db = setup_db();
+        let task_id = create_test_task(&db);
+        let service = TodoService::new(&db);
+
+        let todo = service.add_todo(task_id, "Test TODO", false).unwrap();
+        service.update_status(todo.id, "cancelled").unwrap();
+
+        let result = service.update_status(todo.id, "pending");
+        assert!(matches!(
+            result,
+            Err(TrackError::TodoReopenForbidden { .. })
         ));
     }
 

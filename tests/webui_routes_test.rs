@@ -131,6 +131,42 @@ async fn add_scrap_rejects_empty_content() {
 }
 
 #[tokio::test]
+async fn update_todo_rejects_reopen_from_done() {
+    let db = Database::new_in_memory().unwrap();
+    let task_service = TaskService::new(&db);
+    let task = task_service
+        .create_task("Web task", None, None, None)
+        .unwrap();
+    db.set_current_task_id(task.id).unwrap();
+
+    let todo_service = TodoService::new(&db);
+    let todo = todo_service.add_todo(task.id, "Done item", false).unwrap();
+    todo_service.update_status(todo.id, "done").unwrap();
+
+    let app = test_router(db);
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("PATCH")
+                .uri("/api/todo/1/pending")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+
+    let body = http_body_util::BodyExt::collect(response.into_body())
+        .await
+        .unwrap()
+        .to_bytes();
+    let text = String::from_utf8(body.to_vec()).unwrap();
+    assert!(text.contains("cannot be reopened"));
+}
+
+#[tokio::test]
 async fn index_renders_without_active_task() {
     let db = Database::new_in_memory().unwrap();
     let app = test_router(db);

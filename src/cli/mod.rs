@@ -193,7 +193,7 @@ pub enum TodoCommands {
         /// TODO ID
         id: i64,
 
-        /// New status (pending, done, cancelled)
+        /// New status (done or cancelled; reopen to pending is not allowed)
         status: String,
     },
 

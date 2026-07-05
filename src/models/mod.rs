@@ -304,6 +304,8 @@ impl FromStr for TaskStatus {
 /// Status of a TODO item.
 ///
 /// TODOs progress through different states during their lifecycle.
+/// Reopening a completed or cancelled TODO (transition back to `Pending`) is not allowed;
+/// add a new TODO instead.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum TodoStatus {
@@ -327,6 +329,10 @@ impl TodoStatus {
 
     /// Returns whether a transition from `self` to `target` is allowed.
     pub fn can_transition_to(self, target: Self) -> bool {
+        if Self::is_reopen_attempt(self, target) {
+            return false;
+        }
+
         use TodoStatus::{Cancelled, Done, Pending};
         matches!(
             (self, target),
@@ -336,6 +342,16 @@ impl TodoStatus {
                 | (Done, Done)
                 | (Cancelled, Cancelled)
         )
+    }
+
+    /// Returns true when moving a terminal TODO back to pending (reopen).
+    pub fn is_reopen_attempt(from: Self, to: Self) -> bool {
+        from != Self::Pending && to == Self::Pending
+    }
+
+    /// Returns true when the TODO can no longer be worked on.
+    pub fn is_terminal(self) -> bool {
+        matches!(self, Self::Done | Self::Cancelled)
     }
 }
 
@@ -394,6 +410,33 @@ mod tests {
             Ok(TodoStatus::Cancelled)
         ));
         assert!("invalid".parse::<TodoStatus>().is_err());
+    }
+
+    #[test]
+    fn test_todo_status_reopen_is_forbidden() {
+        assert!(TodoStatus::is_reopen_attempt(
+            TodoStatus::Done,
+            TodoStatus::Pending
+        ));
+        assert!(TodoStatus::is_reopen_attempt(
+            TodoStatus::Cancelled,
+            TodoStatus::Pending
+        ));
+        assert!(!TodoStatus::is_reopen_attempt(
+            TodoStatus::Pending,
+            TodoStatus::Pending
+        ));
+        assert!(!TodoStatus::can_transition_to(
+            TodoStatus::Done,
+            TodoStatus::Pending
+        ));
+        assert!(!TodoStatus::can_transition_to(
+            TodoStatus::Cancelled,
+            TodoStatus::Pending
+        ));
+        assert!(TodoStatus::Done.is_terminal());
+        assert!(TodoStatus::Cancelled.is_terminal());
+        assert!(!TodoStatus::Pending.is_terminal());
     }
 
     #[test]
