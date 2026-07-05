@@ -1,6 +1,6 @@
 use crate::db::row_mapping::parse_datetime;
 use crate::db::Database;
-use crate::models::{Link, Scrap};
+use crate::models::{Link, Scrap, TodoStatus};
 use crate::utils::{Result, TrackError};
 use chrono::Utc;
 use rusqlite::{params, OptionalExtension};
@@ -136,11 +136,13 @@ impl<'a> ScrapService<'a> {
             )?;
 
             // Find the active todo (oldest pending todo) at the time of scrap creation
-            let active_todo_id: Option<i64> = conn.query_row(
-                "SELECT task_index FROM todos WHERE task_id = ?1 AND status = 'pending' ORDER BY task_index ASC LIMIT 1",
-                params![task_id],
-                |row| row.get(0),
-            ).optional()?;
+            let active_query = format!(
+                "SELECT task_index FROM todos WHERE task_id = ?1 AND status = '{}' ORDER BY task_index ASC LIMIT 1",
+                TodoStatus::PENDING
+            );
+            let active_todo_id: Option<i64> = conn
+                .query_row(&active_query, params![task_id], |row| row.get(0))
+                .optional()?;
 
             conn.execute(
                 "INSERT INTO scraps (task_id, task_index, content, created_at, active_todo_id) VALUES (?1, ?2, ?3, ?4, ?5)",

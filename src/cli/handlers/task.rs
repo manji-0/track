@@ -1,4 +1,5 @@
 use crate::cli::handlers::CommandCtx;
+use crate::services::agent_context::build_agent_extensions;
 use crate::services::{
     LinkService, RepoService, ScrapService, TaskService, TodoService, WorktreeService,
 };
@@ -230,7 +231,7 @@ pub fn handle_info(
             }
         }
 
-        let output = serde_json::json!({
+        let mut output = serde_json::json!({
             "task": task,
             "todos": todos_json,
             "links": links,
@@ -238,6 +239,13 @@ pub fn handle_info(
             "worktrees": worktrees_json,
             "repos": repos,
         });
+
+        let agent = build_agent_extensions(&task, &todos, &worktrees, &repos, &worktree_service);
+        if let Some(obj) = output.as_object_mut() {
+            for (key, value) in agent.as_object().into_iter().flatten() {
+                obj.insert(key.clone(), value.clone());
+            }
+        }
 
         println!("{}", serde_json::to_string_pretty(&output).unwrap());
         return Ok(());

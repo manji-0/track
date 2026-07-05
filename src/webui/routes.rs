@@ -5,7 +5,7 @@ use crate::models::TodoStatus;
 use crate::services::{
     LinkService, RepoService, ScrapService, TaskService, TodoService, WorktreeService,
 };
-use crate::use_cases::CompleteTodoUseCase;
+use crate::use_cases::ApplyTodoActionUseCase;
 use crate::utils::TrackError;
 use crate::webui::error::WebError;
 use crate::webui::state::{AppState, SseEvent};
@@ -315,10 +315,11 @@ pub async fn update_todo_status(
     let todo_service = TodoService::new(&db);
     let todo = todo_service.get_todo_by_index(current_task_id, todo_index)?;
 
-    if new_status == TodoStatus::Done.as_str() {
-        CompleteTodoUseCase::new(&db).execute(current_task_id, todo_index)?;
-    } else {
+    if new_status.as_str() == TodoStatus::PENDING {
         todo_service.update_status(todo.id, &new_status)?;
+    } else {
+        let action = crate::models::TodoAction::from_web_route(&new_status)?;
+        ApplyTodoActionUseCase::new(&db).execute(current_task_id, todo_index, action)?;
     }
 
     // Broadcast SSE event

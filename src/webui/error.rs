@@ -23,6 +23,7 @@ impl WebError {
             | TrackError::InvalidStatus(_)
             | TrackError::InvalidStatusTransition { .. }
             | TrackError::TodoReopenForbidden { .. }
+            | TrackError::TodoCompleteRequiresDoneCommand
             | TrackError::InvalidUrl(_)
             | TrackError::DuplicateTicket(_, _)
             | TrackError::TaskArchived(_)

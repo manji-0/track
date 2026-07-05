@@ -57,6 +57,9 @@ pub enum TrackError {
     #[error("TODO cannot be reopened from '{from}'. Add a new TODO instead.")]
     TodoReopenForbidden { from: String },
 
+    #[error("Use 'track todo done <id>' to complete a TODO (merges JJ workspace if present).")]
+    TodoCompleteRequiresDoneCommand,
+
     #[error(
         "Workspace was merged (bookmark: {bookmark}) but failed to mark TODO #{todo_index} as done: {detail}"
     )]

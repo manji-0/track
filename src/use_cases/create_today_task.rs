@@ -23,9 +23,11 @@ impl<'a> CreateTodayTaskUseCase<'a> {
         let task_name = format!("Today: {}", today);
 
         let conn = self.db.get_connection();
-        let mut stmt = conn.prepare(
-            "SELECT id FROM tasks WHERE is_today_task = 1 AND name = ?1 AND status = 'active'",
-        )?;
+        let active_query = format!(
+            "SELECT id FROM tasks WHERE is_today_task = 1 AND name = ?1 AND status = '{}'",
+            TaskStatus::ACTIVE
+        );
+        let mut stmt = conn.prepare(&active_query)?;
 
         if let Some(task_id) = stmt
             .query_row(params![task_name], |row| row.get::<_, i64>(0))
@@ -79,9 +81,11 @@ impl<'a> CreateTodayTaskUseCase<'a> {
 
     fn find_today_task_to_inherit_from(&self) -> Result<Option<i64>> {
         let conn = self.db.get_connection();
-        let mut stmt = conn.prepare(
-            "SELECT id FROM tasks WHERE is_today_task = 1 AND status = 'active' ORDER BY created_at DESC LIMIT 1",
-        )?;
+        let active_query = format!(
+            "SELECT id FROM tasks WHERE is_today_task = 1 AND status = '{}' ORDER BY created_at DESC LIMIT 1",
+            TaskStatus::ACTIVE
+        );
+        let mut stmt = conn.prepare(&active_query)?;
 
         stmt.query_row([], |row| row.get(0))
             .optional()

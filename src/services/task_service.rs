@@ -109,12 +109,15 @@ impl<'a> TaskService<'a> {
     pub fn list_tasks(&self, include_archived: bool) -> Result<Vec<Task>> {
         let conn = self.db.get_connection();
         let query = if include_archived {
-            "SELECT id, name, description, status, ticket_id, ticket_url, alias, is_today_task, created_at FROM tasks ORDER BY created_at DESC"
+            "SELECT id, name, description, status, ticket_id, ticket_url, alias, is_today_task, created_at FROM tasks ORDER BY created_at DESC".to_string()
         } else {
-            "SELECT id, name, description, status, ticket_id, ticket_url, alias, is_today_task, created_at FROM tasks WHERE status = 'active' ORDER BY created_at DESC"
+            format!(
+                "SELECT id, name, description, status, ticket_id, ticket_url, alias, is_today_task, created_at FROM tasks WHERE status = '{}' ORDER BY created_at DESC",
+                TaskStatus::ACTIVE
+            )
         };
 
-        let mut stmt = conn.prepare(query)?;
+        let mut stmt = conn.prepare(&query)?;
         let tasks = stmt
             .query_map([], row_to_task)?
             .collect::<std::result::Result<Vec<_>, _>>()?;
@@ -152,6 +155,14 @@ impl<'a> TaskService<'a> {
     ///
     /// * `task_id` - The ID of the task to archive
     pub fn archive_task(&self, task_id: i64) -> Result<()> {
+        let task = self.get_task(task_id)?;
+        if !task.status.can_transition_to(TaskStatus::Archived) {
+            return Err(TrackError::InvalidStatusTransition {
+                from: task.status.as_str().to_string(),
+                to: TaskStatus::Archived.as_str().to_string(),
+            });
+        }
+
         let conn = self.db.get_connection();
 
         conn.execute(
@@ -166,6 +177,7 @@ impl<'a> TaskService<'a> {
             }
         }
 
+        self.db.increment_rev("task")?;
         Ok(())
     }
 

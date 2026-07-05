@@ -166,9 +166,11 @@ impl<'a> TodoService<'a> {
             }
 
             // Get all pending todos for this task, ordered by task_index
-            let mut stmt = conn.prepare(
-                "SELECT id, task_index FROM todos WHERE task_id = ?1 AND status = 'pending' ORDER BY task_index ASC"
-            )?;
+            let pending_query = format!(
+                "SELECT id, task_index FROM todos WHERE task_id = ?1 AND status = '{}' ORDER BY task_index ASC",
+                TodoStatus::PENDING
+            );
+            let mut stmt = conn.prepare(&pending_query)?;
 
             let pending_todos: Vec<(i64, i64)> = stmt
                 .query_map(params![task_id], |row| {
@@ -258,9 +260,11 @@ impl<'a> TodoService<'a> {
         let mut mapping = HashMap::new();
         let conn = self.db.get_connection();
 
-        let mut stmt = conn.prepare(
-            "SELECT task_index, content FROM todos WHERE task_id = ?1 AND status = 'pending' ORDER BY task_index ASC"
-        )?;
+        let pending_query = format!(
+            "SELECT task_index, content FROM todos WHERE task_id = ?1 AND status = '{}' ORDER BY task_index ASC",
+            TodoStatus::PENDING
+        );
+        let mut stmt = conn.prepare(&pending_query)?;
 
         let pending_todos: Vec<(i64, String)> = stmt
             .query_map(params![from_task_id], |row| Ok((row.get(0)?, row.get(1)?)))?

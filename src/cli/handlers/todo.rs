@@ -1,8 +1,8 @@
 use crate::cli::handlers::CommandCtx;
 use crate::cli::TodoCommands;
-use crate::models::TaskRepo;
+use crate::models::{TaskRepo, TodoAction, TodoStatus};
 use crate::services::{RepoService, TaskService, TodoService, WorktreeService};
-use crate::use_cases::CompleteTodoUseCase;
+use crate::use_cases::ApplyTodoActionUseCase;
 use crate::utils::{Result, TrackError};
 use prettytable::{format, Cell, Row, Table};
 use std::io::{self, Write};
@@ -45,13 +45,19 @@ pub fn handle_todo(ctx: &CommandCtx, command: TodoCommands) -> Result<()> {
             table.printstd();
         }
         TodoCommands::Update { id, status } => {
-            // Resolve task_index to internal ID
             let todo = todo_service.get_todo_by_index(current_task_id, id)?;
-            todo_service.update_status(todo.id, &status)?;
+            if status == TodoStatus::PENDING {
+                todo_service.update_status(todo.id, &status)?;
+            } else {
+                let action = TodoAction::from_cli_update_status(&status)?;
+                ApplyTodoActionUseCase::new(ctx.db).execute(current_task_id, id, action)?;
+            }
             println!("Updated TODO #{} status to '{}'", id, status);
         }
         TodoCommands::Done { id } => {
-            let outcome = CompleteTodoUseCase::new(ctx.db).execute(current_task_id, id)?;
+            let outcome = ApplyTodoActionUseCase::new(ctx.db)
+                .execute(current_task_id, id, TodoAction::Complete)?
+                .expect("complete action returns outcome");
             if let Some(branch) = outcome.merged_bookmark {
                 println!(
                     "Rebased and removed workspace for TODO #{} (bookmark: {}).",

@@ -148,14 +148,42 @@ fn test_handle_todo_add_and_update() {
     assert_eq!(todos[0].content, "My Todo");
     assert_eq!(todos[0].status, TodoStatus::Pending);
 
-    let cmd = Commands::Todo(TodoCommands::Update {
-        id: 1,
-        status: "done".to_string(),
-    });
+    let cmd = Commands::Todo(TodoCommands::Done { id: 1 });
     handler.handle(cmd).unwrap();
 
     let todo = todo_service.get_todo(todos[0].id).unwrap();
     assert_eq!(todo.status, TodoStatus::Done);
+}
+
+#[test]
+fn test_handle_todo_update_done_is_rejected() {
+    let db = Database::new_in_memory().unwrap();
+    let handler = CommandHandler::from_db(db);
+    let db = handler.get_db();
+    let task_service = TaskService::new(db);
+    let todo_service = TodoService::new(db);
+
+    task_service.create_task("Task", None, None, None).unwrap();
+
+    let cmd = Commands::Todo(TodoCommands::Add {
+        text: "My Todo".to_string(),
+        worktree: false,
+    });
+    handler.handle(cmd).unwrap();
+
+    let cmd = Commands::Todo(TodoCommands::Update {
+        id: 1,
+        status: "done".to_string(),
+    });
+    let result = handler.handle(cmd);
+
+    assert!(matches!(
+        result,
+        Err(track::utils::TrackError::TodoCompleteRequiresDoneCommand)
+    ));
+
+    let todos = todo_service.list_todos(1).unwrap();
+    assert_eq!(todos[0].status, TodoStatus::Pending);
 }
 
 #[test]

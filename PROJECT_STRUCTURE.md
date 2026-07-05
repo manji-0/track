@@ -19,7 +19,10 @@ track/
 │   ├── db/                  # SQLite schema, migrations, transactions
 │   │   ├── mod.rs
 │   │   └── row_mapping.rs   # Shared row → domain parsing
-│   ├── models/              # Task, Todo, Link, Scrap, Worktree, …
+│   ├── models/              # Task, Todo, status, workflow, TodoAction
+│   │   ├── status.rs        # TaskStatus, TodoStatus + transitions
+│   │   ├── todo_action.rs   # Intent-based TODO operations
+│   │   └── workflow.rs      # WorkflowPhase, agent view types
 │   ├── services/            # Domain services (SQL + business rules)
 │   │   ├── task_service.rs
 │   │   ├── todo_service.rs
@@ -62,6 +65,11 @@ Models (typed enums, task-scoped indices)
 | `CreateTodayTaskUseCase` | Atomic today-task creation with todo/scrap inheritance |
 | `ArchiveTaskUseCase` | Workspace cleanup + task archive with dirty-workspace guard |
 | `SyncTaskUseCase` | JJ bookmark sync + pending TODO workspace creation |
+| `ApplyTodoActionUseCase` | Routes complete/cancel/make-next through correct paths |
+
+### Agent JSON (`track status --json`)
+
+Adds `workflow`, `todos_agent`, and `guardrails` alongside the existing payload for LLM agents.
 
 ### WebUI errors
 

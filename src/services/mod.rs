@@ -4,6 +4,7 @@
 //! tasks, TODOs, repositories, worktrees, links, and scraps. Each service encapsulates
 //! operations related to its domain and interacts with the database layer.
 
+pub mod agent_context;
 pub mod link_service;
 pub mod repo_service;
 pub mod task_service;

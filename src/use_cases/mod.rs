@@ -3,11 +3,13 @@
 //! Use cases own multi-step workflows and transaction boundaries where a single
 //! service method is not enough.
 
+pub mod apply_todo_action;
 pub mod archive_task;
 pub mod complete_todo;
 pub mod create_today_task;
 pub mod sync_task;
 
+pub use apply_todo_action::ApplyTodoActionUseCase;
 pub use archive_task::{ArchiveTaskOutcome, ArchiveTaskUseCase, DirtyWorkspace};
 pub use complete_todo::{CompleteTodoOutcome, CompleteTodoUseCase};
 pub use create_today_task::CreateTodayTaskUseCase;
