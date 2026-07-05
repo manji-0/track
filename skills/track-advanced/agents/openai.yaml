@@ -1,0 +1,4 @@
+interface:
+  display_name: "Track Advanced"
+  short_description: "Multi-repo, parallel, and archive workflows"
+  default_prompt: "Use $track-advanced for multi-repo track tasks, parallel workspaces, hotfixes, or archiving."

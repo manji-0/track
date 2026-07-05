@@ -37,6 +37,19 @@ Agent install paths:
 
 Full guide: [skills/INSTALL.md](../skills/INSTALL.md)
 
+## Plugin manifests
+
+Track ships Claude Code and Codex plugin metadata (same pattern as [kamae-rs](https://github.com/manji-0/kamae-rs)):
+
+| File | Agent |
+|------|-------|
+| `.claude-plugin/plugin.json` | Claude Code |
+| `.codex-plugin/plugin.json` | Codex |
+| `.agents/plugins/marketplace.json` | Cursor / Agents |
+| `skills/*/agents/openai.yaml` | Per-skill Codex hints |
+
+Validate: `python3 scripts/validate_package.py`
+
 ## Skill catalog
 
 | Skill | Path | Use when |

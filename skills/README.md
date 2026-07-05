@@ -24,6 +24,25 @@ npx skills add ./skills -s track-task-setup -y
 
 See **[INSTALL.md](INSTALL.md)** for GitHub installs, agent paths, verification, and troubleshooting.
 
+## Plugin manifests (Claude Code / Codex)
+
+Like [kamae-rs](https://github.com/manji-0/kamae-rs), track ships plugin metadata at the repository root:
+
+| Path | Purpose |
+|------|---------|
+| `.claude-plugin/plugin.json` | Claude Code plugin package |
+| `.claude-plugin/marketplace.json` | Claude marketplace entry |
+| `.codex-plugin/plugin.json` | Codex plugin + interface metadata |
+| `.agents/plugins/marketplace.json` | Agents/Cursor marketplace entry |
+
+Each skill also has `agents/openai.yaml` for Codex-style interface hints.
+
+Validate before publishing:
+
+```bash
+python3 scripts/validate_package.py
+```
+
 ## Skill catalog
 
 | Skill | Use when | Path |
@@ -53,15 +72,19 @@ skills/
 ├── README.md
 ├── INSTALL.md
 ├── track/                      # Router / index
-│   └── SKILL.md
+│   ├── SKILL.md
+│   └── agents/openai.yaml
 ├── track-task-setup/           # Planning & scaffolding
 │   ├── SKILL.md
+│   ├── agents/openai.yaml
 │   └── references/setup-workflow.md
 ├── track-task-execute/         # Agent execution loop
 │   ├── SKILL.md
+│   ├── agents/openai.yaml
 │   └── references/execution-workflow.md
 ├── track-advanced/             # Multi-repo, archive, patterns
 │   ├── SKILL.md
+│   ├── agents/openai.yaml
 │   └── references/advanced-patterns.md
 └── task-management/            # Deprecated — use split skills above
     └── SKILL.md

@@ -1,0 +1,42 @@
+{
+  "name": "track",
+  "version": "2.0.0",
+  "description": "Track CLI and JJ workspace task management skills for AI agents",
+  "author": {
+    "name": "track contributors",
+    "url": "https://github.com/manji-0/track"
+  },
+  "homepage": "https://github.com/manji-0/track",
+  "repository": "https://github.com/manji-0/track",
+  "license": "MIT",
+  "keywords": [
+    "track",
+    "task-management",
+    "todo",
+    "jj",
+    "workspace",
+    "cli",
+    "coding-agent"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Track",
+    "shortDescription": "JJ workspace task management for agents",
+    "longDescription": "Manage development tasks with track CLI and JJ workspaces. Skills are split by workflow phase: setup, execute, and advanced patterns. Agents read track status --json and follow workflow.next_action.",
+    "developerName": "track contributors",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Interactive",
+      "Read",
+      "Write"
+    ],
+    "websiteURL": "https://github.com/manji-0/track",
+    "privacyPolicyURL": "https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement",
+    "termsOfServiceURL": "https://docs.github.com/en/site-policy/github-terms/github-terms-of-service",
+    "defaultPrompt": [
+      "Use $track and run track status --json first, then follow workflow.next_action.",
+      "Use $track-task-execute to continue implementing the current track TODO.",
+      "Use $track-task-setup to create a new track task with repos and TODOs."
+    ]
+  }
+}

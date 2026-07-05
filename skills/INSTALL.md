@@ -87,6 +87,28 @@ Docs: [skills.sh](https://skills.sh) · [Skills CLI installation](https://vercel
 
 ---
 
+## Plugin install (Claude Code / Codex)
+
+Track includes plugin manifests (same layout as [kamae-rs](https://github.com/manji-0/kamae-rs)):
+
+```text
+.claude-plugin/plugin.json       # Claude Code plugin
+.claude-plugin/marketplace.json  # Claude marketplace
+.codex-plugin/plugin.json        # Codex plugin + interface
+.agents/plugins/marketplace.json # Agents/Cursor marketplace
+skills/*/agents/openai.yaml      # Per-skill Codex interface hints
+```
+
+Install the plugin from a checkout of this repository using your agent's plugin UI, or continue using `npx skills add` for individual skills.
+
+Validate manifests and skill metadata:
+
+```bash
+python3 scripts/validate_package.py
+```
+
+---
+
 ## Agent paths (where skills land)
 
 | Agent | `--agent` flag | Project path | Global path |

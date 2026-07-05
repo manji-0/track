@@ -1,0 +1,27 @@
+{
+  "name": "track",
+  "description": "Track CLI and JJ workspace task management skills for AI agents",
+  "version": "2.0.0",
+  "author": {
+    "name": "track contributors",
+    "url": "https://github.com/manji-0/track"
+  },
+  "homepage": "https://github.com/manji-0/track",
+  "repository": "https://github.com/manji-0/track",
+  "license": "MIT",
+  "skills": [
+    "./skills/track",
+    "./skills/track-task-setup",
+    "./skills/track-task-execute",
+    "./skills/track-advanced"
+  ],
+  "keywords": [
+    "track",
+    "task-management",
+    "todo",
+    "jj",
+    "workspace",
+    "cli",
+    "coding-agent"
+  ]
+}

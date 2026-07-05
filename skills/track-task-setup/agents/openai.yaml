@@ -1,0 +1,4 @@
+interface:
+  display_name: "Track Setup"
+  short_description: "Create track tasks, repos, and TODOs"
+  default_prompt: "Use $track-task-setup to scaffold a new track task with repos and TODOs."

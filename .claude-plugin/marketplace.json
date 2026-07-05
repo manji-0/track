@@ -1,0 +1,24 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "track",
+  "description": "Track CLI task management skills with JSON-first agent workflow",
+  "owner": {
+    "name": "track contributors"
+  },
+  "plugins": [
+    {
+      "name": "track",
+      "description": "JJ workspace task management: setup, execute, and advanced workflows for coding agents",
+      "source": "./",
+      "category": "development",
+      "homepage": "https://github.com/manji-0/track",
+      "strict": false,
+      "skills": [
+        "./skills/track",
+        "./skills/track-task-setup",
+        "./skills/track-task-execute",
+        "./skills/track-advanced"
+      ]
+    }
+  ]
+}

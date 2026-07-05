@@ -1,0 +1,4 @@
+interface:
+  display_name: "Track"
+  short_description: "Route track CLI tasks by workflow phase"
+  default_prompt: "Use $track, run track status --json, and follow workflow.next_action."
