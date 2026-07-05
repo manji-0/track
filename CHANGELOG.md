@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Release profile: LTO, single codegen unit, strip symbols, panic=abort (~38% smaller binary)
+- Trim tokio features to only those required by webui (was `full`)
+
 ## [0.4.2] - 2026-01-28
 
 ### Changed

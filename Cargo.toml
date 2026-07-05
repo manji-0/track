@@ -28,7 +28,7 @@ ammonia = "4.0"
 
 # Web server
 axum = { version = "0.7", features = ["macros"] }
-tokio = { version = "1", features = ["full"] }
+tokio = { version = "1", features = ["rt-multi-thread", "net", "sync", "time", "macros"] }
 tower-http = { version = "0.6", features = ["fs", "cors"] }
 
 # Templating
@@ -45,3 +45,10 @@ open = "5.0"
 tempfile = "3.24.0"
 http-body-util = "0.1"
 tower = { version = "0.5", features = ["util"] }
+
+# Release binary: smaller, faster CLI (LTO + single codegen unit + strip)
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"
