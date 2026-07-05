@@ -1,346 +1,253 @@
-# Installation Guide for LLM Agent Skills
+# Installing Track Skills for AI Agents
 
-This guide explains how to install and configure the `track` CLI skills for various LLM agents and development environments.
+Track ships an [Agent Skills](https://github.com/anthropics/skills)-compatible skill at `skills/task-management/`. This guide covers the **recommended `npx skills` install**, agent-specific paths, and manual fallbacks.
 
-## Overview
+## Requirements
 
-Track CLI skills are structured workflow guides in markdown format that help LLM agents understand how to use the `track` tool effectively. These skills can be integrated into your development workflow in several ways.
-
----
-
-## Quick Start
-
-### For Most Users (Direct File Access)
-
-If your LLM agent can access project files, no installation is needed:
-
-1. **Skills location**: `skills/` directory in the track repository
-2. **Usage**: Agent reads files on-demand when working with track
-
-**That's it!** The skills are ready to use.
+- **track CLI** built and on your `PATH`
+- **Node.js 18+** (for `npx skills` only)
+- **jj** (for workspace workflows)
 
 ---
 
-## Installation Methods by Agent Type
+## Recommended: `npx skills` (Skills CLI)
 
-### 1. Cline / Claude Code Assistant
+The [Skills CLI](https://github.com/vercel-labs/skills) (`npx skills`) is the package manager for the open agent skills ecosystem. It detects installed agents and links skills into the correct directories.
 
-Cline can reference files directly from your workspace.
+### Quick install (from this repo)
 
-**Method A: Direct Reference (Recommended)**
-
-No setup required. Skills are automatically available when working in the track project.
-
-**Method B: Add to Custom Instructions**
-
-1. Open Cline settings
-2. Navigate to "Custom Instructions" or "System Prompt"
-3. Add the following:
-
-```
-When working with the track CLI tool:
-- Reference /path/to/track/skills/track-task-management/SKILL.md for overview
-- For creating tasks: Reference /path/to/track/skills/track-task-management/references/creating-tasks.md
-- For executing tasks: Reference /path/to/track/skills/track-task-management/references/executing-tasks.md
-- Always run `track status` before starting work
-- Use `track llm-help` for quick command reference
-```
-
-Replace `/path/to/track` with your actual path.
-
----
-
-### 2. Aider
-
-Aider can read files from the repository.
-
-**Method: Add Skills to Context**
-
-When starting a session, include skill files in context:
+Run at the **track repository root**:
 
 ```bash
-aider /path/to/track/skills/track-task-management/SKILL.md \
-      /path/to/track/skills/track-task-management/references/creating-tasks.md \
-      /path/to/track/skills/track-task-management/references/executing-tasks.md
+# Project scope — committed with the repo, shared with the team
+npx skills add ./skills/task-management -y
+
+# Global scope — available in every project
+npx skills add ./skills/task-management -g -y
+
+# Target specific agents (recommended)
+npx skills add ./skills/task-management \
+  -a cursor -a claude-code -a codex -y
 ```
 
-Or add to your `.aider.conf.yml`:
-
-```yaml
-read:
-  - skills/track-task-management/SKILL.md
-  - skills/track-task-management/references/creating-tasks.md
-  - skills/track-task-management/references/executing-tasks.md
-```
-
----
-
-### 3. GitHub Copilot / Copilot Chat
-
-**Method: Use @workspace References**
-
-In Copilot Chat, reference skills when asking questions:
-
-```
-@workspace Using the skills/track-task-management/references/creating-tasks.md guide, help me create a new task for [feature name]
-```
-
-Or reference in comments:
-
-```python
-# Following skills/track-task-management/references/executing-tasks.md:
-# 1. Check status with track status
-# 2. Navigate to workspace
-# 3. Implement changes
-```
-
----
-
-### 4. Cursor AI
-
-Cursor can reference files in the workspace.
-
-**Method A: Direct Reference**
-
-Use `@Files` or `@Codebase` to reference skills:
-
-```
-@Files skills/track-task-management/SKILL.md
-
-Help me create a new feature task following this workflow
-```
-
-**Method B: Add to Rules for AI**
-
-1. Open Cursor Settings → Features → Rules for AI
-2. Add:
-
-```
-When working with track CLI:
-- Refer to skills/track-task-management/SKILL.md for overview
-- Refer to skills/track-task-management/references/creating-tasks.md for task creation
-- Refer to skills/track-task-management/references/executing-tasks.md for task execution
-- Always check current state with `track status` first
-```
-
----
-
-### 5. ChatGPT / GPT-4 (Web Interface)
-
-**Method: Copy-Paste or Upload**
-
-1. Copy skill content from markdown files
-2. Paste into conversation, or
-3. Use file upload feature (if available) to upload skill files
-
-Example prompt:
-
-```
-I'm using the track CLI tool. Here's the workflow guide:
-
-[paste track-task-management/references/creating-tasks.md content]
-
-Help me create a task for implementing [feature]
-```
-
----
-
-### 6. Other LLM Agents
-
-**General Method: File System Access**
-
-Most modern LLM coding agents support file system access. Skills are located at:
-
-```
-<track-repo>/skills/
-  ├── README.md                        # Overview and usage guide
-  ├── INSTALL.md                       # This installation guide
-  └── track-task-management/           # Main skill
-      ├── SKILL.md                     # Skill overview and quick start
-      └── references/
-          ├── creating-tasks.md        # Task creation workflow
-          ├── executing-tasks.md       # Task execution workflow
-          └── advanced-workflows.md    # Advanced patterns
-```
-
-Configure your agent to:
-1. Read these files when working with track
-2. Follow the documented workflows
-3. Reference commands and examples as needed
-
----
-
-## Verification
-
-After installation, verify skills are working:
-
-### Test 1: Check File Access
-
-Try this prompt with your LLM agent:
-
-```
-Can you read the file at skills/track-task-management/SKILL.md and summarize the main concepts?
-```
-
-**Expected response**: Agent summarizes the key concepts (task management, workspaces, TODOs, ticket integration, scraps).
-
-### Test 2: Use a Skill
-
-```
-Following the track-task-management skill, help me create a task for adding a dark mode feature.
-```
-
-**Expected behavior**: Agent should:
-1. Run `track new "Add dark mode"`
-2. Ask for description
-3. Prompt for ticket info (optional)
-4. Register repository
-5. Suggest TODOs
-6. Show final status
-
----
-
-## Usage Tips
-
-### Best Practices
-
-1. **Start with `track status`**: Always have your agent check current state first
-2. **Reference skills by name**: "Following track-task-management skill..."
-3. **Use progressive disclosure**: Start with SKILL.md, load references when needed
-4. **Use llm-help**: Quick reference with `track llm-help` command
-
-### Common Workflows
-
-#### Creating a New Task
-```
-Agent: Following skills/track-task-management/references/creating-tasks.md, create a task for [feature]
-```
-
-#### Continuing Work on Existing Task
-```
-Agent: Following skills/track-task-management/references/executing-tasks.md, continue working on the current task
-```
-
-#### Full Development Cycle
-```
-Agent: Using the track-task-management skill, set up and complete a task for [feature]
-```
-
----
-
-## Advanced: Custom Integration
-
-### Creating Agent-Specific Skills
-
-You can create custom skills tailored to your workflow:
-
-1. Copy an existing skill as a template
-2. Modify workflow steps for your use case
-3. Save in `skills/` directory
-4. Reference in your agent configuration
-
-Example custom skill ideas:
-- `hotfix-workflow.md` - For urgent bug fixes
-- `pr-preparation-workflow.md` - Preparing tasks for pull requests
-- `multi-repo-workflow.md` - Managing cross-repo tasks
-
-### Environment Variables
-
-Set these for consistent paths:
+### Install from GitHub
 
 ```bash
-export TRACK_SKILLS_DIR="/path/to/track/skills"
+npx skills add manji-0/track \
+  --skill track-task-management \
+  -g -a cursor -a claude-code -a codex -y
 ```
 
-Then reference in agent config:
+Use your fork or branch URL if needed:
+
+```bash
+npx skills add https://github.com/you/track/tree/your-branch/skills/task-management -y
 ```
-Skills directory: $TRACK_SKILLS_DIR
+
+### Useful commands
+
+| Command | Purpose |
+|---------|---------|
+| `npx skills list` | List installed skills |
+| `npx skills find track` | Search skills.sh / registry |
+| `npx skills update track-task-management` | Update one skill |
+| `npx skills update -y` | Update all installed skills |
+| `npx skills remove track-task-management` | Uninstall |
+| `npx skills use ./skills/task-management \| claude` | One-shot prompt without installing |
+
+### Install options
+
+| Flag | Description |
+|------|-------------|
+| `-g, --global` | Install to user home (all projects) |
+| `-a, --agent <name>` | Target agent: `cursor`, `claude-code`, `codex`, … |
+| `-y, --yes` | Non-interactive (CI-friendly) |
+| `--copy` | Copy files instead of symlinking |
+| `-l, --list` | List skills in a repo without installing |
+
+Docs: [skills.sh](https://skills.sh) · [Skills CLI installation](https://vercel-labs-skills.mintlify.app/installation)
+
+---
+
+## Agent paths (where skills land)
+
+When you use `npx skills`, files are linked into agent-specific directories:
+
+| Agent | `--agent` flag | Project path | Global path |
+|-------|----------------|--------------|-------------|
+| **Cursor** | `cursor` | `.agents/skills/` | `~/.cursor/skills/` |
+| **Claude Code** | `claude-code` | `.claude/skills/` | `~/.claude/skills/` |
+| **OpenAI Codex** | `codex` | `.agents/skills/` | `~/.codex/skills/` |
+| Cline / OpenCode / Copilot | `cline`, `opencode`, `github-copilot` | `.agents/skills/` | varies |
+
+Track's skill name (from `SKILL.md` frontmatter) is **`track-task-management`**.
+
+### Cursor
+
+**Via Skills CLI (recommended):**
+
+```bash
+npx skills add ./skills/task-management -a cursor -y
 ```
+
+Skills appear under `.agents/skills/` (project) or `~/.cursor/skills/` (global). Cursor loads them automatically when relevant.
+
+**Manual:** copy or symlink `skills/task-management/` into `.agents/skills/track-task-management/` in your project.
+
+**In chat:** mention the skill explicitly, e.g. *"Follow the track-task-management skill and run `track status --json` first."*
+
+### Claude Code
+
+**Via Skills CLI:**
+
+```bash
+npx skills add ./skills/task-management -a claude-code -g -y
+```
+
+Install location: `~/.claude/skills/track-task-management/` (global) or `.claude/skills/` (project).
+
+Claude Code discovers `SKILL.md` automatically. For one-off use:
+
+```bash
+track llm-help
+```
+
+### OpenAI Codex
+
+**Via Skills CLI:**
+
+```bash
+npx skills add ./skills/task-management -a codex -g -y
+```
+
+Install location: `~/.codex/skills/` (global) or `.agents/skills/` (project).
+
+Codex reads skills from these paths when executing tasks in a repo.
+
+---
+
+## No install needed (repo checkout)
+
+If your agent already has the track repo open, it can read skills directly:
+
+```
+skills/task-management/SKILL.md
+skills/task-management/references/executing-tasks.md
+```
+
+This works in Cursor Cloud Agents, Claude Code, and Codex when the workspace includes track. For daily use across unrelated repos, prefer `npx skills add -g`.
+
+---
+
+## Verify installation
+
+```bash
+# Skills CLI
+npx skills list | rg track-task-management
+
+# track CLI
+track llm-help
+track status --json | jq '.workflow.phase, .workflow.next_action'
+```
+
+Ask your agent:
+
+> Read the track-task-management skill, run `track status --json`, and tell me the workflow phase and next action.
+
+Expected: agent reports `workflow.phase` (e.g. `setup`, `sync_required`, `execute`) and follows `next_action.command`.
+
+---
+
+## Agent workflow (JSON-first)
+
+After installing the skill, agents should prefer structured status:
+
+```bash
+track status --json
+```
+
+Key fields:
+
+| Field | Use |
+|-------|-----|
+| `workflow.phase` | Current lifecycle stage |
+| `workflow.next_action` | Suggested command and reason |
+| `todos_agent[].is_next` | Which TODO to work on |
+| `todos_agent[].allowed_actions` | Valid operations (no reopen) |
+| `guardrails` | Must-follow rules (`must_sync_before_code_changes`, etc.) |
+
+Same shape is available from the WebUI at `GET /api/status` when a task is active.
 
 ---
 
 ## Troubleshooting
 
-### Problem: Agent can't find skill files
+### Skill not picked up
 
-**Solution**: Verify file paths
+1. Confirm install: `npx skills list`
+2. Check agent path exists (see table above)
+3. Restart the agent / IDE
+4. Try `--copy` instead of symlink: `npx skills add ./skills/task-management --copy -y`
 
-```bash
-# Check skills directory exists
-ls -la skills/
+### Wrong agent directory
 
-# Verify files present
-ls skills/track-task-management/
-ls skills/track-task-management/references/
-```
-
-Provide absolute paths if relative paths don't work:
-```
-/home/user/projects/track/skills/track-task-management/SKILL.md
-```
-
-### Problem: Agent doesn't follow workflow
-
-**Solution**: Be explicit in prompts
-
-Instead of:
-```
-Create a task for feature X
-```
-
-Use:
-```
-Following the track-task-management/references/creating-tasks.md skill, create a task for feature X. Follow each step in order.
-```
-
-### Problem: Skills outdated after track update
-
-**Solution**: Pull latest changes
+Pass `-a` explicitly:
 
 ```bash
-cd /path/to/track
-jj git fetch
+npx skills remove track-task-management -y
+npx skills add ./skills/task-management -a cursor -a claude-code -y
 ```
 
-Skills are version-controlled with the repository.
+### Private GitHub repo
+
+```bash
+export GITHUB_TOKEN=ghp_...
+npx skills add your-org/track --skill track-task-management -y
+```
 
 ---
 
-## Support
+## Manual / legacy setups
 
-- **Main Documentation**: See [skills/README.md](README.md) for skill overview
-- **Command Reference**: Run `track llm-help` for quick reference
-- **Issues**: Report problems at the track repository
+<details>
+<summary>Aider, Copilot Chat, ChatGPT (expand)</summary>
 
----
+### Aider
 
-## Contributing
+```yaml
+# .aider.conf.yml
+read:
+  - skills/task-management/SKILL.md
+```
 
-Want to improve skills or add new ones?
+### GitHub Copilot Chat
 
-1. Fork the track repository
-2. Add/modify skill files in `skills/track-task-management/`
-3. Follow the Agent Skills structure:
-   - `SKILL.md`: Overview and quick start
-   - `references/`: Detailed workflow guides
-4. Keep SKILL.md concise (~100 lines)
-5. Update `skills/README.md` if adding new skills
-6. Submit a pull request
+```
+@workspace skills/task-management/SKILL.md — help me execute the current track task
+```
 
----
+### ChatGPT
 
-## Additional Resources
+Paste `skills/task-management/SKILL.md` or upload the file at session start.
 
-- **track CLI Documentation**: See main [README.md](../README.md)
-- **Functional Spec**: See [docs/FUNCTIONAL_SPEC.md](../docs/FUNCTIONAL_SPEC.md)
-- **LLM Help Design**: See [docs/LLM_HELP_DESIGN.md](../docs/LLM_HELP_DESIGN.md)
+</details>
 
 ---
 
-## Changelog
+## Updating
 
-- **2026-01-02**: 
-  - Refactored to Agent Skills standard structure
-  - Added `--base` flag documentation for `track repo add`
-  - Updated all file references to new structure
-  - Initial release with track-task-management skill
+```bash
+# Pull latest track
+jj git pull   # or git pull
+
+# Update linked skill
+npx skills update track-task-management -y
+```
+
+---
+
+## Related docs
+
+- [skills/README.md](README.md) — skill overview
+- [docs/LLM_INTEGRATION.md](../docs/LLM_INTEGRATION.md) — agent integration guide
+- [track llm-help](../src/cli/handlers/llm_help.rs) — full CLI workflow (`track llm-help`)

@@ -79,6 +79,44 @@ async fn api_status_returns_current_task_todos() {
 }
 
 #[tokio::test]
+async fn api_status_includes_workflow_fields() {
+    let db = Database::new_in_memory().unwrap();
+    let task_service = TaskService::new(&db);
+    let task = task_service
+        .create_task("Web task", None, None, None)
+        .unwrap();
+    db.set_current_task_id(task.id).unwrap();
+
+    let todo_service = TodoService::new(&db);
+    todo_service
+        .add_todo(task.id, "From browser", false)
+        .unwrap();
+
+    let app = test_router(db);
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .uri("/api/status")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = http_body_util::BodyExt::collect(response.into_body())
+        .await
+        .unwrap()
+        .to_bytes();
+    let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(json["workflow"]["phase"], "setup");
+    assert!(json["guardrails"]["reopen_forbidden"].as_bool().unwrap());
+    assert_eq!(json["todos_agent"].as_array().unwrap().len(), 1);
+}
+
+#[tokio::test]
 async fn add_todo_rejects_empty_content() {
     let db = Database::new_in_memory().unwrap();
     let task_service = TaskService::new(&db);

@@ -4,6 +4,7 @@
 //! and application state management. The database stores all task, TODO, link, scrap,
 //! and Git repository information.
 
+use crate::models::{TaskStatus, TodoStatus};
 use crate::utils::Result;
 use directories::ProjectDirs;
 use rusqlite::{params, Connection, OptionalExtension};
@@ -107,7 +108,7 @@ impl Database {
     }
 
     fn initialize_schema(&self) -> Result<()> {
-        self.conn.execute_batch(
+        let schema = format!(
             r#"
             CREATE TABLE IF NOT EXISTS app_state (
                 key TEXT PRIMARY KEY,
@@ -117,7 +118,7 @@ impl Database {
             CREATE TABLE IF NOT EXISTS tasks (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL,
-                status TEXT NOT NULL DEFAULT 'active',
+                status TEXT NOT NULL DEFAULT '{task_active}' CHECK (status IN ('{task_active}', '{task_archived}')),
                 ticket_id TEXT UNIQUE,
                 ticket_url TEXT,
                 created_at TEXT NOT NULL
@@ -127,7 +128,7 @@ impl Database {
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 task_id INTEGER NOT NULL,
                 content TEXT NOT NULL,
-                status TEXT NOT NULL DEFAULT 'pending',
+                status TEXT NOT NULL DEFAULT '{todo_pending}' CHECK (status IN ('{todo_pending}', '{todo_done}', '{todo_cancelled}')),
                 worktree_requested INTEGER NOT NULL DEFAULT 0,
                 created_at TEXT NOT NULL,
                 completed_at TEXT,
@@ -190,9 +191,121 @@ impl Database {
             CREATE INDEX IF NOT EXISTS idx_worktrees_task_id ON worktrees(task_id);
             CREATE INDEX IF NOT EXISTS idx_task_repos_task_id ON task_repos(task_id);
             "#,
-        )?;
+            task_active = TaskStatus::ACTIVE,
+            task_archived = TaskStatus::ARCHIVED,
+            todo_pending = TodoStatus::PENDING,
+            todo_done = TodoStatus::DONE,
+            todo_cancelled = TodoStatus::CANCELLED,
+        );
+
+        self.conn.execute_batch(&schema)?;
 
         self.migrate_schema()?;
+
+        Ok(())
+    }
+
+    /// Adds CHECK constraints on task/todo status columns for existing databases.
+    fn migrate_status_check_constraints(&self) -> Result<()> {
+        let tasks_sql: String = self
+            .conn
+            .query_row(
+                "SELECT sql FROM sqlite_master WHERE type='table' AND name='tasks'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap_or_default();
+
+        if tasks_sql.contains("CHECK") {
+            return Ok(());
+        }
+
+        let invalid_tasks: i64 = self.conn.query_row(
+            &format!(
+                "SELECT COUNT(*) FROM tasks WHERE status NOT IN ('{}', '{}')",
+                TaskStatus::ACTIVE,
+                TaskStatus::ARCHIVED
+            ),
+            [],
+            |row| row.get(0),
+        )?;
+        if invalid_tasks > 0 {
+            return Err(crate::utils::TrackError::Other(format!(
+                "Cannot migrate status constraints: {invalid_tasks} tasks have invalid status values"
+            )));
+        }
+
+        let invalid_todos: i64 = self.conn.query_row(
+            &format!(
+                "SELECT COUNT(*) FROM todos WHERE status NOT IN ('{}', '{}', '{}')",
+                TodoStatus::PENDING,
+                TodoStatus::DONE,
+                TodoStatus::CANCELLED
+            ),
+            [],
+            |row| row.get(0),
+        )?;
+        if invalid_todos > 0 {
+            return Err(crate::utils::TrackError::Other(format!(
+                "Cannot migrate status constraints: {invalid_todos} todos have invalid status values"
+            )));
+        }
+
+        let task_check = format!(
+            "CHECK (status IN ('{}', '{}'))",
+            TaskStatus::ACTIVE,
+            TaskStatus::ARCHIVED
+        );
+        let todo_check = format!(
+            "CHECK (status IN ('{}', '{}', '{}'))",
+            TodoStatus::PENDING,
+            TodoStatus::DONE,
+            TodoStatus::CANCELLED
+        );
+
+        self.conn.execute_batch(&format!(
+            r#"
+            CREATE TABLE tasks_new (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                description TEXT,
+                status TEXT NOT NULL DEFAULT '{task_active}' {task_check},
+                ticket_id TEXT,
+                ticket_url TEXT,
+                alias TEXT,
+                is_today_task INTEGER DEFAULT 0,
+                created_at TEXT NOT NULL
+            );
+            INSERT INTO tasks_new (id, name, description, status, ticket_id, ticket_url, alias, is_today_task, created_at)
+            SELECT id, name, description, status, ticket_id, ticket_url, alias, is_today_task, created_at FROM tasks;
+            DROP TABLE tasks;
+            ALTER TABLE tasks_new RENAME TO tasks;
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_tasks_alias ON tasks(alias);
+            CREATE INDEX IF NOT EXISTS idx_tasks_is_today_task ON tasks(is_today_task);
+
+            CREATE TABLE todos_new (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                task_id INTEGER NOT NULL,
+                task_index INTEGER,
+                content TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT '{todo_pending}' {todo_check},
+                worktree_requested INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL,
+                completed_at TEXT,
+                FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
+            );
+            INSERT INTO todos_new (id, task_id, task_index, content, status, worktree_requested, created_at, completed_at)
+            SELECT id, task_id, task_index, content, status, worktree_requested, created_at, completed_at FROM todos;
+            DROP TABLE todos;
+            ALTER TABLE todos_new RENAME TO todos;
+            CREATE INDEX IF NOT EXISTS idx_todos_task_id ON todos(task_id);
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_todos_task_index ON todos(task_id, task_index);
+            "#,
+            task_active = TaskStatus::ACTIVE,
+            task_check = task_check,
+            todo_pending = TodoStatus::PENDING,
+            todo_check = todo_check,
+        ))?;
 
         Ok(())
     }
@@ -580,6 +693,8 @@ impl Database {
             "CREATE INDEX IF NOT EXISTS idx_tasks_is_today_task ON tasks(is_today_task)",
             [],
         )?;
+
+        self.migrate_status_check_constraints()?;
 
         Ok(())
     }
@@ -969,5 +1084,50 @@ mod tests {
         db.increment_rev("todos").unwrap();
         let revs3 = db.get_all_revs().unwrap();
         assert_ne!(revs1, revs3);
+    }
+
+    #[test]
+    fn test_status_check_constraints_enforced() {
+        use crate::models::{TaskStatus, TodoStatus};
+
+        let db = Database::new_in_memory().unwrap();
+        let conn = db.get_connection();
+
+        let tasks_sql: String = conn
+            .query_row(
+                "SELECT sql FROM sqlite_master WHERE type='table' AND name='tasks'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert!(tasks_sql.contains("CHECK"));
+
+        conn.execute(
+            "INSERT INTO tasks (name, status, created_at) VALUES ('Bad', ?1, datetime('now'))",
+            rusqlite::params![TaskStatus::ACTIVE],
+        )
+        .unwrap();
+
+        let err = conn
+            .execute(
+                "INSERT INTO tasks (name, status, created_at) VALUES ('Bad', 'invalid', datetime('now'))",
+                [],
+            )
+            .unwrap_err();
+        assert!(err.to_string().contains("CHECK constraint failed"));
+
+        conn.execute(
+            "INSERT INTO todos (task_id, task_index, content, status, worktree_requested, created_at) VALUES (1, 1, 'Ok', ?1, 0, datetime('now'))",
+            rusqlite::params![TodoStatus::PENDING],
+        )
+        .unwrap();
+
+        let err = conn
+            .execute(
+                "INSERT INTO todos (task_id, task_index, content, status, worktree_requested, created_at) VALUES (1, 2, 'Bad', 'reopened', 0, datetime('now'))",
+                [],
+            )
+            .unwrap_err();
+        assert!(err.to_string().contains("CHECK constraint failed"));
     }
 }

@@ -2,6 +2,8 @@
 
 use crate::db::Database;
 use crate::models::TodoStatus;
+use crate::models::{AgentGuardrails, TodoAgentView, WorkflowContext};
+use crate::services::agent_context::build_agent_extensions;
 use crate::services::{
     LinkService, RepoService, ScrapService, TaskService, TodoService, WorktreeService,
 };
@@ -36,6 +38,12 @@ pub struct StatusResponse {
     pub scraps: Vec<serde_json::Value>,
     pub worktrees: Vec<serde_json::Value>,
     pub repos: Vec<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub workflow: Option<WorkflowContext>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub todos_agent: Option<Vec<TodoAgentView>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub guardrails: Option<AgentGuardrails>,
 }
 
 /// Form data for adding a todo
@@ -113,6 +121,9 @@ pub async fn api_status(State(state): State<WebState>) -> Result<Json<StatusResp
                 scraps: vec![],
                 worktrees: vec![],
                 repos: vec![],
+                workflow: None,
+                todos_agent: None,
+                guardrails: None,
             }));
         }
     };
@@ -135,6 +146,8 @@ pub async fn api_status(State(state): State<WebState>) -> Result<Json<StatusResp
     let repo_service = RepoService::new(&db);
     let repos = repo_service.list_repos(current_task_id)?;
 
+    let agent = build_agent_extensions(&task, &todos, &worktrees, &repos, &worktree_service);
+
     Ok(Json(StatusResponse {
         task: Some(serde_json::to_value(&task)?),
         todos: format_todos(todos, &worktrees, &scraps),
@@ -154,6 +167,9 @@ pub async fn api_status(State(state): State<WebState>) -> Result<Json<StatusResp
             .iter()
             .map(|r| serde_json::to_value(r).unwrap_or_default())
             .collect(),
+        workflow: Some(agent.workflow),
+        todos_agent: Some(agent.todos_agent),
+        guardrails: Some(agent.guardrails),
     }))
 }
 

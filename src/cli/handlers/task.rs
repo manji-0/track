@@ -241,9 +241,13 @@ pub fn handle_info(
         });
 
         let agent = build_agent_extensions(&task, &todos, &worktrees, &repos, &worktree_service);
+        let agent_val = serde_json::to_value(&agent)
+            .map_err(|e| TrackError::Other(format!("JSON serialization error: {}", e)))?;
         if let Some(obj) = output.as_object_mut() {
-            for (key, value) in agent.as_object().into_iter().flatten() {
-                obj.insert(key.clone(), value.clone());
+            if let Some(agent_obj) = agent_val.as_object() {
+                for (key, value) in agent_obj {
+                    obj.insert(key.clone(), value.clone());
+                }
             }
         }
 

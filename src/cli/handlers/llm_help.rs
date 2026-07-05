@@ -39,11 +39,29 @@ jj bookmark list -r @
 Confirm the output shows `task/<ticket-id>` or `task/task-<id>`.
 **If you see main/master/develop, STOP and run `track sync` again.**
 
-### Step 3: Check Status
+### Step 3: Check Status (JSON-first for agents)
 ```bash
-track status
+track status --json
 ```
-Understand the current task, pending TODOs, and workspace paths.
+Parse `workflow.phase`, `workflow.next_action`, and `todos_agent` before doing anything else.
+Human-readable fallback: `track status`
+
+**Agent JSON fields:**
+| Field | Use |
+|-------|-----|
+| `workflow.phase` | setup · sync_required · execute · task_complete · archived |
+| `workflow.next_action.command` | Next command to run |
+| `todos_agent[].is_next` | Current TODO |
+| `todos_agent[].allowed_actions` | Valid operations (reopen forbidden) |
+| `guardrails` | must_sync_before_code_changes, complete_requires_jj_merge |
+
+WebUI: `GET /api/status` returns the same agent fields when a task is active.
+
+**Install this guide as a skill:**
+```bash
+npx skills add ./skills/task-management -g -a cursor -a claude-code -a codex -y
+```
+See `skills/INSTALL.md` for agent paths and troubleshooting.
 
 ### Step 4: Navigate to Workspace
 ```bash
@@ -115,10 +133,9 @@ This guide explains the standard workflow for completing tasks.
 8. **Verify Bookmark**: `jj status`
    - **STOP if you are not on the task bookmark. Run `track sync` again.**
 
-9. **Check Current State**: `track status`
-   - Shows current task, TODOs, workspaces, links, and recent scraps.
-   - Use `track status --json` for structured output.
-   - Use `track status --all` to show all scraps instead of recent ones.
+9. **Check Current State**: `track status --json` (prefer JSON; use `track status` for humans)
+   - Follow `workflow.next_action` — do not guess the next step
+   - WebUI `/api/status` exposes the same agent fields
 
 10. **Execute TODOs**:
     - Run `track todo workspace <index>` to get the workspace path.
@@ -138,7 +155,7 @@ This guide explains the standard workflow for completing tasks.
 |---------|-------------|
 | `track sync` | **MANDATORY FIRST STEP** - Sync bookmarks and create workspaces |
 | `track status` | Show current task, TODOs, workspaces, links |
-| `track status --json` | JSON output for programmatic access |
+| `track status --json` | **Preferred for agents** — task + workflow + todos_agent + guardrails |
 | `track status --all` | Show all scraps instead of recent |
 | `track new "<name>"` | Create new task |
 | `track new "<name>" --ticket <id> --ticket-url <url>` | Create task with ticket |
@@ -162,7 +179,7 @@ This guide explains the standard workflow for completing tasks.
 | `track todo list` | List TODOs |
 | `track todo workspace <index>` | Show or recreate TODO workspace |
 | `track todo done <index>` | Complete TODO (rebases workspace if exists) |
-| `track todo update <index> <status>` | Update TODO status |
+| `track todo update <index> cancelled` | Cancel a pending TODO (use `todo done` to complete) |
 | `track todo delete <index>` | Delete TODO |
 | `track link add <url>` | Add reference link |
 | `track link add <url> --title "<title>"` | Add link with custom title |

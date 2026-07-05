@@ -4,16 +4,24 @@ use crate::models::{
     WorkspaceAgentView, Worktree,
 };
 use crate::services::WorktreeService;
-use serde_json::{json, Value};
+use serde::Serialize;
 
-/// Builds agent-oriented JSON extensions for `track status --json`.
+/// Agent-oriented fields shared by `track status --json` and `/api/status`.
+#[derive(Debug, Clone, Serialize)]
+pub struct AgentStatusExtensions {
+    pub workflow: WorkflowContext,
+    pub todos_agent: Vec<TodoAgentView>,
+    pub guardrails: AgentGuardrails,
+}
+
+/// Builds agent-oriented JSON extensions for status endpoints.
 pub fn build_agent_extensions(
     task: &Task,
     todos: &[Todo],
     worktrees: &[Worktree],
     repos: &[TaskRepo],
     worktree_service: &WorktreeService<'_>,
-) -> Value {
+) -> AgentStatusExtensions {
     let phase = compute_workflow_phase(task, todos, worktrees, repos);
     let next_todo_id = oldest_pending_todo(todos).map(|todo| todo.id);
 
@@ -61,21 +69,19 @@ pub fn build_agent_extensions(
         })
         .collect();
 
-    json!({
-        "workflow": workflow,
-        "todos_agent": todos_agent,
-        "guardrails": AgentGuardrails::default(),
-    })
+    AgentStatusExtensions {
+        workflow,
+        todos_agent,
+        guardrails: AgentGuardrails::default(),
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::db::Database;
-    use crate::models::TaskStatus;
-    use crate::utils::TrackError;
+    use crate::models::WorkflowPhase;
     use crate::services::{TaskService, TodoService};
-    use chrono::Utc;
 
     #[test]
     fn agent_extensions_include_workflow() {
@@ -90,9 +96,7 @@ mod tests {
         let worktree_service = WorktreeService::new(&db);
         let extensions = build_agent_extensions(&task, &todos, &[], &[], &worktree_service);
 
-        assert_eq!(extensions["workflow"]["phase"], "setup");
-        assert!(extensions["guardrails"]["reopen_forbidden"]
-            .as_bool()
-            .unwrap());
+        assert_eq!(extensions.workflow.phase, WorkflowPhase::Setup);
+        assert!(extensions.guardrails.reopen_forbidden);
     }
 }

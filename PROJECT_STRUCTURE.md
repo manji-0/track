@@ -69,7 +69,11 @@ Models (typed enums, task-scoped indices)
 
 ### Agent JSON (`track status --json`)
 
-Adds `workflow`, `todos_agent`, and `guardrails` alongside the existing payload for LLM agents.
+Adds `workflow`, `todos_agent`, and `guardrails` to `track status --json` and `GET /api/status`.
+
+### Skills / agents
+
+Install with [Skills CLI](https://github.com/vercel-labs/skills): `npx skills add ./skills/task-management -a cursor -a claude-code -a codex -y`. See `skills/INSTALL.md`.
 
 ### WebUI errors
 

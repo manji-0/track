@@ -30,17 +30,56 @@ jj bookmark list -r @
 
 ---
 
-### Step 2: Check Current State
+### Step 2: Check Current State (JSON-first)
 
 ```bash
-track status [id]
+track status --json
 ```
 
+**Read the JSON fields:**
+
+```json
+{
+  "workflow": {
+    "phase": "execute",
+    "next_action": {
+      "kind": "run_command",
+      "command": "track todo workspace 1",
+      "reason": "Work on TODO #1: ..."
+    }
+  },
+  "todos_agent": [
+    {
+      "todo_id": 1,
+      "is_next": true,
+      "allowed_actions": ["make_next", "complete", "cancel", "delete"],
+      "workspace": { "lifecycle": "ready", "path": "...", "bookmark": "..." }
+    }
+  ],
+  "guardrails": {
+    "must_sync_before_code_changes": true,
+    "complete_requires_jj_merge": true,
+    "reopen_forbidden": true
+  }
+}
+```
+
+**Workflow phases:**
+
+| Phase | Meaning | Typical action |
+|-------|---------|----------------|
+| `setup` | No repos registered | `track repo add` |
+| `sync_required` | Workspaces missing | `track sync` |
+| `execute` | Pending TODOs ready | Work on `is_next` TODO |
+| `task_complete` | All TODOs done/cancelled | `track archive` |
+| `archived` | Task closed | Switch task |
+
+Human-readable fallback: `track status` (no flags).
+
 **Analyze output:**
-- Identify pending TODOs (marked `[ ]`)
-- Note workspace paths if they exist
-- Review recent scraps for context
-- Determine which TODO to tackle next
+- Follow `workflow.next_action` — do not infer steps manually
+- Use `todos_agent[].is_next` to pick the current TODO
+- Respect `allowed_actions` (reopen is never allowed)
 
 ---
 

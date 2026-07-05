@@ -5,13 +5,29 @@ license: MIT
 compatibility: Requires track CLI installed
 metadata:
   author: track
-  version: 1.1.0
-  tags: [task-management, jj, workspaces, todo, productivity, webui, markdown]
+  version: 1.3.0
+  tags: [task-management, jj, workspaces, todo, productivity, webui, markdown, npx-skills]
 ---
 
 # Track Task Management
 
 Lightweight CLI tool for managing development tasks with integrated JJ workspace support.
+
+## Install this skill
+
+**Recommended** — [Skills CLI](https://github.com/vercel-labs/skills) from the track repo root:
+
+```bash
+npx skills add ./skills/task-management -g -a cursor -a claude-code -a codex -y
+```
+
+| Agent | Flag | Skill path after install |
+|-------|------|--------------------------|
+| Cursor | `-a cursor` | `.agents/skills/` or `~/.cursor/skills/` |
+| Claude Code | `-a claude-code` | `.claude/skills/` or `~/.claude/skills/` |
+| Codex | `-a codex` | `.agents/skills/` or `~/.codex/skills/` |
+
+Details: [../INSTALL.md](../INSTALL.md) · Discover skills: [skills.sh](https://skills.sh)
 
 ## Quick Start
 
@@ -47,11 +63,27 @@ jj bookmark list -r @
 jj describe -m "Implement theme switcher"
 ```
 
-### Checking Status
+### Checking Status (JSON-first for agents)
 
 ```bash
+# Human-readable
 track status
+
+# Machine-readable — prefer this for agents
+track status --json
 ```
+
+Read these fields every turn:
+
+| Field | Meaning |
+|-------|---------|
+| `workflow.phase` | `setup` · `sync_required` · `execute` · `task_complete` · `archived` |
+| `workflow.next_action.command` | Suggested next command |
+| `todos_agent[].is_next` | Current TODO to work on |
+| `todos_agent[].allowed_actions` | Allowed ops (`complete`, `cancel`, … — **no reopen**) |
+| `guardrails.must_sync_before_code_changes` | Must run `track sync` before editing code |
+
+WebUI equivalent: `GET /api/status` (same agent fields when a task is active).
 
 ## Essential Commands
 
@@ -69,7 +101,8 @@ track status
 | `track todo add "<text>"` | Add TODO |
 | `track todo add "<text>" --worktree` | Add TODO with workspace |
 | `track todo workspace <index>` | Show or recreate TODO workspace |
-| `track todo done <index>` | Complete TODO |
+| `track todo done <index>` | Complete TODO (JJ merge if workspace exists) |
+| `track todo update <index> cancelled` | Cancel a pending TODO |
 | `track todo next <index>` | Move TODO to front (make it next) |
 | `track link add <url>` | Add reference link |
 | `track link add <url> --title "<title>"` | Add link with title |
@@ -159,22 +192,23 @@ track webui  # Access at http://localhost:3000
 
 ### Standard Workflow Pattern
 
-1. **Sync first** (MANDATORY): `track sync`
-2. **Verify bookmark**: `jj status` (must be task bookmark, not main/master)
-3. **Check context**: `track status`
-4. **Identify next action**: Look at pending TODOs
-5. **Navigate to workspace**: `track todo workspace <index>`
-6. **Implement changes** and test
-7. **Describe changes**: `jj describe -m "..."`
-8. **Record progress**: `track scrap add "..."`
-9. **Complete**: `track todo done <index>`
-10. **Repeat** for next TODO
+1. **Read JSON context**: `track status --json` — follow `workflow.next_action`
+2. **Sync first** (MANDATORY before code): `track sync`
+3. **Verify bookmark**: `jj status` + `jj bookmark list -r @` (task bookmark, not main)
+4. **Navigate to workspace**: `track todo workspace <index>` when `todos_agent[].workspace.lifecycle` is `ready`
+5. **Implement** and test
+6. **Describe changes**: `jj describe -m "..."`
+7. **Record progress**: `track scrap add "..."`
+8. **Complete**: `track todo done <index>` (never `todo update … done`)
+9. **Repeat** — re-run `track status --json` for the next action
 
 ### Important Notes
 
+- **Use `track status --json`** at the start of every turn; do not guess the next step
 - **ALWAYS run `track sync` before making code changes**
-- **ALWAYS verify you are on task bookmark, not main/master/develop** (`jj status` + `jj bookmark list -r @`)
-- Always run `track status` first to understand current state
+- **Complete TODOs with `track todo done`** — not `todo update` (JJ merge required)
+- **Reopening TODOs is forbidden** — add a new TODO instead
+- **ALWAYS verify task bookmark** (`jj status` + `jj bookmark list -r @`)
 - TODO, Link, and Repository indices are task-scoped (not global)
 - Describe all changes before `track todo done`
 - Use scraps to document decisions and findings (supports Markdown)
@@ -184,6 +218,6 @@ track webui  # Access at http://localhost:3000
 
 ## Additional Resources
 
+- **Install skill**: `npx skills add ./skills/task-management -g -a cursor -a claude-code -a codex -y`
 - **Quick reference**: Run `track llm-help` for comprehensive guide
-- **All commands**: Run `track --help`
-- **Installation guide**: See [../INSTALL.md](../INSTALL.md)
+- **Install guide**: See [../INSTALL.md](../INSTALL.md)
