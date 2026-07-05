@@ -1,12 +1,14 @@
 # LLM Integration
 
-Track provides **Agent Skills** following the [official Agent Skills specification](https://github.com/anthropics/skills), installable via **[Skills CLI](https://github.com/vercel-labs/skills)** (`npx skills`).
+Track provides **Agent Skills** following the [official Agent Skills specification](https://github.com/anthropics/skills), split by use case and installable via **[Skills CLI](https://github.com/vercel-labs/skills)** (`npx skills`).
 
 ## Quick Start for Agents
 
 ```bash
-# Install skill (from track repo root)
-npx skills add ./skills/task-management -g -a cursor -a claude-code -a codex -y
+# Install skills (from track repo root)
+npx skills add ./skills \
+  -s track -s track-task-setup -s track-task-execute -s track-advanced \
+  -g -a cursor -a claude-code -a codex -y
 
 # Read machine-readable context FIRST
 track status --json
@@ -17,14 +19,13 @@ jj status
 jj bookmark list -r @
 ```
 
-## Install the skill
+## Install skills
 
 | Method | Command |
 |--------|---------|
-| **Project** (team-shared) | `npx skills add ./skills/task-management -y` |
-| **Global** (all repos) | `npx skills add ./skills/task-management -g -y` |
-| **Specific agents** | `npx skills add ./skills/task-management -a cursor -a claude-code -a codex -y` |
-| **From GitHub** | `npx skills add manji-0/track --skill track-task-management -g -y` |
+| **All skills (recommended)** | `npx skills add ./skills -s track -s track-task-setup -s track-task-execute -s track-advanced -g -y` |
+| **Router + execute only** | `npx skills add ./skills -s track -s track-task-execute -a cursor -y` |
+| **From GitHub** | `npx skills add manji-0/track -s track -s track-task-execute -g -y` |
 
 Agent install paths:
 
@@ -36,11 +37,16 @@ Agent install paths:
 
 Full guide: [skills/INSTALL.md](../skills/INSTALL.md)
 
-## Main skill: track-task-management
+## Skill catalog
 
-**Path:** `skills/task-management/SKILL.md`
+| Skill | Path | Use when |
+|-------|------|----------|
+| **track** | `skills/track/SKILL.md` | Router — read `workflow.phase`, pick specialized skill |
+| **track-task-setup** | `skills/track-task-setup/SKILL.md` | Create task, repos, TODOs (`setup`) |
+| **track-task-execute** | `skills/track-task-execute/SKILL.md` | Agent coding loop (`sync_required`, `execute`) |
+| **track-advanced** | `skills/track-advanced/SKILL.md` | Multi-repo, parallel, hotfix, archive |
 
-**Use when:** Creating tasks, adding TODOs, working through task lists, or managing development workflows.
+Legacy **`track-task-management`** (`skills/task-management/`) is deprecated.
 
 ## JSON-first workflow
 
@@ -57,20 +63,20 @@ Agents should call `track status --json` (or `GET /api/status` in WebUI) every t
 }
 ```
 
-| Phase | Action |
-|-------|--------|
-| `setup` | Register repos / add TODOs |
-| `sync_required` | Run `track sync` |
-| `execute` | Work on `is_next` TODO |
-| `task_complete` | Consider `track archive` |
+| Phase | Skill | Action |
+|-------|-------|--------|
+| `setup` | track-task-setup | Register repos / add TODOs |
+| `sync_required` | track-task-execute | Run `track sync` |
+| `execute` | track-task-execute | Work on `is_next` TODO |
+| `task_complete` | track-advanced | Archive / push / handoff |
 
 ## Detailed references
 
-| Reference | When to Use |
-|-----------|-------------|
-| [creating-tasks.md](../skills/task-management/references/creating-tasks.md) | Setting up new tasks |
-| [executing-tasks.md](../skills/task-management/references/executing-tasks.md) | Working through TODOs |
-| [advanced-workflows.md](../skills/task-management/references/advanced-workflows.md) | Multi-repo, parallel work |
+| Reference | Skill |
+|-----------|-------|
+| [setup-workflow.md](../skills/track-task-setup/references/setup-workflow.md) | track-task-setup |
+| [execution-workflow.md](../skills/track-task-execute/references/execution-workflow.md) | track-task-execute |
+| [advanced-patterns.md](../skills/track-advanced/references/advanced-patterns.md) | track-advanced |
 
 ## LLM Help Command
 
@@ -83,7 +89,7 @@ Outputs the full agent workflow guide including JSON fields and `npx skills` ins
 ## Discover more skills
 
 ```bash
-npx skills find task
+npx skills find track
 npx skills list
 ```
 
@@ -91,6 +97,6 @@ Browse: [skills.sh](https://skills.sh)
 
 ## Resources
 
-- [skills/README.md](../skills/README.md) — skill overview
+- [skills/README.md](../skills/README.md) — skill catalog and routing
 - [skills/INSTALL.md](../skills/INSTALL.md) — install for Cursor / Claude Code / Codex
 - [LLM_HELP_DESIGN.md](LLM_HELP_DESIGN.md) — `llm-help` command design

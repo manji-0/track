@@ -1,58 +1,70 @@
 # Track CLI Skills for LLM Agents
 
-Official [Agent Skills](https://github.com/anthropics/skills) for the `track` CLI — installable via **[Skills CLI](https://github.com/vercel-labs/skills)** (`npx skills`), Cursor, Claude Code, and Codex.
+Official [Agent Skills](https://github.com/anthropics/skills) for the `track` CLI — split by **use case** and installable via **[Skills CLI](https://github.com/vercel-labs/skills)** (`npx skills`), Cursor, Claude Code, and Codex.
 
-## Quick install
+## Quick install (all skills)
+
+From the track repository root:
 
 ```bash
-# From track repo root — project scope (team-shared)
-npx skills add ./skills/task-management -y
-
-# Global + specific agents
-npx skills add ./skills/task-management \
+npx skills add ./skills \
+  -s track -s track-task-setup -s track-task-execute -s track-advanced \
   -g -a cursor -a claude-code -a codex -y
+```
+
+Install only what you need:
+
+```bash
+# Router + execution (most agents)
+npx skills add ./skills -s track -s track-task-execute -a cursor -y
+
+# Planning / scaffolding only
+npx skills add ./skills -s track-task-setup -y
 ```
 
 See **[INSTALL.md](INSTALL.md)** for GitHub installs, agent paths, verification, and troubleshooting.
 
-## Skill: track-task-management
+## Skill catalog
 
-| | |
-|---|---|
-| **Path** | `skills/task-management/SKILL.md` |
-| **Name** | `track-task-management` |
-| **Use when** | Creating tasks, TODOs, JJ workspaces, or user mentions `track` |
+| Skill | Use when | Path |
+|-------|----------|------|
+| **track** | User mentions track; read `workflow.phase` and route | `skills/track/SKILL.md` |
+| **track-task-setup** | Create task, repos, TODOs, links (`setup`) | `skills/track-task-setup/SKILL.md` |
+| **track-task-execute** | Agent coding loop (`sync_required`, `execute`) | `skills/track-task-execute/SKILL.md` |
+| **track-advanced** | Multi-repo, parallel, hotfix, archive | `skills/track-advanced/SKILL.md` |
 
-### What it covers
+### Routing by workflow phase
 
-- Task / TODO management (task-scoped indices)
-- JJ bookmark and workspace workflows
-- Ticket integration (Jira, GitHub, GitLab)
-- Markdown scraps, links, templates, aliases
-- **JSON-first agent workflow** via `track status --json` and `/api/status`
+Run `track status --json` first, then pick a skill:
 
-### Agent loop (summary)
+| `workflow.phase` | Skill |
+|------------------|-------|
+| `setup` | track-task-setup |
+| `sync_required` / `execute` | track-task-execute |
+| `task_complete` | track-advanced |
+| Multi-repo / parallel / hotfix | track-advanced |
 
-1. `track status --json` — read `workflow.phase` and `next_action`
-2. `track sync` — before any code changes
-3. `jj status` — verify task bookmark
-4. Execute TODO → `track scrap add` → `track todo done <index>`
-5. Repeat until `workflow.phase` is `task_complete`
-
-Full detail: `SKILL.md` and `references/executing-tasks.md`.
+The **track** skill is a lightweight router — it maps phase and intent to the specialized skills above.
 
 ## Directory layout
 
 ```
 skills/
-├── README.md                 # This file
-├── INSTALL.md                # npx skills + Cursor / Claude / Codex setup
-└── task-management/
-    ├── SKILL.md              # Main skill (~500 lines max, YAML frontmatter)
-    └── references/
-        ├── creating-tasks.md
-        ├── executing-tasks.md
-        └── advanced-workflows.md
+├── README.md
+├── INSTALL.md
+├── track/                      # Router / index
+│   └── SKILL.md
+├── track-task-setup/           # Planning & scaffolding
+│   ├── SKILL.md
+│   └── references/setup-workflow.md
+├── track-task-execute/         # Agent execution loop
+│   ├── SKILL.md
+│   └── references/execution-workflow.md
+├── track-advanced/             # Multi-repo, archive, patterns
+│   ├── SKILL.md
+│   └── references/advanced-patterns.md
+└── task-management/            # Deprecated — use split skills above
+    └── SKILL.md
 ```
 
 ## Supported agents
@@ -63,11 +75,18 @@ skills/
 | Claude Code | `-a claude-code` | `.claude/skills/` or `~/.claude/skills/` |
 | Codex | `-a codex` | `.agents/skills/` or `~/.codex/skills/` |
 
-Browse more agents: [skills.sh](https://skills.sh) · `npx skills find task`
+Browse more agents: [skills.sh](https://skills.sh) · `npx skills find track`
 
 ## Without installing
 
-Agents with repo access can read `skills/task-management/SKILL.md` directly. Installing via `npx skills` is recommended when working outside the track repository.
+Agents with repo access can read skills directly:
+
+```
+skills/track/SKILL.md
+skills/track-task-execute/SKILL.md
+```
+
+Installing via `npx skills` is recommended when working outside the track repository.
 
 ## Resources
 

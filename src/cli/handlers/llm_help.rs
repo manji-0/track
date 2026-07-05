@@ -57,10 +57,18 @@ Human-readable fallback: `track status`
 
 WebUI: `GET /api/status` returns the same agent fields when a task is active.
 
-**Install this guide as a skill:**
+**Install track skills (split by use case):**
 ```bash
-npx skills add ./skills/task-management -g -a cursor -a claude-code -a codex -y
+npx skills add ./skills \
+  -s track -s track-task-setup -s track-task-execute -s track-advanced \
+  -g -a cursor -a claude-code -a codex -y
 ```
+| Skill | When |
+|-------|------|
+| `track` | Router — read workflow.phase |
+| `track-task-setup` | Create task, repos, TODOs |
+| `track-task-execute` | Sync, implement, todo done |
+| `track-advanced` | Multi-repo, archive, hotfix |
 See `skills/INSTALL.md` for agent paths and troubleshooting.
 
 ### Step 4: Navigate to Workspace

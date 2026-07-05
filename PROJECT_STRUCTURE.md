@@ -73,7 +73,7 @@ Adds `workflow`, `todos_agent`, and `guardrails` to `track status --json` and `G
 
 ### Skills / agents
 
-Install with [Skills CLI](https://github.com/vercel-labs/skills): `npx skills add ./skills/task-management -a cursor -a claude-code -a codex -y`. See `skills/INSTALL.md`.
+Install with [Skills CLI](https://github.com/vercel-labs/skills): `npx skills add ./skills -s track -s track-task-setup -s track-task-execute -s track-advanced -a cursor -a claude-code -a codex -y`. See `skills/INSTALL.md`.
 
 ### WebUI errors
 
