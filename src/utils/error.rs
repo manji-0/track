@@ -33,6 +33,9 @@ pub enum TrackError {
     #[error("Scrap content cannot be empty")]
     EmptyScrapContent,
 
+    #[error("Workspaces have uncommitted changes: {0:?}")]
+    UncommittedWorkspaces(Vec<String>),
+
     #[error("Ticket '{0}' is already linked to task #{1}")]
     DuplicateTicket(String, i64),
 

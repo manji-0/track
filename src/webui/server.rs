@@ -13,27 +13,9 @@ use std::sync::Arc;
 use tokio::net::TcpListener;
 use tower_http::services::ServeDir;
 
-/// Start the WebUI server
-pub async fn start_server(port: u16, open_browser: bool) -> anyhow::Result<()> {
-    // Initialize application state
-    let app_state = AppState::new()?;
-
-    // Initialize templates (embedded for single-binary distribution)
-    let templates = Arc::new(Templates::embedded());
-
-    let web_state = WebState {
-        app: app_state.clone(),
-        templates,
-    };
-
-    // Spawn background task to poll for database changes
-    let poll_state = app_state.clone();
-    tokio::spawn(async move {
-        poll_state.start_change_detection().await;
-    });
-
-    // Build router
-    let app = Router::new()
+/// Build the WebUI router (shared by server startup and tests).
+pub fn build_router(web_state: WebState) -> Router {
+    Router::new()
         // Pages
         .route("/", get(routes::index))
         // Card GET endpoints for HTMX updates
@@ -60,7 +42,30 @@ pub async fn start_server(port: u16, open_browser: bool) -> anyhow::Result<()> {
         .route("/api/sse", get(sse_handler))
         // Static files (CSS, JS)
         .nest_service("/static", ServeDir::new("static"))
-        .with_state(web_state);
+        .with_state(web_state)
+}
+
+/// Start the WebUI server
+pub async fn start_server(port: u16, open_browser: bool) -> anyhow::Result<()> {
+    // Initialize application state
+    let app_state = AppState::new()?;
+
+    // Initialize templates (embedded for single-binary distribution)
+    let templates = Arc::new(Templates::embedded());
+
+    let web_state = WebState {
+        app: app_state.clone(),
+        templates,
+    };
+
+    // Spawn background task to poll for database changes
+    let poll_state = app_state.clone();
+    tokio::spawn(async move {
+        poll_state.start_change_detection().await;
+    });
+
+    // Build router
+    let app = build_router(web_state);
 
     let addr = SocketAddr::from(([127, 0, 0, 1], port));
 

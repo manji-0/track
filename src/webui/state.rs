@@ -46,6 +46,17 @@ pub struct AppState {
 }
 
 impl AppState {
+    /// Create application state backed by an existing database (for tests).
+    pub fn from_database(db: Database) -> Self {
+        let (sse_tx, _) = broadcast::channel(100);
+
+        Self {
+            db: Arc::new(Mutex::new(db)),
+            sse_tx,
+            last_state: Arc::new(Mutex::new(None)),
+        }
+    }
+
     /// Create new application state with database connection
     pub fn new() -> anyhow::Result<Self> {
         let db = Database::new()?;

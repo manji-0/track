@@ -13,6 +13,9 @@ track/
 │   ├── main.rs              # Binary entry (delegates to lib)
 │   ├── lib.rs               # Library exports
 │   ├── cli/                 # Clap command tree and CommandHandler
+│   │   ├── mod.rs
+│   │   ├── handler.rs       # Dispatch only
+│   │   └── handlers/        # task, todo, sync, repo, …
 │   ├── db/                  # SQLite schema, migrations, transactions
 │   │   ├── mod.rs
 │   │   └── row_mapping.rs   # Shared row → domain parsing
@@ -25,7 +28,8 @@ track/
 │   │   └── worktree_service.rs
 │   ├── use_cases/           # Multi-step workflows / transaction boundaries
 │   │   ├── complete_todo.rs
-│   │   └── create_today_task.rs
+│   │   ├── create_today_task.rs
+│   │   └── archive_task.rs
 │   ├── utils/               # TrackError, Result alias
 │   └── webui/               # Axum server, routes, SSE, MiniJinja
 ├── templates/               # HTMX HTML templates
@@ -55,6 +59,7 @@ Models (typed enums, task-scoped indices)
 |----------|----------------|
 | `CompleteTodoUseCase` | JJ workspace merge + mark TODO done (CLI & WebUI) |
 | `CreateTodayTaskUseCase` | Atomic today-task creation with todo/scrap inheritance |
+| `ArchiveTaskUseCase` | Workspace cleanup + task archive with dirty-workspace guard |
 
 ### Key patterns
 

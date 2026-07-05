@@ -5,6 +5,7 @@
 //! [`handler`] module.
 
 pub mod handler;
+pub mod handlers;
 
 use clap::{Parser, Subcommand, ValueEnum};
 
