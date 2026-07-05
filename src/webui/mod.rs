@@ -9,6 +9,7 @@
 //! - Add/delete TODOs and scraps through the web interface
 //! - Real-time updates via Server-Sent Events (SSE)
 
+mod error;
 mod routes;
 mod server;
 mod sse;

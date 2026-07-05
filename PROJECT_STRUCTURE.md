@@ -29,9 +29,10 @@ track/
 │   ├── use_cases/           # Multi-step workflows / transaction boundaries
 │   │   ├── complete_todo.rs
 │   │   ├── create_today_task.rs
-│   │   └── archive_task.rs
+│   │   ├── archive_task.rs
+│   │   └── sync_task.rs
 │   ├── utils/               # TrackError, Result alias
-│   └── webui/               # Axum server, routes, SSE, MiniJinja
+│   └── webui/               # Axum server, routes, SSE, MiniJinja, error mapping
 ├── templates/               # HTMX HTML templates
 ├── static/                  # Static assets
 └── tests/                   # Integration and CLI handler tests
@@ -60,6 +61,11 @@ Models (typed enums, task-scoped indices)
 | `CompleteTodoUseCase` | JJ workspace merge + mark TODO done (CLI & WebUI) |
 | `CreateTodayTaskUseCase` | Atomic today-task creation with todo/scrap inheritance |
 | `ArchiveTaskUseCase` | Workspace cleanup + task archive with dirty-workspace guard |
+| `SyncTaskUseCase` | JJ bookmark sync + pending TODO workspace creation |
+
+### WebUI errors
+
+`webui/error.rs` maps `TrackError` to HTTP status codes (400 validation, 404 not found, 500 default).
 
 ### Key patterns
 

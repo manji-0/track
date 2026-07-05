@@ -6,7 +6,11 @@
 pub mod archive_task;
 pub mod complete_todo;
 pub mod create_today_task;
+pub mod sync_task;
 
 pub use archive_task::{ArchiveTaskOutcome, ArchiveTaskUseCase, DirtyWorkspace};
 pub use complete_todo::{CompleteTodoOutcome, CompleteTodoUseCase};
 pub use create_today_task::CreateTodayTaskUseCase;
+pub use sync_task::{
+    RepoSyncOutcome, SyncTaskOutcome, SyncTaskUseCase, WorkspaceCreateError, WorkspaceCreated,
+};

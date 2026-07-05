@@ -1,0 +1,250 @@
+use crate::db::Database;
+use crate::models::{Task, TodoStatus};
+use crate::services::{RepoService, TaskService, TodoService, WorktreeService};
+use crate::utils::{Result, TrackError};
+use std::path::{Path, PathBuf};
+use std::process::Command;
+
+/// Per-repository result from a sync run.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RepoSyncOutcome {
+    Missing,
+    BookmarkCreated { base_ref: String, edit_ok: bool },
+    BookmarkExists { edit_ok: bool },
+    BookmarkCreateFailed { base_ref: String, detail: String },
+}
+
+/// A TODO workspace created during sync.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WorkspaceCreated {
+    pub todo_index: i64,
+    pub todo_content: String,
+    pub repo_path: String,
+    pub workspace_path: String,
+    pub branch: String,
+}
+
+/// A workspace creation failure during sync (non-fatal).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WorkspaceCreateError {
+    pub todo_index: i64,
+    pub repo_path: String,
+    pub detail: String,
+}
+
+/// Result of syncing the current task's JJ bookmarks and pending workspaces.
+#[derive(Debug, Clone)]
+pub struct SyncTaskOutcome {
+    pub task: Task,
+    pub task_bookmark: String,
+    pub repos: Vec<(String, RepoSyncOutcome)>,
+    pub workspaces_created: Vec<WorkspaceCreated>,
+    pub workspace_errors: Vec<WorkspaceCreateError>,
+}
+
+/// Syncs task bookmarks across registered repos and creates pending TODO workspaces.
+pub struct SyncTaskUseCase<'a> {
+    db: &'a Database,
+}
+
+impl<'a> SyncTaskUseCase<'a> {
+    pub fn new(db: &'a Database) -> Self {
+        Self { db }
+    }
+
+    pub fn execute(&self, task_id: i64) -> Result<SyncTaskOutcome> {
+        let task_service = TaskService::new(self.db);
+        let task = task_service.get_task(task_id)?;
+        let repo_service = RepoService::new(self.db);
+        let repos = repo_service.list_repos(task_id)?;
+
+        if repos.is_empty() {
+            return Err(TrackError::NoRepositoriesRegistered);
+        }
+
+        let worktree_service = WorktreeService::new(self.db);
+        let task_bookmark = worktree_service.task_bookmark_name(task.id, task.ticket_id.as_deref());
+        let existing_worktrees = worktree_service.list_worktrees(task_id)?;
+
+        let mut repo_outcomes = Vec::new();
+
+        for repo in &repos {
+            let outcome =
+                self.sync_repo(&worktree_service, repo, &task_bookmark, &existing_worktrees)?;
+            repo_outcomes.push((repo.repo_path.clone(), outcome));
+        }
+
+        let todo_service = TodoService::new(self.db);
+        let todos = todo_service.list_todos(task_id)?;
+
+        let mut workspaces_created = Vec::new();
+        let mut workspace_errors = Vec::new();
+
+        for todo in todos {
+            if todo.worktree_requested && todo.status != TodoStatus::Done {
+                let worktrees = worktree_service.list_worktrees(task_id)?;
+                let exists = worktrees.iter().any(|wt| wt.todo_id == Some(todo.id));
+                if exists {
+                    continue;
+                }
+
+                for repo in &repos {
+                    match worktree_service.add_worktree(
+                        task_id,
+                        &repo.repo_path,
+                        None,
+                        task.ticket_id.as_deref(),
+                        Some(todo.id),
+                        false,
+                    ) {
+                        Ok(wt) => workspaces_created.push(WorkspaceCreated {
+                            todo_index: todo.task_index,
+                            todo_content: todo.content.clone(),
+                            repo_path: repo.repo_path.clone(),
+                            workspace_path: wt.path,
+                            branch: wt.branch,
+                        }),
+                        Err(err) => workspace_errors.push(WorkspaceCreateError {
+                            todo_index: todo.task_index,
+                            repo_path: repo.repo_path.clone(),
+                            detail: err.to_string(),
+                        }),
+                    }
+                }
+            }
+        }
+
+        Ok(SyncTaskOutcome {
+            task,
+            task_bookmark,
+            repos: repo_outcomes,
+            workspaces_created,
+            workspace_errors,
+        })
+    }
+
+    fn sync_repo(
+        &self,
+        worktree_service: &WorktreeService<'_>,
+        repo: &crate::models::TaskRepo,
+        task_bookmark: &str,
+        existing_worktrees: &[crate::models::Worktree],
+    ) -> Result<RepoSyncOutcome> {
+        if !Path::new(&repo.repo_path).exists() {
+            return Ok(RepoSyncOutcome::Missing);
+        }
+
+        let status_output = Command::new("jj")
+            .args(["-R", &repo.repo_path, "diff", "--summary"])
+            .output()?;
+
+        if !status_output.status.success() {
+            return Err(TrackError::FailedRepoStatusCheck(repo.repo_path.clone()));
+        }
+
+        if Self::base_workspace_has_changes(
+            &repo.repo_path,
+            &status_output.stdout,
+            existing_worktrees,
+        )? {
+            return Err(TrackError::RepoHasPendingChanges(repo.repo_path.clone()));
+        }
+
+        let bookmark_exists =
+            worktree_service.bookmark_exists_in_repo(&repo.repo_path, task_bookmark)?;
+
+        if !bookmark_exists {
+            let base_ref = repo
+                .base_branch
+                .clone()
+                .or_else(|| repo.base_commit_hash.clone())
+                .unwrap_or_else(|| "@".to_string());
+
+            let create_result = Command::new("jj")
+                .args([
+                    "-R",
+                    &repo.repo_path,
+                    "bookmark",
+                    "create",
+                    task_bookmark,
+                    "-r",
+                    &base_ref,
+                ])
+                .output()?;
+
+            if create_result.status.success() {
+                let edit_ok = try_edit_workspace(&repo.repo_path, task_bookmark);
+                return Ok(RepoSyncOutcome::BookmarkCreated { base_ref, edit_ok });
+            }
+
+            let detail = String::from_utf8_lossy(&create_result.stderr)
+                .trim()
+                .to_string();
+            return Ok(RepoSyncOutcome::BookmarkCreateFailed { base_ref, detail });
+        }
+
+        let edit_ok = try_edit_workspace(&repo.repo_path, task_bookmark);
+        Ok(RepoSyncOutcome::BookmarkExists { edit_ok })
+    }
+
+    fn base_workspace_has_changes(
+        repo_path: &str,
+        status_stdout: &[u8],
+        existing_worktrees: &[crate::models::Worktree],
+    ) -> Result<bool> {
+        let repo_root = Path::new(repo_path)
+            .canonicalize()
+            .map_err(|e| TrackError::Other(format!("Failed to resolve repo path: {}", e)))?;
+        let repo_worktrees: Vec<PathBuf> = existing_worktrees
+            .iter()
+            .filter(|wt| wt.base_repo.as_deref() == Some(repo_path))
+            .filter_map(|wt| Path::new(&wt.path).canonicalize().ok())
+            .filter_map(|wt_path| wt_path.strip_prefix(&repo_root).ok().map(PathBuf::from))
+            .collect();
+
+        let status_stdout = String::from_utf8_lossy(status_stdout);
+        for line in status_stdout.lines() {
+            let path = line.split_whitespace().last().unwrap_or("").trim();
+            if path.is_empty() {
+                continue;
+            }
+
+            let path = Path::new(path);
+            let is_worktree = repo_worktrees
+                .iter()
+                .any(|worktree_path| path.starts_with(worktree_path));
+
+            if !is_worktree {
+                return Ok(true);
+            }
+        }
+
+        Ok(false)
+    }
+}
+
+fn try_edit_workspace(repo_path: &str, task_bookmark: &str) -> bool {
+    Command::new("jj")
+        .args(["-R", repo_path, "edit", task_bookmark])
+        .status()
+        .map(|status| status.success())
+        .unwrap_or(false)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::db::Database;
+
+    #[test]
+    fn sync_requires_registered_repos() {
+        let db = Database::new_in_memory().unwrap();
+        let task_service = TaskService::new(&db);
+        let task = task_service
+            .create_task("Sync task", None, None, None)
+            .unwrap();
+
+        let result = SyncTaskUseCase::new(&db).execute(task.id);
+        assert!(matches!(result, Err(TrackError::NoRepositoriesRegistered)));
+    }
+}

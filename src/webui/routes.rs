@@ -7,12 +7,12 @@ use crate::services::{
 };
 use crate::use_cases::CompleteTodoUseCase;
 use crate::utils::TrackError;
+use crate::webui::error::WebError;
 use crate::webui::state::{AppState, SseEvent};
 use crate::webui::templates::SharedTemplates;
 use axum::{
     extract::{Path, State},
-    http::StatusCode,
-    response::{Html, IntoResponse, Response},
+    response::Html,
     Form, Json,
 };
 use serde::{Deserialize, Serialize};
@@ -25,26 +25,7 @@ pub struct WebState {
 }
 
 /// Error response wrapper
-pub struct AppError(anyhow::Error);
-
-impl IntoResponse for AppError {
-    fn into_response(self) -> Response {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            format!("Error: {}", self.0),
-        )
-            .into_response()
-    }
-}
-
-impl<E> From<E> for AppError
-where
-    E: Into<anyhow::Error>,
-{
-    fn from(err: E) -> Self {
-        Self(err.into())
-    }
-}
+pub type AppError = WebError;
 
 /// Status response for JSON API
 #[derive(Serialize)]

@@ -298,7 +298,7 @@ impl<'a> WorktreeService<'a> {
         }
     }
 
-    fn task_bookmark_name(&self, task_id: i64, ticket_id: Option<&str>) -> String {
+    pub fn task_bookmark_name(&self, task_id: i64, ticket_id: Option<&str>) -> String {
         if let Some(ticket) = ticket_id {
             format!("task/{}", ticket)
         } else {

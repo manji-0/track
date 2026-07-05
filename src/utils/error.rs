@@ -75,6 +75,15 @@ pub enum TrackError {
     #[error("Invalid URL format: {0}")]
     InvalidUrl(String),
 
+    #[error("No repositories registered for this task")]
+    NoRepositoriesRegistered,
+
+    #[error("Failed to check status for {0}")]
+    FailedRepoStatusCheck(String),
+
+    #[error("Repository {0} has pending changes in the base workspace. Please clean before sync.")]
+    RepoHasPendingChanges(String),
+
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
 
