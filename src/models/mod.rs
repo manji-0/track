@@ -111,7 +111,7 @@ pub struct Task {
     pub id: i64,
     pub name: String,
     pub description: Option<String>,
-    pub status: String,
+    pub status: TaskStatus,
     pub ticket_id: Option<String>,
     pub ticket_url: Option<String>,
     pub alias: Option<String>,
@@ -134,7 +134,7 @@ pub struct Todo {
     #[serde(rename = "todo_id")]
     pub task_index: i64,
     pub content: String,
-    pub status: String,
+    pub status: TodoStatus,
     #[serde(skip)]
     pub worktree_requested: bool,
     #[serde(skip)]
@@ -270,7 +270,8 @@ pub struct TaskRepo {
 /// Status of a task.
 ///
 /// Tasks can be either active (currently being worked on) or archived (completed or abandoned).
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
 pub enum TaskStatus {
     /// Task is currently active and can be worked on
     Active,
@@ -303,7 +304,8 @@ impl FromStr for TaskStatus {
 /// Status of a TODO item.
 ///
 /// TODOs progress through different states during their lifecycle.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
 pub enum TodoStatus {
     /// TODO is pending and needs to be completed
     Pending,
@@ -321,6 +323,19 @@ impl TodoStatus {
             TodoStatus::Done => "done",
             TodoStatus::Cancelled => "cancelled",
         }
+    }
+
+    /// Returns whether a transition from `self` to `target` is allowed.
+    pub fn can_transition_to(self, target: Self) -> bool {
+        use TodoStatus::{Cancelled, Done, Pending};
+        matches!(
+            (self, target),
+            (Pending, Pending)
+                | (Pending, Done)
+                | (Pending, Cancelled)
+                | (Done, Done)
+                | (Cancelled, Cancelled)
+        )
     }
 }
 
@@ -549,7 +564,7 @@ mod tests {
             task_id: 1,
             task_index: 1,
             content: "This is a plain text todo.".to_string(),
-            status: "pending".to_string(),
+            status: TodoStatus::Pending,
             worktree_requested: false,
             created_at: Utc::now(),
             completed_at: None,
@@ -565,7 +580,7 @@ mod tests {
             task_id: 1,
             task_index: 1,
             content: "Check https://example.com for details".to_string(),
-            status: "pending".to_string(),
+            status: TodoStatus::Pending,
             worktree_requested: false,
             created_at: Utc::now(),
             completed_at: None,
@@ -582,7 +597,7 @@ mod tests {
             task_id: 1,
             task_index: 1,
             content: "# Heading\n\nThis is **bold** and *italic*.".to_string(),
-            status: "pending".to_string(),
+            status: TodoStatus::Pending,
             created_at: Utc::now(),
             completed_at: None,
             worktree_requested: false,
@@ -600,7 +615,7 @@ mod tests {
             task_id: 1,
             task_index: 1,
             content: "<img src=x onerror=alert(1)><b>safe</b>".to_string(),
-            status: "pending".to_string(),
+            status: TodoStatus::Pending,
             created_at: Utc::now(),
             completed_at: None,
             worktree_requested: false,

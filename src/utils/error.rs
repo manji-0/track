@@ -42,6 +42,18 @@ pub enum TrackError {
     #[error("Invalid status: {0}")]
     InvalidStatus(String),
 
+    #[error("Cannot transition from '{from}' to '{to}'")]
+    InvalidStatusTransition { from: String, to: String },
+
+    #[error(
+        "Workspace was merged (bookmark: {bookmark}) but failed to mark TODO #{todo_index} as done: {detail}"
+    )]
+    TodoCompletionDbFailed {
+        todo_index: i64,
+        bookmark: String,
+        detail: String,
+    },
+
     #[error("JJ error: {0}")]
     Jj(String),
 

@@ -3,10 +3,11 @@ use crate::cli::{
     ScrapCommands, TodoCommands,
 };
 use crate::db::Database;
-use crate::models::TaskRepo;
+use crate::models::{TaskRepo, TodoStatus};
 use crate::services::{
     LinkService, RepoService, ScrapService, TaskService, TodoService, WorktreeService,
 };
+use crate::use_cases::CompleteTodoUseCase;
 use crate::utils::{Result, TrackError};
 use chrono::Local;
 use prettytable::{format, Cell, Row, Table};
@@ -161,7 +162,7 @@ impl CommandHandler {
                 Cell::new(&task.id.to_string()),
                 Cell::new(ticket),
                 Cell::new(&task.name),
-                Cell::new(&task.status),
+                Cell::new(task.status.as_str()),
                 Cell::new(&created.to_string()),
             ]));
         }
@@ -648,7 +649,7 @@ impl CommandHandler {
                 for todo in todos {
                     table.add_row(Row::new(vec![
                         Cell::new(&todo.task_index.to_string()),
-                        Cell::new(&todo.status),
+                        Cell::new(todo.status.as_str()),
                         Cell::new(&todo.content),
                     ]));
                 }
@@ -662,18 +663,13 @@ impl CommandHandler {
                 println!("Updated TODO #{} status to '{}'", id, status);
             }
             TodoCommands::Done { id } => {
-                // Resolve task_index to internal ID
-                let todo = todo_service.get_todo_by_index(current_task_id, id)?;
-
-                let worktree_service = WorktreeService::new(&self.db);
-                if let Some(branch) = worktree_service.complete_worktree_for_todo(todo.id)? {
+                let outcome = CompleteTodoUseCase::new(&self.db).execute(current_task_id, id)?;
+                if let Some(branch) = outcome.merged_bookmark {
                     println!(
                         "Rebased and removed workspace for TODO #{} (bookmark: {}).",
                         id, branch
                     );
                 }
-
-                todo_service.update_status(todo.id, "done")?;
                 println!("Marked TODO #{} as done.", id);
             }
             TodoCommands::Workspace {
@@ -1111,7 +1107,7 @@ impl CommandHandler {
         let todos = todo_service.list_todos(current_task_id)?;
 
         for todo in todos {
-            if todo.worktree_requested && todo.status != "done" {
+            if todo.worktree_requested && todo.status != TodoStatus::Done {
                 // Check if worktree already exists for this TODO
                 let worktrees = worktree_service.list_worktrees(current_task_id)?;
                 let mut exists = false;
@@ -1394,7 +1390,7 @@ impl CommandHandler {
 
                     for todo in todos {
                         // Only show pending todos
-                        if todo.status == "pending" {
+                        if todo.status == TodoStatus::Pending {
                             // Format: ID:Content
                             println!("{}:{}", todo.task_index, todo.content);
                         }

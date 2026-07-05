@@ -1,9 +1,11 @@
 //! HTTP route handlers for the WebUI.
 
 use crate::db::Database;
+use crate::models::TodoStatus;
 use crate::services::{
     LinkService, RepoService, ScrapService, TaskService, TodoService, WorktreeService,
 };
+use crate::use_cases::CompleteTodoUseCase;
 use crate::utils::TrackError;
 use crate::webui::state::{AppState, SseEvent};
 use crate::webui::templates::SharedTemplates;
@@ -331,7 +333,12 @@ pub async fn update_todo_status(
 
     let todo_service = TodoService::new(&db);
     let todo = todo_service.get_todo_by_index(current_task_id, todo_index)?;
-    todo_service.update_status(todo.id, &new_status)?;
+
+    if new_status == TodoStatus::Done.as_str() {
+        CompleteTodoUseCase::new(&db).execute(current_task_id, todo_index)?;
+    } else {
+        todo_service.update_status(todo.id, &new_status)?;
+    }
 
     // Broadcast SSE event
     state.app.broadcast(SseEvent::Todos);
@@ -527,7 +534,7 @@ fn format_todos(
     // Find the oldest pending todo (lowest task_index among pending todos)
     let oldest_pending_id = todos
         .iter()
-        .filter(|t| t.status == "pending")
+        .filter(|t| t.status == TodoStatus::Pending)
         .min_by_key(|t| t.task_index)
         .map(|t| t.id);
 

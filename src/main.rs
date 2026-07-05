@@ -1,13 +1,7 @@
-mod cli;
-mod db;
-mod models;
-mod services;
-mod utils;
-mod webui;
-
 use clap::Parser;
-use cli::{handler::CommandHandler, Cli, Commands};
 use std::process;
+use track::cli::{handler::CommandHandler, Cli, Commands};
+use track::webui;
 
 /// Application entry point
 fn main() {

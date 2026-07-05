@@ -1,5 +1,6 @@
 use std::process::Command;
 use track::db::Database;
+use track::models::{TaskStatus, TodoStatus};
 use track::services::{RepoService, TaskService, TodoService, WorktreeService};
 
 fn init_jj_repo(path: &str) {
@@ -60,12 +61,12 @@ fn test_full_task_workflow() {
     // Update TODO status
     todo_service.update_status(todo1.id, "done").unwrap();
     let updated_todo = todo_service.get_todo(todo1.id).unwrap();
-    assert_eq!(updated_todo.status, "done");
+    assert_eq!(updated_todo.status, TodoStatus::Done);
 
     // Archive task
     task_service.archive_task(task.id).unwrap();
     let archived_task = task_service.get_task(task.id).unwrap();
-    assert_eq!(archived_task.status, "archived");
+    assert_eq!(archived_task.status, TaskStatus::Archived);
 }
 
 /// Integration test: Repository and worktree workflow

@@ -38,6 +38,7 @@
 //! - [`db`]: Database initialization and management
 //! - [`models`]: Data models for tasks, TODOs, links, and scraps
 //! - [`services`]: Business logic for task, TODO, repository, and worktree operations
+//! - [`use_cases`]: Multi-step workflows with explicit transaction boundaries
 //! - [`utils`]: Utility functions and error types
 //! - [`webui`]: Web-based user interface with real-time updates
 
@@ -46,5 +47,6 @@ pub mod cli;
 pub mod db;
 pub mod models;
 pub mod services;
+pub mod use_cases;
 pub mod utils;
 pub mod webui;

@@ -2,6 +2,7 @@ use std::sync::{Mutex, OnceLock};
 use track::cli::handler::CommandHandler;
 use track::cli::{Commands, LinkCommands, RepoCommands, ScrapCommands, TodoCommands};
 use track::db::Database;
+use track::models::{TaskStatus, TodoStatus};
 use track::services::{
     LinkService, RepoService, ScrapService, TaskService, TodoService, WorktreeService,
 };
@@ -145,7 +146,7 @@ fn test_handle_todo_add_and_update() {
     let todos = todo_service.list_todos(task.id).unwrap();
     assert_eq!(todos.len(), 1);
     assert_eq!(todos[0].content, "My Todo");
-    assert_eq!(todos[0].status, "pending");
+    assert_eq!(todos[0].status, TodoStatus::Pending);
 
     let cmd = Commands::Todo(TodoCommands::Update {
         id: 1,
@@ -154,7 +155,7 @@ fn test_handle_todo_add_and_update() {
     handler.handle(cmd).unwrap();
 
     let todo = todo_service.get_todo(todos[0].id).unwrap();
-    assert_eq!(todo.status, "done");
+    assert_eq!(todo.status, TodoStatus::Done);
 }
 
 #[test]
@@ -432,7 +433,7 @@ fn test_handle_archive_clean_worktree() {
     handler.handle(cmd).unwrap();
 
     let t = task_service.get_task(task.id).unwrap();
-    assert_eq!(t.status, "archived");
+    assert_eq!(t.status, TaskStatus::Archived);
 
     // Verify worktree removed
     let wts = worktree_service.list_worktrees(task.id).unwrap();
@@ -884,7 +885,7 @@ fn test_handle_archive_default_current_task() {
     handler.handle(cmd).unwrap();
 
     let t = task_service.get_task(t1.id).unwrap();
-    assert_eq!(t.status, "archived");
+    assert_eq!(t.status, TaskStatus::Archived);
 }
 
 #[test]
