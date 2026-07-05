@@ -25,20 +25,22 @@ Track is a command-line task management tool written in Rust that helps develope
 ```
 track/
 ├── src/
-│   ├── main.rs           # CLI entry point
-│   ├── commands/         # CLI command handlers
-│   ├── db/              # Database operations
-│   ├── models/          # Data structures
-│   ├── webui/           # Web server implementation
-│   └── lib.rs           # Library exports
-├── templates/           # HTML templates
-│   ├── base.html        # Base template with CSS
-│   ├── index.html       # Main page
-│   └── partials/        # HTMX partials
-├── static/              # Static assets
-├── tests/               # Integration tests
-└── CONTRIBUTING.md      # Full contribution guide
+│   ├── main.rs           # Binary entry (uses lib crate)
+│   ├── lib.rs            # Library exports
+│   ├── cli/              # Clap definitions + CommandHandler
+│   ├── db/               # SQLite + row_mapping helpers
+│   ├── models/           # Domain types (TaskStatus, TodoStatus, …)
+│   ├── services/         # Task/Todo/Link/Repo/Worktree services
+│   ├── use_cases/        # CompleteTodo, CreateTodayTask workflows
+│   ├── utils/            # TrackError, Result
+│   └── webui/            # Axum server, SSE, templates
+├── templates/            # HTMX HTML (base.html, partials/)
+├── static/               # Static assets
+├── tests/                # Integration tests
+└── CONTRIBUTING.md
 ```
+
+See [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md) for architecture details.
 
 ## Key Development Commands
 

@@ -1,35 +1,10 @@
+use crate::db::row_mapping::row_to_todo;
 use crate::db::Database;
 use crate::models::{Todo, TodoStatus};
 use crate::utils::{Result, TrackError};
-use chrono::{DateTime, Utc};
-use rusqlite::{params, types::Type};
+use chrono::Utc;
+use rusqlite::params;
 use std::str::FromStr;
-
-fn parse_datetime(value: String) -> rusqlite::Result<DateTime<Utc>> {
-    value
-        .parse()
-        .map_err(|e| rusqlite::Error::FromSqlConversionFailure(0, Type::Text, Box::new(e)))
-}
-
-fn parse_todo_status(value: String) -> rusqlite::Result<TodoStatus> {
-    TodoStatus::from_str(&value).map_err(|_| rusqlite::Error::InvalidQuery)
-}
-
-fn row_to_todo(row: &rusqlite::Row<'_>) -> rusqlite::Result<Todo> {
-    Ok(Todo {
-        id: row.get(0)?,
-        task_id: row.get(1)?,
-        task_index: row.get(2)?,
-        content: row.get(3)?,
-        status: parse_todo_status(row.get(4)?)?,
-        worktree_requested: row.get(5)?,
-        created_at: parse_datetime(row.get(6)?)?,
-        completed_at: row
-            .get::<_, Option<String>>(7)?
-            .map(parse_datetime)
-            .transpose()?,
-    })
-}
 
 pub struct TodoService<'a> {
     db: &'a Database,
@@ -41,6 +16,10 @@ impl<'a> TodoService<'a> {
     }
 
     pub fn add_todo(&self, task_id: i64, content: &str, worktree_requested: bool) -> Result<Todo> {
+        if content.trim().is_empty() {
+            return Err(TrackError::EmptyTodoContent);
+        }
+
         let now = Utc::now().to_rfc3339();
         let content = content.to_string();
         let status = TodoStatus::Pending.as_str().to_string();
@@ -323,6 +302,16 @@ mod tests {
             .create_task("Test Task", None, None, None)
             .unwrap()
             .id
+    }
+
+    #[test]
+    fn test_add_todo_empty_content() {
+        let db = setup_db();
+        let task_id = create_test_task(&db);
+        let service = TodoService::new(&db);
+
+        let result = service.add_todo(task_id, "   ", false);
+        assert!(matches!(result, Err(TrackError::EmptyTodoContent)));
     }
 
     #[test]
@@ -648,9 +637,7 @@ mod tests {
         let done_todo = service.add_todo(from_task, "Skip", false).unwrap();
         service.update_status(done_todo.id, "done").unwrap();
 
-        let mapping = service
-            .copy_incomplete_todos(from_task, to_task)
-            .unwrap();
+        let mapping = service.copy_incomplete_todos(from_task, to_task).unwrap();
         assert_eq!(mapping.len(), 1);
 
         let copied = service.list_todos(to_task).unwrap();

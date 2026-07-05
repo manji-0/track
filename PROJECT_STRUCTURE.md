@@ -1,200 +1,93 @@
-# WorkTracker CLI - Project Structure
+# Track - Project Structure
 
 ## Overview
 
-WorkTracker is a Rust-based CLI tool for managing development tasks and context. This document describes the project structure and architecture.
+Track is a Rust CLI and Web UI for managing development tasks with JJ workspace integration. Data is stored in SQLite under `~/.local/share/track/track.db`.
 
 ## Directory Structure
 
 ```
 track/
-├── Cargo.toml              # Project dependencies and metadata
-├── DESIGN.md               # Design specification
-├── docs/
-│   └── FUNCTIONAL_SPEC.md  # Functional specification
-└── src/
-    ├── main.rs             # Application entry point
-    ├── cli/                # CLI command definitions and handlers
-    │   ├── mod.rs          # Command definitions using clap
-    │   └── handler.rs      # Command execution logic
-    ├── db/                 # Database layer
-    │   └── mod.rs          # SQLite connection and schema
-    ├── models/             # Data models
-    │   └── mod.rs          # Task, Todo, Link, Scrap, GitItem, RepoLink
-    ├── services/           # Business logic layer
-    │   ├── mod.rs          # Service exports
-    │   ├── task_service.rs     # Task CRUD operations
-    │   ├── todo_service.rs     # TODO management
-    │   ├── link_service.rs     # Link and Scrap management
-    │   └── worktree_service.rs # Git worktree operations
-    └── utils/              # Utilities
-        ├── mod.rs          # Utility exports
-        └── error.rs        # Custom error types
+├── Cargo.toml
+├── src/
+│   ├── main.rs              # Binary entry (delegates to lib)
+│   ├── lib.rs               # Library exports
+│   ├── cli/                 # Clap command tree and CommandHandler
+│   ├── db/                  # SQLite schema, migrations, transactions
+│   │   ├── mod.rs
+│   │   └── row_mapping.rs   # Shared row → domain parsing
+│   ├── models/              # Task, Todo, Link, Scrap, Worktree, …
+│   ├── services/            # Domain services (SQL + business rules)
+│   │   ├── task_service.rs
+│   │   ├── todo_service.rs
+│   │   ├── link_service.rs  # LinkService + ScrapService
+│   │   ├── repo_service.rs
+│   │   └── worktree_service.rs
+│   ├── use_cases/           # Multi-step workflows / transaction boundaries
+│   │   ├── complete_todo.rs
+│   │   └── create_today_task.rs
+│   ├── utils/               # TrackError, Result alias
+│   └── webui/               # Axum server, routes, SSE, MiniJinja
+├── templates/               # HTMX HTML templates
+├── static/                  # Static assets
+└── tests/                   # Integration and CLI handler tests
 ```
 
 ## Architecture
 
-### Layered Architecture
-
 ```
-┌─────────────────────────────────────┐
-│         CLI Layer (clap)            │
-│  Command parsing & user interaction │
-└─────────────────┬───────────────────┘
-                  │
-┌─────────────────▼───────────────────┐
-│       Command Handlers              │
-│  Business logic orchestration       │
-└─────────────────┬───────────────────┘
-                  │
-┌─────────────────▼───────────────────┐
-│      Service Layer                  │
-│  TaskService, TodoService, etc.     │
-└─────────────────┬───────────────────┘
-                  │
-┌─────────────────▼───────────────────┐
-│      Database Layer                 │
-│  SQLite connection & queries        │
-└─────────────────────────────────────┘
+CLI (clap) / WebUI (axum)
+        ↓
+CommandHandler / route handlers
+        ↓
+Use cases (optional) — multi-service / external-system workflows
+        ↓
+Services — TaskService, TodoService, …
+        ↓
+Database (rusqlite, with_transaction)
+        ↓
+Models (typed enums, task-scoped indices)
 ```
 
-### Key Components
+### Use cases
 
-#### 1. CLI Layer (`src/cli/`)
+| Use case | Responsibility |
+|----------|----------------|
+| `CompleteTodoUseCase` | JJ workspace merge + mark TODO done (CLI & WebUI) |
+| `CreateTodayTaskUseCase` | Atomic today-task creation with todo/scrap inheritance |
 
-- **mod.rs**: Defines command structure using `clap` derive macros
-  - Main commands: `new`, `list`, `switch`, `info`, `ticket`, `archive`, `export`
-  - Subcommands: `todo`, `link`, `scrap`, `worktree`
+### Key patterns
 
-- **handler.rs**: Implements command execution logic
-  - `CommandHandler`: Orchestrates service calls
-  - User interaction (confirmations, table output)
-  - Error handling and formatting
+- **Task-scoped IDs**: user-facing `#1`, `#2` per task via `task_index` columns
+- **Transactions**: `Database::with_transaction` + `BEGIN IMMEDIATE` for index allocation and today-task creation
+- **Status types**: `TaskStatus`, `TodoStatus` enums with explicit transition rules
+- **Real-time WebUI**: section revision counters + SSE polling for CLI-originated changes
 
-#### 2. Database Layer (`src/db/`)
+## CLI command tree (summary)
 
-- **mod.rs**: Database connection and schema management
-  - XDG Base Directory compliant path (`~/.local/share/track/track.db`)
-  - Schema initialization with foreign key constraints
-  - App state management (current task tracking)
+```
+track new | list | switch | status | desc | ticket | archive | sync
+track todo { add, list, update, done, workspace, delete, next }
+track link { add, list, delete }
+track scrap { add, list }
+track repo { add, list, remove }
+track alias { set, remove }
+track config { set-calendar, show }
+track completion | llm-help | webui
+```
 
-**Schema**:
-- `app_state`: Application state (current task ID)
-- `tasks`: Task metadata with ticket information
-- `todos`: Task TODO items
-- `links`: Reference URLs
-- `scraps`: Work notes/logs
-- `git_items`: Git worktree information
-- `repo_links`: Repository-related URLs (PR, Issue, etc.)
-
-#### 3. Service Layer (`src/services/`)
-
-Each service encapsulates business logic for a specific domain:
-
-- **TaskService**: Task lifecycle management
-  - Create, read, update, archive tasks
-  - Ticket validation and linking
-  - Task reference resolution (ID or ticket-based)
-
-- **TodoService**: TODO management
-  - CRUD operations for TODOs
-  - Status validation and updates
-
-- **LinkService & ScrapService**: Reference and note management
-  - URL validation for links
-  - Chronological scrap storage
-
-- **WorktreeService**: Git worktree integration
-  - Worktree creation with automatic branch naming
-  - Ticket-based branch naming (e.g., `task/PROJ-123`)
-  - Repository link management with automatic kind detection
-
-#### 4. Models (`src/models/`)
-
-Data structures representing database entities:
-- `Task`, `Todo`, `Link`, `Scrap`, `GitItem`, `RepoLink`
-- Status enums: `TaskStatus`, `TodoStatus`
-
-#### 5. Utilities (`src/utils/`)
-
-- **error.rs**: Custom error types using `thiserror`
-  - Comprehensive error variants for all failure cases
-  - Automatic conversion from standard library errors
+Worktree operations live under `track todo workspace`, `track sync`, and `track repo` — not a separate top-level command.
 
 ## Dependencies
 
-| Crate | Purpose |
-|-------|---------|
-| `clap` (v4.4+) | CLI argument parsing with derive macros |
-| `rusqlite` (bundled) | SQLite database operations |
-| `directories` (v5.0) | XDG Base Directory path resolution |
-| `anyhow` (v1.0) | Error context propagation |
-| `thiserror` (v1.0) | Custom error type derivation |
-| `chrono` (v0.4) | Date/time handling |
-| `prettytable-rs` (v0.10) | Table formatting for output |
-
-## Data Flow Example
-
-### Creating a New Task
-
-```
-User: track new "API Implementation" --ticket PROJ-123
-
-1. CLI Layer (mod.rs)
-   └─> Parses command into Commands::New
-
-2. Command Handler (handler.rs)
-   └─> handle_new() called
-
-3. Service Layer (task_service.rs)
-   └─> TaskService::create_task()
-       ├─> Validates ticket format
-       ├─> Checks for duplicate tickets
-       └─> Creates task in database
-
-4. Database Layer (db/mod.rs)
-   └─> INSERT into tasks table
-   └─> UPDATE app_state (current_task_id)
-
-5. Response
-   └─> "Created task #1: API Implementation"
-       "Ticket: PROJ-123"
-       "Switched to task #1"
-```
-
-## Building and Running
-
-```bash
-# Build the project
-cargo build
-
-# Run with help
-cargo run -- --help
-
-# Create a new task
-cargo run -- new "My Task" --ticket PROJ-123
-
-# List tasks
-cargo run -- list
-
-# Add a TODO
-cargo run -- todo add "Implement feature X"
-```
+See `Cargo.toml`. Core: `clap`, `rusqlite`, `axum`, `minijinja`, `chrono`, `thiserror`.
 
 ## Testing
 
 ```bash
-# Run tests (when implemented)
+cargo fmt
+cargo clippy -- -D warnings
 cargo test
-
-# Run with verbose output
-cargo test -- --nocapture
 ```
 
-## Future Enhancements
-
-- Export functionality (Markdown, JSON, YAML)
-- Template support for LLM integration
-- Full-text search
-- Data import/export
-- MCP Server integration
+Service-layer unit tests live beside implementations; integration tests are in `tests/`. JJ-dependent tests require `jj` on PATH (installed in CI).

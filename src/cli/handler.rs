@@ -7,7 +7,7 @@ use crate::models::{TaskRepo, TodoStatus};
 use crate::services::{
     LinkService, RepoService, ScrapService, TaskService, TodoService, WorktreeService,
 };
-use crate::use_cases::CompleteTodoUseCase;
+use crate::use_cases::{CompleteTodoUseCase, CreateTodayTaskUseCase};
 use crate::utils::{Result, TrackError};
 use chrono::Local;
 use prettytable::{format, Cell, Row, Table};
@@ -176,7 +176,7 @@ impl CommandHandler {
 
         // Check if the user wants to switch to today's task
         if task_ref.to_lowercase() == "today" {
-            let task = task_service.get_or_create_today_task()?;
+            let task = CreateTodayTaskUseCase::new(&self.db).get_or_create()?;
             // Update the current task context
             task_service.switch_task(task.id)?;
             println!("Switched to today's task: {}", task.name);

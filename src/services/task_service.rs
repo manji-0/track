@@ -1,35 +1,9 @@
+use crate::db::row_mapping::row_to_task;
 use crate::db::Database;
 use crate::models::{Task, TaskStatus};
-use crate::services::link_service::ScrapService;
-use crate::services::todo_service::TodoService;
 use crate::utils::{Result, TrackError};
-use chrono::{DateTime, Utc};
-use rusqlite::{params, types::Type, OptionalExtension};
-use std::str::FromStr;
-
-fn parse_datetime(value: String) -> rusqlite::Result<DateTime<Utc>> {
-    value
-        .parse()
-        .map_err(|e| rusqlite::Error::FromSqlConversionFailure(0, Type::Text, Box::new(e)))
-}
-
-fn parse_task_status(value: String) -> rusqlite::Result<TaskStatus> {
-    TaskStatus::from_str(&value).map_err(|_| rusqlite::Error::InvalidQuery)
-}
-
-fn row_to_task(row: &rusqlite::Row<'_>) -> rusqlite::Result<Task> {
-    Ok(Task {
-        id: row.get(0)?,
-        name: row.get(1)?,
-        description: row.get(2)?,
-        status: parse_task_status(row.get(3)?)?,
-        ticket_id: row.get(4)?,
-        ticket_url: row.get(5)?,
-        alias: row.get(6)?,
-        is_today_task: row.get::<_, i64>(7)? != 0,
-        created_at: parse_datetime(row.get(8)?)?,
-    })
-}
+use chrono::Utc;
+use rusqlite::{params, OptionalExtension};
 
 /// Service for managing development tasks.
 ///
@@ -445,104 +419,6 @@ impl<'a> TaskService<'a> {
         }
 
         Err(TrackError::InvalidTicketFormat(ticket_id.to_string()))
-    }
-
-    /// Gets or creates today's task.
-    ///
-    /// If a today task already exists for the current date, returns it.
-    /// Otherwise, creates a new today task and inherits incomplete todos and linked scraps
-    /// from the previous day's task.
-    ///
-    /// # Returns
-    ///
-    /// The today task for the current date.
-    pub fn get_or_create_today_task(&self) -> Result<Task> {
-        use chrono::Local;
-
-        let today = Local::now().format("%Y-%m-%d").to_string();
-        let task_name = format!("Today: {}", today);
-
-        // Check if today's task already exists
-        let conn = self.db.get_connection();
-        let mut stmt = conn.prepare(
-            "SELECT id FROM tasks WHERE is_today_task = 1 AND name = ?1 AND status = 'active'",
-        )?;
-
-        if let Some(task_id) = stmt
-            .query_row(params![task_name], |row| row.get::<_, i64>(0))
-            .optional()?
-        {
-            return self.get_task(task_id);
-        }
-
-        // Create new today task
-        self.create_today_task(&task_name)
-    }
-
-    /// Creates a new today task with the given name.
-    ///
-    /// This method:
-    /// 1. Clears the is_today_task flag from any existing today tasks
-    /// 2. Creates a new task with is_today_task = 1
-    /// 3. Inherits incomplete todos from the previous today task
-    /// 4. Inherits scraps linked to those todos
-    ///
-    /// # Arguments
-    ///
-    /// * `task_name` - The name for the today task (e.g., "Today: 2026-01-06")
-    ///
-    /// # Returns
-    ///
-    /// The newly created today task.
-    fn create_today_task(&self, task_name: &str) -> Result<Task> {
-        self.db.with_transaction(|| {
-            let inherit_from = self.find_today_task_to_inherit_from()?;
-
-            let conn = self.db.get_connection();
-            let now = Utc::now().to_rfc3339();
-
-            conn.execute(
-                "UPDATE tasks SET is_today_task = 0 WHERE is_today_task = 1",
-                [],
-            )?;
-
-            conn.execute(
-                "INSERT INTO tasks (name, description, status, is_today_task, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
-                params![
-                    task_name,
-                    None::<String>,
-                    TaskStatus::Active.as_str(),
-                    1,
-                    now
-                ],
-            )?;
-
-            let task_id = conn.last_insert_rowid();
-
-            if let Some(from_task_id) = inherit_from {
-                let todo_service = TodoService::new(self.db);
-                let scrap_service = ScrapService::new(self.db);
-                let mapping =
-                    todo_service.copy_incomplete_todos_in_tx(from_task_id, task_id)?;
-                scrap_service.copy_linked_scraps_in_tx(from_task_id, task_id, &mapping)?;
-            }
-
-            self.db.set_current_task_id(task_id)?;
-            self.db.increment_rev("task")?;
-            self.get_task(task_id)
-        })
-    }
-
-    /// Returns the active today task to inherit from, resolved before creating a new one.
-    fn find_today_task_to_inherit_from(&self) -> Result<Option<i64>> {
-        let conn = self.db.get_connection();
-        let mut stmt = conn.prepare(
-            "SELECT id FROM tasks WHERE is_today_task = 1 AND status = 'active' ORDER BY created_at DESC LIMIT 1",
-        )?;
-
-        stmt.query_row([], |row| row.get(0))
-            .optional()
-            .map_err(Into::into)
     }
 }
 
@@ -1035,43 +911,5 @@ mod tests {
         // Verify task1 no longer has the alias
         let updated1_after = service.get_task(task1.id).unwrap();
         assert!(updated1_after.alias.is_none());
-    }
-
-    #[test]
-    fn test_create_today_task_inherits_pending_todos() {
-        use crate::services::{ScrapService, TodoService};
-
-        let db = setup_db();
-        let task_service = TaskService::new(&db);
-        let todo_service = TodoService::new(&db);
-        let scrap_service = ScrapService::new(&db);
-
-        let previous = task_service
-            .create_task("Today: 2026-01-01", None, None, None)
-            .unwrap();
-        db.get_connection()
-            .execute(
-                "UPDATE tasks SET is_today_task = 1 WHERE id = ?1",
-                rusqlite::params![previous.id],
-            )
-            .unwrap();
-        db.set_current_task_id(previous.id).unwrap();
-
-        todo_service
-            .add_todo(previous.id, "Carry over", false)
-            .unwrap();
-        scrap_service.add_scrap(previous.id, "linked note").unwrap();
-
-        let today_task = task_service.get_or_create_today_task().unwrap();
-        assert_ne!(today_task.id, previous.id);
-        assert!(today_task.is_today_task);
-
-        let inherited = todo_service.list_todos(today_task.id).unwrap();
-        assert_eq!(inherited.len(), 1);
-        assert_eq!(inherited[0].content, "Carry over");
-
-        let inherited_scraps = scrap_service.list_scraps(today_task.id).unwrap();
-        assert_eq!(inherited_scraps.len(), 1);
-        assert_eq!(inherited_scraps[0].content, "linked note");
     }
 }

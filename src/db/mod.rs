@@ -10,6 +10,8 @@ use rusqlite::{params, Connection, OptionalExtension};
 use std::path::PathBuf;
 use std::time::Duration;
 
+pub mod row_mapping;
+
 /// Revision numbers for each section, used for change detection.
 ///
 /// Each section has a revision number that is incremented whenever

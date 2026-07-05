@@ -4,5 +4,7 @@
 //! service method is not enough.
 
 pub mod complete_todo;
+pub mod create_today_task;
 
 pub use complete_todo::{CompleteTodoOutcome, CompleteTodoUseCase};
+pub use create_today_task::CreateTodayTaskUseCase;

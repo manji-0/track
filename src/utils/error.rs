@@ -27,6 +27,12 @@ pub enum TrackError {
     #[error("Task name cannot be empty")]
     EmptyTaskName,
 
+    #[error("TODO content cannot be empty")]
+    EmptyTodoContent,
+
+    #[error("Scrap content cannot be empty")]
+    EmptyScrapContent,
+
     #[error("Ticket '{0}' is already linked to task #{1}")]
     DuplicateTicket(String, i64),
 

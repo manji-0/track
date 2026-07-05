@@ -1,16 +1,11 @@
+use crate::db::row_mapping::parse_datetime;
 use crate::db::Database;
 use crate::models::{RepoLink, Worktree};
 use crate::utils::{Result, TrackError};
-use chrono::{DateTime, Utc};
-use rusqlite::{params, types::Type, OptionalExtension};
+use chrono::Utc;
+use rusqlite::{params, OptionalExtension};
 use std::path::Path;
 use std::process::Command;
-
-fn parse_datetime(value: String) -> rusqlite::Result<DateTime<Utc>> {
-    value
-        .parse()
-        .map_err(|e| rusqlite::Error::FromSqlConversionFailure(0, Type::Text, Box::new(e)))
-}
 
 pub struct WorktreeService<'a> {
     db: &'a Database,

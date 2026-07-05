@@ -1,14 +1,9 @@
+use crate::db::row_mapping::parse_datetime;
 use crate::db::Database;
 use crate::models::{Link, Scrap};
 use crate::utils::{Result, TrackError};
-use chrono::{DateTime, Utc};
-use rusqlite::{params, types::Type, OptionalExtension};
-
-fn parse_datetime(value: String) -> rusqlite::Result<DateTime<Utc>> {
-    value
-        .parse()
-        .map_err(|e| rusqlite::Error::FromSqlConversionFailure(0, Type::Text, Box::new(e)))
-}
+use chrono::Utc;
+use rusqlite::{params, OptionalExtension};
 
 pub struct LinkService<'a> {
     db: &'a Database,
@@ -122,6 +117,10 @@ impl<'a> ScrapService<'a> {
     }
 
     pub fn add_scrap(&self, task_id: i64, content: &str) -> Result<Scrap> {
+        if content.trim().is_empty() {
+            return Err(TrackError::EmptyScrapContent);
+        }
+
         let now = Utc::now().to_rfc3339();
         let content = content.to_string();
 
@@ -389,6 +388,16 @@ mod tests {
     }
 
     // ScrapService tests
+    #[test]
+    fn test_add_scrap_empty_content() {
+        let db = setup_db();
+        let task_id = create_test_task(&db);
+        let service = ScrapService::new(&db);
+
+        let result = service.add_scrap(task_id, "  ");
+        assert!(matches!(result, Err(TrackError::EmptyScrapContent)));
+    }
+
     #[test]
     fn test_add_scrap_success() {
         let db = setup_db();
