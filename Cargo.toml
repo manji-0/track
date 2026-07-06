@@ -1,6 +1,6 @@
 [package]
-name = "jj-track"
-version = "0.6.0"
+name = "task-track"
+version = "0.6.1"
 edition = "2021"
 authors = ["manji0"]
 description = "A JJ workspace-based task and TODO management CLI tool"
