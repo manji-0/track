@@ -1,9 +1,37 @@
 use crate::cli::handlers::CommandCtx;
 use crate::cli::ConfigCommands;
-use crate::utils::Result;
+use crate::models::VcsMode;
+use crate::utils::{Result, TrackError};
 
 pub fn handle_config(ctx: &CommandCtx, command: ConfigCommands) -> Result<()> {
     match command {
+        ConfigCommands::Set { key, value } => {
+            let normalized = key.trim().to_ascii_lowercase().replace('_', "-");
+            match normalized.as_str() {
+                "vcs-mode" => {
+                    let mode: VcsMode = value
+                        .parse()
+                        .map_err(|err: String| TrackError::Other(err))?;
+                    ctx.db.set_vcs_mode(mode)?;
+                    println!("Set VCS mode: {mode}");
+                    match mode {
+                        VcsMode::Jj => {
+                            println!("\nJJ mode uses agent-skill-jj (jj-task + $jj skill).");
+                            println!("Run `track sync` or `jj-task start <slug>` to begin work.");
+                        }
+                        VcsMode::Git => {
+                            println!("\nGit mode uses plain git worktrees and branches.");
+                            println!("Run `track sync` to create `.worktrees/<slug>/` workspaces.");
+                        }
+                    }
+                }
+                other => {
+                    return Err(TrackError::Other(format!(
+                        "unknown config key '{other}' (supported: vcs-mode)"
+                    )));
+                }
+            }
+        }
         ConfigCommands::SetCalendar { calendar_id } => {
             ctx.db.set_app_state("calendar_id", &calendar_id)?;
             println!("Set Google Calendar ID: {}", calendar_id);
@@ -14,6 +42,9 @@ pub fn handle_config(ctx: &CommandCtx, command: ConfigCommands) -> Result<()> {
         ConfigCommands::Show => {
             println!("=== Track Configuration ===\n");
 
+            let vcs_mode = ctx.db.get_vcs_mode()?;
+            println!("VCS mode: {vcs_mode} (jj = agent-skill-jj, git = plain git worktrees)");
+
             if let Some(calendar_id) = ctx.db.get_app_state("calendar_id")? {
                 println!("Google Calendar ID: {}", calendar_id);
             } else {
@@ -21,6 +52,10 @@ pub fn handle_config(ctx: &CommandCtx, command: ConfigCommands) -> Result<()> {
                 println!("\nTo set a calendar ID, run:");
                 println!("  track config set-calendar <calendar-id>");
             }
+
+            println!("\nTo change VCS mode, run:");
+            println!("  track config set vcs-mode jj");
+            println!("  track config set vcs-mode git");
         }
     }
     Ok(())

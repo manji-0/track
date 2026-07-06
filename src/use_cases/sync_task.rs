@@ -1,6 +1,6 @@
 use crate::db::Database;
-use crate::models::{Task, TodoStatus};
-use crate::services::{RepoService, TaskService, TodoService, WorktreeService};
+use crate::models::{jj_slug, Task, TodoStatus, VcsMode};
+use crate::services::{git_worktree, RepoService, TaskService, TodoService, WorktreeService};
 use crate::utils::{Result, TrackError};
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -9,9 +9,28 @@ use std::process::Command;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RepoSyncOutcome {
     Missing,
-    BookmarkCreated { base_ref: String, edit_ok: bool },
-    BookmarkExists { edit_ok: bool },
-    BookmarkCreateFailed { base_ref: String, detail: String },
+    BookmarkCreated {
+        base_ref: String,
+        edit_ok: bool,
+    },
+    BookmarkExists {
+        edit_ok: bool,
+    },
+    BookmarkCreateFailed {
+        base_ref: String,
+        detail: String,
+    },
+    WorktreeCreated {
+        base_ref: String,
+        workspace_path: String,
+    },
+    WorktreeExists {
+        workspace_path: String,
+    },
+    WorktreeCreateFailed {
+        base_ref: String,
+        detail: String,
+    },
 }
 
 /// A TODO workspace created during sync.
@@ -32,9 +51,10 @@ pub struct WorkspaceCreateError {
     pub detail: String,
 }
 
-/// Result of syncing the current task's JJ bookmarks and pending workspaces.
+/// Result of syncing the current task's VCS workspaces.
 #[derive(Debug, Clone)]
 pub struct SyncTaskOutcome {
+    pub vcs_mode: VcsMode,
     pub task: Task,
     pub task_bookmark: String,
     pub repos: Vec<(String, RepoSyncOutcome)>,
@@ -42,7 +62,7 @@ pub struct SyncTaskOutcome {
     pub workspace_errors: Vec<WorkspaceCreateError>,
 }
 
-/// Syncs task bookmarks across registered repos and creates pending TODO workspaces.
+/// Syncs task bookmarks/worktrees across registered repos and creates pending TODO workspaces.
 pub struct SyncTaskUseCase<'a> {
     db: &'a Database,
 }
@@ -53,6 +73,7 @@ impl<'a> SyncTaskUseCase<'a> {
     }
 
     pub fn execute(&self, task_id: i64) -> Result<SyncTaskOutcome> {
+        let vcs_mode = self.db.get_vcs_mode()?;
         let task_service = TaskService::new(self.db);
         let task = task_service.get_task(task_id)?;
         let repo_service = RepoService::new(self.db);
@@ -62,59 +83,74 @@ impl<'a> SyncTaskUseCase<'a> {
             return Err(TrackError::NoRepositoriesRegistered);
         }
 
+        let slug = jj_slug(&task);
+        let task_bookmark = match vcs_mode {
+            VcsMode::Jj => {
+                let worktree_service = WorktreeService::new(self.db);
+                worktree_service.task_bookmark_name(task.id, task.ticket_id.as_deref())
+            }
+            VcsMode::Git => git_worktree::git_branch_name(&slug),
+        };
+
         let worktree_service = WorktreeService::new(self.db);
-        let task_bookmark = worktree_service.task_bookmark_name(task.id, task.ticket_id.as_deref());
         let existing_worktrees = worktree_service.list_worktrees(task_id)?;
 
         let mut repo_outcomes = Vec::new();
 
         for repo in &repos {
-            let outcome =
-                self.sync_repo(&worktree_service, repo, &task_bookmark, &existing_worktrees)?;
+            let outcome = match vcs_mode {
+                VcsMode::Jj => {
+                    self.sync_repo_jj(&worktree_service, repo, &task_bookmark, &existing_worktrees)?
+                }
+                VcsMode::Git => self.sync_repo_git(repo, &slug)?,
+            };
             repo_outcomes.push((repo.repo_path.clone(), outcome));
         }
-
-        let todo_service = TodoService::new(self.db);
-        let todos = todo_service.list_todos(task_id)?;
 
         let mut workspaces_created = Vec::new();
         let mut workspace_errors = Vec::new();
 
-        for todo in todos {
-            if todo.worktree_requested && todo.status != TodoStatus::Done {
-                let worktrees = worktree_service.list_worktrees(task_id)?;
-                let exists = worktrees.iter().any(|wt| wt.todo_id == Some(todo.id));
-                if exists {
-                    continue;
-                }
+        if vcs_mode == VcsMode::Jj {
+            let todo_service = TodoService::new(self.db);
+            let todos = todo_service.list_todos(task_id)?;
 
-                for repo in &repos {
-                    match worktree_service.add_worktree(
-                        task_id,
-                        &repo.repo_path,
-                        None,
-                        task.ticket_id.as_deref(),
-                        Some(todo.id),
-                        false,
-                    ) {
-                        Ok(wt) => workspaces_created.push(WorkspaceCreated {
-                            todo_index: todo.task_index,
-                            todo_content: todo.content.clone(),
-                            repo_path: repo.repo_path.clone(),
-                            workspace_path: wt.path,
-                            branch: wt.branch,
-                        }),
-                        Err(err) => workspace_errors.push(WorkspaceCreateError {
-                            todo_index: todo.task_index,
-                            repo_path: repo.repo_path.clone(),
-                            detail: err.to_string(),
-                        }),
+            for todo in todos {
+                if todo.worktree_requested && todo.status != TodoStatus::Done {
+                    let worktrees = worktree_service.list_worktrees(task_id)?;
+                    let exists = worktrees.iter().any(|wt| wt.todo_id == Some(todo.id));
+                    if exists {
+                        continue;
+                    }
+
+                    for repo in &repos {
+                        match worktree_service.add_worktree(
+                            task_id,
+                            &repo.repo_path,
+                            None,
+                            task.ticket_id.as_deref(),
+                            Some(todo.id),
+                            false,
+                        ) {
+                            Ok(wt) => workspaces_created.push(WorkspaceCreated {
+                                todo_index: todo.task_index,
+                                todo_content: todo.content.clone(),
+                                repo_path: repo.repo_path.clone(),
+                                workspace_path: wt.path,
+                                branch: wt.branch,
+                            }),
+                            Err(err) => workspace_errors.push(WorkspaceCreateError {
+                                todo_index: todo.task_index,
+                                repo_path: repo.repo_path.clone(),
+                                detail: err.to_string(),
+                            }),
+                        }
                     }
                 }
             }
         }
 
         Ok(SyncTaskOutcome {
+            vcs_mode,
             task,
             task_bookmark,
             repos: repo_outcomes,
@@ -123,7 +159,7 @@ impl<'a> SyncTaskUseCase<'a> {
         })
     }
 
-    fn sync_repo(
+    fn sync_repo_jj(
         &self,
         worktree_service: &WorktreeService<'_>,
         repo: &crate::models::TaskRepo,
@@ -185,6 +221,47 @@ impl<'a> SyncTaskUseCase<'a> {
 
         let edit_ok = try_edit_workspace(&repo.repo_path, task_bookmark);
         Ok(RepoSyncOutcome::BookmarkExists { edit_ok })
+    }
+
+    fn sync_repo_git(&self, repo: &crate::models::TaskRepo, slug: &str) -> Result<RepoSyncOutcome> {
+        if !Path::new(&repo.repo_path).exists() {
+            return Ok(RepoSyncOutcome::Missing);
+        }
+
+        if !git_worktree::is_git_repository(&repo.repo_path) {
+            return Err(TrackError::Other(format!(
+                "Not a git repository: {}",
+                repo.repo_path
+            )));
+        }
+
+        let worktree_path = git_worktree::git_worktree_path(&repo.repo_path, slug);
+        if git_worktree::git_worktree_exists(&worktree_path) {
+            return Ok(RepoSyncOutcome::WorktreeExists {
+                workspace_path: worktree_path,
+            });
+        }
+
+        if git_worktree::base_repo_has_changes(&repo.repo_path, slug)? {
+            return Err(TrackError::RepoHasPendingChanges(repo.repo_path.clone()));
+        }
+
+        let base_ref = repo
+            .base_branch
+            .clone()
+            .or_else(|| repo.base_commit_hash.clone())
+            .unwrap_or_else(|| "HEAD".to_string());
+
+        match git_worktree::create_git_worktree(&repo.repo_path, slug, &base_ref) {
+            Ok(path) => Ok(RepoSyncOutcome::WorktreeCreated {
+                base_ref,
+                workspace_path: path,
+            }),
+            Err(err) => Ok(RepoSyncOutcome::WorktreeCreateFailed {
+                base_ref,
+                detail: err.to_string(),
+            }),
+        }
     }
 
     fn base_workspace_has_changes(

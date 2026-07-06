@@ -240,7 +240,15 @@ pub fn handle_info(
             "repos": repos,
         });
 
-        let agent = build_agent_extensions(&task, &todos, &worktrees, &repos, &worktree_service);
+        let vcs_mode = ctx.db.get_vcs_mode()?;
+        let agent = build_agent_extensions(
+            vcs_mode,
+            &task,
+            &todos,
+            &worktrees,
+            &repos,
+            &worktree_service,
+        );
         let agent_val = serde_json::to_value(&agent)
             .map_err(|e| TrackError::Other(format!("JSON serialization error: {}", e)))?;
         if let Some(obj) = output.as_object_mut() {

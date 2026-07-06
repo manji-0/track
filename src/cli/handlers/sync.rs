@@ -1,4 +1,5 @@
 use crate::cli::handlers::CommandCtx;
+use crate::models::VcsMode;
 use crate::use_cases::{RepoSyncOutcome, SyncTaskUseCase};
 use crate::utils::{Result, TrackError};
 
@@ -10,7 +11,14 @@ pub fn handle_sync(ctx: &CommandCtx) -> Result<()> {
 
     let outcome = SyncTaskUseCase::new(ctx.db).execute(current_task_id)?;
 
-    println!("Syncing task bookmark: {}\n", outcome.task_bookmark);
+    match outcome.vcs_mode {
+        VcsMode::Jj => {
+            println!("Syncing task bookmark: {}\n", outcome.task_bookmark);
+        }
+        VcsMode::Git => {
+            println!("Syncing git worktree branch: {}\n", outcome.task_bookmark);
+        }
+    }
 
     for (repo_path, repo_outcome) in &outcome.repos {
         println!("Repository: {}", repo_path);
@@ -35,10 +43,33 @@ pub fn handle_sync(ctx: &CommandCtx) -> Result<()> {
                     outcome.task_bookmark, base_ref, detail
                 );
             }
+            RepoSyncOutcome::WorktreeCreated {
+                base_ref,
+                workspace_path,
+            } => {
+                println!(
+                    "  ✓ Worktree {} created from {} at {}",
+                    outcome.task_bookmark, base_ref, workspace_path
+                );
+            }
+            RepoSyncOutcome::WorktreeExists { workspace_path } => {
+                println!(
+                    "  ✓ Worktree {} already exists at {}",
+                    outcome.task_bookmark, workspace_path
+                );
+            }
+            RepoSyncOutcome::WorktreeCreateFailed { base_ref, detail } => {
+                println!(
+                    "  ✗ Failed to create worktree {} from {} ({})",
+                    outcome.task_bookmark, base_ref, detail
+                );
+            }
         }
     }
 
-    println!("Checking for pending workspaces...");
+    if outcome.vcs_mode == VcsMode::Jj {
+        println!("Checking for pending workspaces...");
+    }
 
     for created in &outcome.workspaces_created {
         println!(

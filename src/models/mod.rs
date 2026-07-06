@@ -9,15 +9,18 @@ use serde::Serialize;
 mod jj;
 mod status;
 mod todo_action;
+mod vcs_mode;
 mod workflow;
 
 pub use jj::{jj_slug, sanitize_jj_slug};
 pub use status::{TaskStatus, TodoStatus};
 pub use todo_action::TodoAction;
+pub use vcs_mode::VcsMode;
 pub use workflow::{
-    build_jj_context, build_next_action, compute_workflow_phase, oldest_pending_todo,
-    workspace_lifecycle, AgentGuardrails, JjAgentContext, NextAction, TodoAgentView,
-    WorkflowContext, WorkflowPhase, WorkspaceAgentView, WorkspaceLifecycle,
+    build_git_context, build_jj_context, build_next_action, compute_workflow_phase,
+    oldest_pending_todo, workspace_lifecycle, AgentGuardrails, GitAgentContext, JjAgentContext,
+    NextAction, TodoAgentView, WorkflowContext, WorkflowPhase, WorkspaceAgentView,
+    WorkspaceLifecycle,
 };
 
 fn render_markdown_with_links(content: &str) -> String {

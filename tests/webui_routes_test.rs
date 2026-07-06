@@ -112,9 +112,11 @@ async fn api_status_includes_workflow_fields() {
         .to_bytes();
     let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
     assert_eq!(json["workflow"]["phase"], "setup");
+    assert_eq!(json["vcs_mode"], "jj");
     assert!(json["guardrails"]["reopen_forbidden"].as_bool().unwrap());
     assert!(json["guardrails"]["must_use_jj_skill"].as_bool().unwrap());
     assert_eq!(json["jj"]["skill"], "jj");
+    assert!(json.get("git").is_none());
     assert_eq!(json["todos_agent"].as_array().unwrap().len(), 1);
 }
 

@@ -319,6 +319,15 @@ pub enum AliasCommands {
 
 #[derive(Subcommand)]
 pub enum ConfigCommands {
+    /// Set a configuration value (e.g. vcs-mode jj|git)
+    Set {
+        /// Configuration key (e.g. vcs-mode)
+        key: String,
+
+        /// Configuration value
+        value: String,
+    },
+
     /// Set Google Calendar ID for today task
     SetCalendar {
         /// Google Calendar ID

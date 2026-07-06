@@ -1,6 +1,6 @@
 use crate::models::jj::jj_slug;
-use crate::models::{Task, TaskRepo, TaskStatus, Todo, TodoStatus, Worktree};
-use crate::services::jj_task;
+use crate::models::{Task, TaskRepo, TaskStatus, Todo, TodoStatus, VcsMode, Worktree};
+use crate::services::{git_worktree, jj_task};
 use serde::Serialize;
 
 /// High-level workflow phase for agents and humans.
@@ -73,10 +73,21 @@ pub struct JjAgentContext {
     pub repo_init_command: &'static str,
 }
 
+/// Git worktree context for the current task.
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+pub struct GitAgentContext {
+    pub slug: String,
+    pub branch: String,
+    pub workspace_ready: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub workspace_path: Option<String>,
+    pub sync_command: String,
+}
+
 /// Guardrails exposed to agents via JSON status output.
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 pub struct AgentGuardrails {
-    /// Commits, squash, push, and PR workflow belong to the `$jj` skill.
+    /// Commits, squash, push, and PR workflow belong to the `$jj` skill (jj mode only).
     pub must_use_jj_skill: bool,
     pub jj_skill_name: &'static str,
     pub reopen_forbidden: bool,
@@ -84,14 +95,28 @@ pub struct AgentGuardrails {
     pub complete_requires_jj_merge: bool,
 }
 
+impl AgentGuardrails {
+    pub fn for_mode(vcs_mode: VcsMode, complete_requires_jj_merge: bool) -> Self {
+        match vcs_mode {
+            VcsMode::Jj => Self {
+                must_use_jj_skill: true,
+                jj_skill_name: "jj",
+                reopen_forbidden: true,
+                complete_requires_jj_merge,
+            },
+            VcsMode::Git => Self {
+                must_use_jj_skill: false,
+                jj_skill_name: "jj",
+                reopen_forbidden: true,
+                complete_requires_jj_merge: false,
+            },
+        }
+    }
+}
+
 impl Default for AgentGuardrails {
     fn default() -> Self {
-        Self {
-            must_use_jj_skill: true,
-            jj_skill_name: "jj",
-            reopen_forbidden: true,
-            complete_requires_jj_merge: false,
-        }
+        Self::for_mode(VcsMode::Jj, false)
     }
 }
 
@@ -119,8 +144,24 @@ fn jj_workspace_needed(task: &Task, todos: &[Todo], repos: &[TaskRepo]) -> bool 
     !jj_task::slug_registered(&slug, &repo_paths(repos))
 }
 
+fn git_workspace_needed(task: &Task, todos: &[Todo], repos: &[TaskRepo]) -> bool {
+    if repos.is_empty() {
+        return false;
+    }
+    let has_pending = todos.iter().any(|todo| todo.status == TodoStatus::Pending);
+    if !has_pending {
+        return false;
+    }
+    let slug = jj_slug(task);
+    !repos.iter().any(|repo| {
+        let path = git_worktree::git_worktree_path(&repo.repo_path, &slug);
+        git_worktree::git_worktree_exists(&path)
+    })
+}
+
 /// Computes the workflow phase from current task state.
 pub fn compute_workflow_phase(
+    vcs_mode: VcsMode,
     task: &Task,
     todos: &[Todo],
     worktrees: &[Worktree],
@@ -134,7 +175,14 @@ pub fn compute_workflow_phase(
         return WorkflowPhase::Setup;
     }
 
-    if legacy_worktree_sync_needed(todos, worktrees) || jj_workspace_needed(task, todos, repos) {
+    let sync_needed = match vcs_mode {
+        VcsMode::Jj => {
+            legacy_worktree_sync_needed(todos, worktrees) || jj_workspace_needed(task, todos, repos)
+        }
+        VcsMode::Git => git_workspace_needed(task, todos, repos),
+    };
+
+    if sync_needed {
         return WorkflowPhase::SyncRequired;
     }
 
@@ -147,6 +195,7 @@ pub fn compute_workflow_phase(
 
 /// Builds the suggested next action for the current workflow phase.
 pub fn build_next_action(
+    vcs_mode: VcsMode,
     phase: WorkflowPhase,
     task: &Task,
     todos: &[Todo],
@@ -160,49 +209,85 @@ pub fn build_next_action(
         WorkflowPhase::Setup => NextAction {
             kind: "run_command",
             command: Some("track repo add [path]".to_string()),
-            reason: "Register at least one repository, then run jj-task repo init from the main workspace".to_string(),
-        },
-        WorkflowPhase::SyncRequired => {
-            if legacy_worktree_sync_needed(todos, worktrees) {
-                NextAction {
-                    kind: "run_command",
-                    command: Some("track sync".to_string()),
-                    reason: "Legacy per-TODO --worktree workspaces are pending (prefer jj-task for new tasks)".to_string(),
+            reason: match vcs_mode {
+                VcsMode::Jj => {
+                    "Register at least one repository, then run jj-task repo init from the main workspace".to_string()
                 }
-            } else {
-                NextAction {
-                    kind: "run_command",
-                    command: Some(format!("jj-task start {slug}")),
-                    reason: format!(
-                        "Start a jj-task workspace at .worktrees/{slug}. Run jj-task repo init once from the main repo if needed. Load the $jj skill for commits and PR."
-                    ),
+                VcsMode::Git => {
+                    "Register at least one git repository, then run track sync to create a worktree".to_string()
+                }
+            },
+        },
+        WorkflowPhase::SyncRequired => match vcs_mode {
+            VcsMode::Jj => {
+                if legacy_worktree_sync_needed(todos, worktrees) {
+                    NextAction {
+                        kind: "run_command",
+                        command: Some("track sync".to_string()),
+                        reason: "Legacy per-TODO --worktree workspaces are pending (prefer jj-task for new tasks)".to_string(),
+                    }
+                } else {
+                    NextAction {
+                        kind: "run_command",
+                        command: Some(format!("jj-task start {slug}")),
+                        reason: format!(
+                            "Start a jj-task workspace at .worktrees/{slug}. Run jj-task repo init once from the main repo if needed. Load the $jj skill for commits and PR."
+                        ),
+                    }
                 }
             }
-        }
+            VcsMode::Git => NextAction {
+                kind: "run_command",
+                command: Some("track sync".to_string()),
+                reason: format!(
+                    "Create git worktree at .worktrees/{slug} on branch track/{slug}"
+                ),
+            },
+        },
         WorkflowPhase::Execute => {
             let next_todo = oldest_pending_todo(todos);
             if let Some(todo) = next_todo {
-                if jj_task::slug_registered(&slug, &paths) {
-                    return NextAction {
-                        kind: "run_command",
-                        command: Some(format!("cd \"$(jj-task path {slug})\"")),
-                        reason: format!(
-                            "Work on TODO #{} in jj-task workspace. Use $jj skill for jj commit/squash/push — not jj describe alone.",
-                            todo.task_index
-                        ),
-                    };
-                }
+                match vcs_mode {
+                    VcsMode::Jj => {
+                        if jj_task::slug_registered(&slug, &paths) {
+                            return NextAction {
+                                kind: "run_command",
+                                command: Some(format!("cd \"$(jj-task path {slug})\"")),
+                                reason: format!(
+                                    "Work on TODO #{} in jj-task workspace. Use $jj skill for jj commit/squash/push — not jj describe alone.",
+                                    todo.task_index
+                                ),
+                            };
+                        }
 
-                let has_workspace = worktrees.iter().any(|wt| wt.todo_id == Some(todo.id));
-                if todo.worktree_requested && has_workspace {
-                    return NextAction {
-                        kind: "run_command",
-                        command: Some(format!("track todo workspace {}", todo.task_index)),
-                        reason: format!(
-                            "Legacy TODO workspace for #{}: {}",
-                            todo.task_index, todo.content
-                        ),
-                    };
+                        let has_workspace = worktrees.iter().any(|wt| wt.todo_id == Some(todo.id));
+                        if todo.worktree_requested && has_workspace {
+                            return NextAction {
+                                kind: "run_command",
+                                command: Some(format!("track todo workspace {}", todo.task_index)),
+                                reason: format!(
+                                    "Legacy TODO workspace for #{}: {}",
+                                    todo.task_index, todo.content
+                                ),
+                            };
+                        }
+                    }
+                    VcsMode::Git => {
+                        if let Some(repo) = repos.first() {
+                            let worktree_path =
+                                git_worktree::git_worktree_path(&repo.repo_path, &slug);
+                            if git_worktree::git_worktree_exists(&worktree_path) {
+                                return NextAction {
+                                    kind: "run_command",
+                                    command: Some(format!("cd \"{worktree_path}\"")),
+                                    reason: format!(
+                                        "Work on TODO #{} in git worktree. Commit and push with standard git commands.",
+                                        todo.task_index
+                                    ),
+                                };
+                            }
+                        }
+                    }
                 }
 
                 NextAction {
@@ -218,12 +303,17 @@ pub fn build_next_action(
                 }
             }
         }
-        WorkflowPhase::TaskComplete => NextAction {
-            kind: "run_command",
-            command: Some(format!(
-                "jj-task done {slug}; track archive"
-            )),
-            reason: "All TODOs done — use $jj skill to push/merge PR, then jj-task done and track archive".to_string(),
+        WorkflowPhase::TaskComplete => match vcs_mode {
+            VcsMode::Jj => NextAction {
+                kind: "run_command",
+                command: Some(format!("jj-task done {slug}; track archive")),
+                reason: "All TODOs done — use $jj skill to push/merge PR, then jj-task done and track archive".to_string(),
+            },
+            VcsMode::Git => NextAction {
+                kind: "run_command",
+                command: Some("track archive".to_string()),
+                reason: "All TODOs done — push/merge your PR with git, then archive the task".to_string(),
+            },
         },
         WorkflowPhase::Archived => NextAction {
             kind: "wait_human",
@@ -255,6 +345,25 @@ pub fn build_jj_context(task: &Task, repos: &[TaskRepo]) -> JjAgentContext {
         start_command: format!("jj-task start {slug}"),
         path_command: format!("jj-task path {slug}"),
         repo_init_command: "jj-task repo init",
+    }
+}
+
+pub fn build_git_context(task: &Task, repos: &[TaskRepo]) -> GitAgentContext {
+    let slug = jj_slug(task);
+    let branch = git_worktree::git_branch_name(&slug);
+    let workspace_path = repos
+        .first()
+        .map(|repo| git_worktree::git_worktree_path(&repo.repo_path, &slug));
+    let workspace_ready = workspace_path
+        .as_deref()
+        .is_some_and(git_worktree::git_worktree_exists);
+
+    GitAgentContext {
+        slug,
+        branch,
+        workspace_ready,
+        workspace_path,
+        sync_command: "track sync".to_string(),
     }
 }
 
@@ -313,11 +422,8 @@ mod tests {
         }
     }
 
-    #[test]
-    fn workflow_phase_detects_legacy_sync_required() {
-        let task = sample_task(TaskStatus::Active);
-        let todos = vec![sample_todo(1, true)];
-        let repos = vec![TaskRepo {
+    fn sample_repo() -> TaskRepo {
+        TaskRepo {
             id: 1,
             task_id: 1,
             task_index: 1,
@@ -325,10 +431,17 @@ mod tests {
             base_branch: None,
             base_commit_hash: None,
             created_at: Utc::now(),
-        }];
+        }
+    }
+
+    #[test]
+    fn workflow_phase_detects_legacy_sync_required() {
+        let task = sample_task(TaskStatus::Active);
+        let todos = vec![sample_todo(1, true)];
+        let repos = vec![sample_repo()];
 
         assert_eq!(
-            compute_workflow_phase(&task, &todos, &[], &repos),
+            compute_workflow_phase(VcsMode::Jj, &task, &todos, &[], &repos),
             WorkflowPhase::SyncRequired
         );
     }
@@ -337,18 +450,22 @@ mod tests {
     fn workflow_phase_jj_needs_workspace_without_map() {
         let task = sample_task(TaskStatus::Active);
         let todos = vec![sample_todo(1, false)];
-        let repos = vec![TaskRepo {
-            id: 1,
-            task_id: 1,
-            task_index: 1,
-            repo_path: "/repo".to_string(),
-            base_branch: None,
-            base_commit_hash: None,
-            created_at: Utc::now(),
-        }];
+        let repos = vec![sample_repo()];
 
         assert_eq!(
-            compute_workflow_phase(&task, &todos, &[], &repos),
+            compute_workflow_phase(VcsMode::Jj, &task, &todos, &[], &repos),
+            WorkflowPhase::SyncRequired
+        );
+    }
+
+    #[test]
+    fn workflow_phase_git_needs_sync_without_worktree() {
+        let task = sample_task(TaskStatus::Active);
+        let todos = vec![sample_todo(1, false)];
+        let repos = vec![sample_repo()];
+
+        assert_eq!(
+            compute_workflow_phase(VcsMode::Git, &task, &todos, &[], &repos),
             WorkflowPhase::SyncRequired
         );
     }
@@ -357,18 +474,34 @@ mod tests {
     fn sync_required_action_prefers_jj_task_start() {
         let task = sample_task(TaskStatus::Active);
         let todos = vec![sample_todo(1, false)];
-        let repos = vec![TaskRepo {
-            id: 1,
-            task_id: 1,
-            task_index: 1,
-            repo_path: "/repo".to_string(),
-            base_branch: None,
-            base_commit_hash: None,
-            created_at: Utc::now(),
-        }];
+        let repos = vec![sample_repo()];
 
-        let action = build_next_action(WorkflowPhase::SyncRequired, &task, &todos, &[], &repos);
+        let action = build_next_action(
+            VcsMode::Jj,
+            WorkflowPhase::SyncRequired,
+            &task,
+            &todos,
+            &[],
+            &repos,
+        );
         assert_eq!(action.command.as_deref(), Some("jj-task start proj-1"));
+    }
+
+    #[test]
+    fn sync_required_action_uses_track_sync_in_git_mode() {
+        let task = sample_task(TaskStatus::Active);
+        let todos = vec![sample_todo(1, false)];
+        let repos = vec![sample_repo()];
+
+        let action = build_next_action(
+            VcsMode::Git,
+            WorkflowPhase::SyncRequired,
+            &task,
+            &todos,
+            &[],
+            &repos,
+        );
+        assert_eq!(action.command.as_deref(), Some("track sync"));
     }
 
     #[test]
@@ -378,5 +511,23 @@ mod tests {
         assert_eq!(ctx.slug, "proj-1");
         assert_eq!(ctx.skill, "jj");
         assert_eq!(ctx.start_command, "jj-task start proj-1");
+    }
+
+    #[test]
+    fn build_git_context_includes_branch_and_sync() {
+        let task = sample_task(TaskStatus::Active);
+        let repos = vec![sample_repo()];
+        let ctx = build_git_context(&task, &repos);
+        assert_eq!(ctx.slug, "proj-1");
+        assert_eq!(ctx.branch, "track/proj-1");
+        assert_eq!(ctx.sync_command, "track sync");
+        assert!(!ctx.workspace_ready);
+    }
+
+    #[test]
+    fn guardrails_disable_jj_skill_in_git_mode() {
+        let guardrails = AgentGuardrails::for_mode(VcsMode::Git, false);
+        assert!(!guardrails.must_use_jj_skill);
+        assert!(guardrails.reopen_forbidden);
     }
 }

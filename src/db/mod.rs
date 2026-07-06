@@ -4,7 +4,7 @@
 //! and application state management. The database stores all task, TODO, link, scrap,
 //! and Git repository information.
 
-use crate::models::{TaskStatus, TodoStatus};
+use crate::models::{TaskStatus, TodoStatus, VcsMode};
 use crate::utils::Result;
 use directories::ProjectDirs;
 use rusqlite::{params, Connection, OptionalExtension};
@@ -762,6 +762,21 @@ impl Database {
         Ok(())
     }
 
+    /// Returns the configured VCS backend (`jj` by default).
+    pub fn get_vcs_mode(&self) -> Result<VcsMode> {
+        match self.get_app_state(VcsMode::KEY)? {
+            Some(value) => value.parse().map_err(|err: String| {
+                crate::utils::TrackError::Other(format!("Invalid vcs_mode in database: {err}"))
+            }),
+            None => Ok(VcsMode::default()),
+        }
+    }
+
+    /// Persists the VCS backend preference.
+    pub fn set_vcs_mode(&self, mode: VcsMode) -> Result<()> {
+        self.set_app_state(VcsMode::KEY, mode.as_str())
+    }
+
     /// Gets the ID of the current active task.
     ///
     /// # Returns
@@ -893,6 +908,21 @@ mod tests {
         db.set_app_state("test_key", "new_value").unwrap();
         let value = db.get_app_state("test_key").unwrap();
         assert_eq!(value, Some("new_value".to_string()));
+    }
+
+    #[test]
+    fn test_vcs_mode_defaults_to_jj() {
+        let db = Database::new_in_memory().unwrap();
+        assert_eq!(db.get_vcs_mode().unwrap(), VcsMode::Jj);
+    }
+
+    #[test]
+    fn test_vcs_mode_round_trip() {
+        let db = Database::new_in_memory().unwrap();
+        db.set_vcs_mode(VcsMode::Git).unwrap();
+        assert_eq!(db.get_vcs_mode().unwrap(), VcsMode::Git);
+        db.set_vcs_mode(VcsMode::Jj).unwrap();
+        assert_eq!(db.get_vcs_mode().unwrap(), VcsMode::Jj);
     }
 
     #[test]

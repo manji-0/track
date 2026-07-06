@@ -2,7 +2,9 @@
 
 use crate::db::Database;
 use crate::models::TodoStatus;
-use crate::models::{AgentGuardrails, JjAgentContext, TodoAgentView, WorkflowContext};
+use crate::models::{
+    AgentGuardrails, GitAgentContext, JjAgentContext, TodoAgentView, VcsMode, WorkflowContext,
+};
 use crate::services::agent_context::build_agent_extensions;
 use crate::services::{
     LinkService, RepoService, ScrapService, TaskService, TodoService, WorktreeService,
@@ -41,7 +43,11 @@ pub struct StatusResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub workflow: Option<WorkflowContext>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub vcs_mode: Option<VcsMode>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub jj: Option<JjAgentContext>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub git: Option<GitAgentContext>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub todos_agent: Option<Vec<TodoAgentView>>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -124,7 +130,9 @@ pub async fn api_status(State(state): State<WebState>) -> Result<Json<StatusResp
                 worktrees: vec![],
                 repos: vec![],
                 workflow: None,
+                vcs_mode: None,
                 jj: None,
+                git: None,
                 todos_agent: None,
                 guardrails: None,
             }));
@@ -149,7 +157,15 @@ pub async fn api_status(State(state): State<WebState>) -> Result<Json<StatusResp
     let repo_service = RepoService::new(&db);
     let repos = repo_service.list_repos(current_task_id)?;
 
-    let agent = build_agent_extensions(&task, &todos, &worktrees, &repos, &worktree_service);
+    let vcs_mode = db.get_vcs_mode()?;
+    let agent = build_agent_extensions(
+        vcs_mode,
+        &task,
+        &todos,
+        &worktrees,
+        &repos,
+        &worktree_service,
+    );
 
     Ok(Json(StatusResponse {
         task: Some(serde_json::to_value(&task)?),
@@ -171,7 +187,9 @@ pub async fn api_status(State(state): State<WebState>) -> Result<Json<StatusResp
             .map(|r| serde_json::to_value(r).unwrap_or_default())
             .collect(),
         workflow: Some(agent.workflow),
-        jj: Some(agent.jj),
+        vcs_mode: Some(agent.vcs_mode),
+        jj: agent.jj,
+        git: agent.git,
         todos_agent: Some(agent.todos_agent),
         guardrails: Some(agent.guardrails),
     }))
