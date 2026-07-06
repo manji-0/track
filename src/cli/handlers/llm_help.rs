@@ -5,95 +5,77 @@ pub fn handle_llm_help(_ctx: &CommandCtx) -> Result<()> {
     println!(
         r#"# Track CLI Help for LLM Agents
 
-## ⚠️ MANDATORY: Read This First
+## ⚠️ MANDATORY: Two-Layer Stack
 
-**BEFORE making ANY code changes, you MUST:**
+**Track** = WHAT to work on (tasks, TODOs, scraps).  
+**[agent-skill-jj](https://github.com/manji-0/agent-skill-jj) (`$jj`)** = HOW to commit and open PRs.
 
-1. Run `track sync` to create/move to the task bookmark
-2. Verify you are on the correct bookmark (NOT main/master/develop)
-3. ONLY THEN begin coding
+**BEFORE making ANY code changes:**
 
-**FAILURE TO FOLLOW THIS WORKFLOW WILL RESULT IN:**
-- Changes on the wrong bookmark (main/master)
-- Merge conflicts that are difficult to resolve
-- Loss of work isolation between tasks
-- Broken change history
+1. Run `track status --json` — read `jj.slug` and `workflow.next_action`
+2. Run `jj-task start <jj.slug>` (or `cd "$(jj-task path <jj.slug>)"` if already started)
+3. Work **only** in the jj-task workspace (`.worktrees/<slug>/`) — never edit at repo root
+4. Use **`$jj` skill** for all jj squash/commit/push/PR operations
+
+See `docs/JJ_INTEGRATION.md` for the full strategy.
 
 ---
 
 ## LLM Agent Quick Start (MANDATORY STEPS)
 
-When you start working on a task, follow these steps **IN ORDER**:
-
-### Step 1: Sync (REQUIRED - DO THIS FIRST)
-```bash
-track sync
-```
-This creates the task bookmark and moves the workspace. **Do NOT skip this step.**
-
-### Step 2: Verify Bookmark
-```bash
-jj status
-jj bookmark list -r @
-```
-Confirm the output shows `task/<ticket-id>` or `task/task-<id>`.
-**If you see main/master/develop, STOP and run `track sync` again.**
-
-### Step 3: Check Status (JSON-first for agents)
+### Step 1: Read track JSON context
 ```bash
 track status --json
 ```
-Parse `workflow.phase`, `workflow.next_action`, and `todos_agent` before doing anything else.
-Human-readable fallback: `track status`
 
-**Agent JSON fields:**
 | Field | Use |
 |-------|-----|
 | `workflow.phase` | setup · sync_required · execute · task_complete · archived |
 | `workflow.next_action.command` | Next command to run |
+| `jj.slug` | jj-task workspace name |
+| `jj.start_command` | e.g. `jj-task start proj-123` |
+| `jj.path_command` | e.g. `cd "$(jj-task path proj-123)"` |
 | `todos_agent[].is_next` | Current TODO |
-| `todos_agent[].allowed_actions` | Valid operations (reopen forbidden) |
-| `guardrails` | must_sync_before_code_changes, complete_requires_jj_merge |
+| `guardrails.must_use_jj_skill` | Load `$jj` for jj/PR work |
 
-WebUI: `GET /api/status` returns the same agent fields when a task is active.
+WebUI: `GET /api/status` — same fields.
 
-**Install track skills (split by use case):**
+### Step 2: Start jj-task workspace (when sync_required)
+From repo root (main workspace):
 ```bash
-npx skills add ./skills \
-  -s track -s track-task-setup -s track-task-execute -s track-advanced \
-  -g -a cursor -a claude-code -a codex -y
-```
-| Skill | When |
-|-------|------|
-| `track` | Router — read workflow.phase |
-| `track-task-setup` | Create task, repos, TODOs |
-| `track-task-execute` | Sync, implement, todo done |
-| `track-advanced` | Multi-repo, archive, hotfix |
-See `skills/INSTALL.md` for agent paths and troubleshooting.
-
-### Step 4: Navigate to Workspace
-```bash
-# Use track todo workspace to find the workspace path
-cd "$(track todo workspace <index>)"
+jj-task repo init    # once per repo
+jj-task start <jj.slug>
+cd "$(jj-task path <jj.slug>)"
 ```
 
-### Step 5: Execute Work
-- Implement the required changes.
-- Run tests and checks.
-- Use `jj describe` to record the change summary.
+### Step 3: Implement + commit via $jj skill
+- Run tests/linters in the jj-task workspace
+- Follow **`$jj` skill** for prek, jj squash/commit, two-phase PR, push
+- Do **not** use bare `jj describe` instead of `$jj` commit rules
 
-### Step 6: Record Progress
+### Step 4: Record progress in track
 ```bash
 track scrap add "<note>"
 ```
 
-### Step 7: Complete TODO
+### Step 5: Complete TODO in track
 ```bash
 track todo done <index>
 ```
 
-### Step 8: Repeat
-Continue with the next pending TODO until all are complete.
+### Step 6: Repeat until task_complete, then archive
+```bash
+# $jj skill: merge PR
+jj-task done <jj.slug>
+track archive
+```
+
+**Install skills:**
+```bash
+npx skills add ./skills -s track -s track-task-execute -g -y
+npx skills add manji-0/agent-skill-jj -s jj -g -y
+```
+See `skills/INSTALL.md` and `docs/JJ_INTEGRATION.md`.
 
 ---
 

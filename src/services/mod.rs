@@ -5,6 +5,7 @@
 //! operations related to its domain and interacts with the database layer.
 
 pub mod agent_context;
+pub mod jj_task;
 pub mod link_service;
 pub mod repo_service;
 pub mod task_service;

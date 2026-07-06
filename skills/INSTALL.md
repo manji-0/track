@@ -1,12 +1,26 @@
 # Installing Track Skills for AI Agents
 
-Track ships four [Agent Skills](https://github.com/anthropics/skills) under `skills/`, split by use case. This guide covers the **recommended `npx skills` install**, agent-specific paths, and manual fallbacks.
+Track skills manage **tasks and TODOs**. They assume **[agent-skill-jj](https://github.com/manji-0/agent-skill-jj)** is installed for all JJ commit and PR work (`$jj` skill + `jj-task` script).
 
 ## Requirements
 
-- **track CLI** built and on your `PATH`
+- **track CLI** on `PATH`
+- **jj** on `PATH`
+- **jj-task** from agent-skill-jj (`~/.local/bin/jj-task`)
+- **`jj` skill** from agent-skill-jj (via `npx skills`)
 - **Node.js 18+** (for `npx skills` only)
-- **jj** (for workspace workflows)
+
+### Install agent-skill-jj (required)
+
+```bash
+npx skills add manji-0/agent-skill-jj -s jj -g -a cursor -a claude-code -a codex -y
+
+# jj-task helper
+git clone https://github.com/manji-0/agent-skill-jj.git
+ln -s "$(pwd)/agent-skill-jj/skills/jj/scripts/jj-task.sh" ~/.local/bin/jj-task
+```
+
+See [../docs/JJ_INTEGRATION.md](../docs/JJ_INTEGRATION.md) for the combined workflow.
 
 ---
 

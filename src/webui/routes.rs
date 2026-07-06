@@ -2,7 +2,7 @@
 
 use crate::db::Database;
 use crate::models::TodoStatus;
-use crate::models::{AgentGuardrails, TodoAgentView, WorkflowContext};
+use crate::models::{AgentGuardrails, JjAgentContext, TodoAgentView, WorkflowContext};
 use crate::services::agent_context::build_agent_extensions;
 use crate::services::{
     LinkService, RepoService, ScrapService, TaskService, TodoService, WorktreeService,
@@ -40,6 +40,8 @@ pub struct StatusResponse {
     pub repos: Vec<serde_json::Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub workflow: Option<WorkflowContext>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub jj: Option<JjAgentContext>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub todos_agent: Option<Vec<TodoAgentView>>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -122,6 +124,7 @@ pub async fn api_status(State(state): State<WebState>) -> Result<Json<StatusResp
                 worktrees: vec![],
                 repos: vec![],
                 workflow: None,
+                jj: None,
                 todos_agent: None,
                 guardrails: None,
             }));
@@ -168,6 +171,7 @@ pub async fn api_status(State(state): State<WebState>) -> Result<Json<StatusResp
             .map(|r| serde_json::to_value(r).unwrap_or_default())
             .collect(),
         workflow: Some(agent.workflow),
+        jj: Some(agent.jj),
         todos_agent: Some(agent.todos_agent),
         guardrails: Some(agent.guardrails),
     }))

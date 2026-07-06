@@ -1,4 +1,4 @@
 interface:
   display_name: "Track Execute"
   short_description: "Execute track TODOs with sync and JJ workspaces"
-  default_prompt: "Use $track-task-execute, run track status --json, track sync before code changes, and complete with track todo done."
+  default_prompt: "Use $track-task-execute: track status --json, jj-task start, cd workspace, $jj for commits, track todo done."

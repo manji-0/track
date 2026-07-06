@@ -1,7 +1,7 @@
 use crate::models::{
-    build_next_action, compute_workflow_phase, oldest_pending_todo, workspace_lifecycle,
-    AgentGuardrails, Task, TaskRepo, Todo, TodoAction, TodoAgentView, WorkflowContext,
-    WorkspaceAgentView, Worktree,
+    build_jj_context, build_next_action, compute_workflow_phase, oldest_pending_todo,
+    workspace_lifecycle, AgentGuardrails, JjAgentContext, Task, TaskRepo, Todo, TodoAction,
+    TodoAgentView, TodoStatus, WorkflowContext, WorkspaceAgentView, Worktree,
 };
 use crate::services::WorktreeService;
 use serde::Serialize;
@@ -10,6 +10,7 @@ use serde::Serialize;
 #[derive(Debug, Clone, Serialize)]
 pub struct AgentStatusExtensions {
     pub workflow: WorkflowContext,
+    pub jj: JjAgentContext,
     pub todos_agent: Vec<TodoAgentView>,
     pub guardrails: AgentGuardrails,
 }
@@ -24,10 +25,13 @@ pub fn build_agent_extensions(
 ) -> AgentStatusExtensions {
     let phase = compute_workflow_phase(task, todos, worktrees, repos);
     let next_todo_id = oldest_pending_todo(todos).map(|todo| todo.id);
+    let legacy_merge_required = todos
+        .iter()
+        .any(|todo| todo.status == TodoStatus::Pending && todo.worktree_requested);
 
     let workflow = WorkflowContext {
         phase,
-        next_action: build_next_action(phase, todos, worktrees),
+        next_action: build_next_action(phase, task, todos, worktrees, repos),
     };
 
     let todos_agent: Vec<TodoAgentView> = todos
@@ -54,7 +58,7 @@ pub fn build_agent_extensions(
                 allowed_actions: TodoAction::allowed_for(todo)
                     .into_iter()
                     .map(|action| action.as_str().to_string())
-                    .chain(if todo.status == crate::models::TodoStatus::Pending {
+                    .chain(if todo.status == TodoStatus::Pending {
                         vec!["delete".to_string()]
                     } else {
                         Vec::new()
@@ -69,10 +73,16 @@ pub fn build_agent_extensions(
         })
         .collect();
 
+    let guardrails = AgentGuardrails {
+        complete_requires_jj_merge: legacy_merge_required,
+        ..AgentGuardrails::default()
+    };
+
     AgentStatusExtensions {
         workflow,
+        jj: build_jj_context(task, repos),
         todos_agent,
-        guardrails: AgentGuardrails::default(),
+        guardrails,
     }
 }
 
@@ -84,7 +94,7 @@ mod tests {
     use crate::services::{TaskService, TodoService};
 
     #[test]
-    fn agent_extensions_include_workflow() {
+    fn agent_extensions_include_workflow_and_jj() {
         let db = Database::new_in_memory().unwrap();
         let task = TaskService::new(&db)
             .create_task("Task", None, None, None)
@@ -97,6 +107,8 @@ mod tests {
         let extensions = build_agent_extensions(&task, &todos, &[], &[], &worktree_service);
 
         assert_eq!(extensions.workflow.phase, WorkflowPhase::Setup);
+        assert_eq!(extensions.jj.skill, "jj");
+        assert!(extensions.guardrails.must_use_jj_skill);
         assert!(extensions.guardrails.reopen_forbidden);
     }
 }
