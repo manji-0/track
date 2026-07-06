@@ -1,6 +1,6 @@
 [package]
-name = "track"
-version = "0.5.0"
+name = "jj-track"
+version = "0.6.0"
 edition = "2021"
 authors = ["manji0"]
 description = "A JJ workspace-based task and TODO management CLI tool"
@@ -9,6 +9,13 @@ repository = "https://github.com/manji0/track"
 keywords = ["cli", "task-management", "jj", "workspace", "productivity"]
 categories = ["command-line-utilities", "development-tools"]
 readme = "README.md"
+
+[lib]
+name = "track"
+
+[[bin]]
+name = "track"
+path = "src/main.rs"
 
 [dependencies]
 clap = { version = "4.4", features = ["derive"] }

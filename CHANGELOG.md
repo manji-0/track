@@ -7,14 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Changed
-- **JJ strategy realignment**: track assumes [agent-skill-jj](https://github.com/manji-0/agent-skill-jj) for commits/PR; jj-task for workspaces
-- Agent JSON adds `jj` context (`slug`, `start_command`, `path_command`); guardrails use `must_use_jj_skill`
-- `workflow.next_action` suggests `jj-task start <slug>` instead of `track sync` for new tasks
-- Skills v3.0: two-layer track + `$jj` documentation
+## [0.6.0] - 2026-07-07
 
 ### Added
+- `vcs-mode` config (`track config set vcs-mode jj|git`) to switch between JJ and plain git worktrees
+- `VcsMode` persisted in app state; git mode creates worktrees at `.worktrees/<slug>` on `track/<slug>` branches
 - `docs/JJ_INTEGRATION.md` — combined track + agent-skill-jj strategy
+
+### Changed
+- **JJ strategy realignment**: track assumes [agent-skill-jj](https://github.com/manji-0/agent-skill-jj) for commits/PR; jj-task for workspaces
+- Agent JSON adds `jj` / `git` context by mode; guardrails use `must_use_jj_skill` in JJ mode
+- `workflow.next_action` suggests `jj-task start <slug>` instead of `track sync` for new tasks
+- Skills v3.0: two-layer track + `$jj` documentation
 
 ## [0.5.0] - 2026-07-06
 
