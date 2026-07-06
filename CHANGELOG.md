@@ -7,10 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-07-06
+
+### Added
+- `TodoAction` and `ApplyTodoActionUseCase` for unified CLI/WebUI todo operations
+- `TaskStatus` / `TodoStatus` modules with transition rules and SQL constants
+- Agent JSON fields in `track status --json` and `GET /api/status` (`workflow`, `todos_agent`, `guardrails`)
+- `SyncTaskUseCase`, `ArchiveTaskUseCase`, and expanded use-case layer
+- WebUI route tests and HTTP status mapping (400/404)
+- DB CHECK constraints on `tasks.status` and `todos.status`
+- Skills split by use case: `track`, `track-task-setup`, `track-task-execute`, `track-advanced`
+- Skill plugin manifests for Claude Code, Codex, and Agents (kamae-rs-style)
+- `scripts/validate_package.py` for skill/plugin smoke tests
+
 ### Changed
-- Skill plugin manifests for Claude Code, Codex, and Agents (kamae-rs-style metadata)
+- CLI handlers split into focused modules; shared row mapping extracted
+- Domain modeling and transaction boundaries strengthened across use cases
 - Release profile: LTO, single codegen unit, strip symbols, panic=abort (~38% smaller binary)
 - Trim tokio features to only those required by webui (was `full`)
+- Skills install docs updated for `npx skills` multi-skill install
+
+### Fixed
+- Reopening completed or cancelled TODOs is forbidden (add a new TODO instead)
+- WebUI no longer offers "Mark as Pending" for terminal TODO states
 
 ## [0.4.2] - 2026-01-28
 
