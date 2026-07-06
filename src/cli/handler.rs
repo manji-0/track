@@ -66,6 +66,11 @@ impl CommandHandler {
             Commands::Repo(cmd) => super::handlers::handle_repo(&ctx, cmd),
             Commands::Alias(cmd) => super::handlers::handle_alias(&ctx, cmd),
             Commands::LlmHelp => super::handlers::handle_llm_help(&ctx),
+            Commands::Install(cmd) => match cmd {
+                crate::cli::InstallCommands::Agents(args) => {
+                    super::handlers::handle_install_agents(&ctx, &args)
+                }
+            },
             Commands::Completion { shell, dynamic } => {
                 super::handlers::handle_completion(&ctx, shell, dynamic)
             }
@@ -92,6 +97,23 @@ impl CommandHandler {
 mod tests {
     use super::*;
     use crate::db::Database;
+
+    #[test]
+    fn test_install_agents_dry_run() {
+        let db = Database::new_in_memory().unwrap();
+        let handler = CommandHandler::from_db(db);
+
+        let result = handler.handle(crate::cli::Commands::Install(
+            crate::cli::InstallCommands::Agents(crate::cli::InstallAgentsArgs {
+                global: true,
+                project: false,
+                path: None,
+                dry_run: true,
+                skills: false,
+            }),
+        ));
+        assert!(result.is_ok());
+    }
 
     #[test]
     fn test_llm_help() {

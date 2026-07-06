@@ -3,6 +3,7 @@
 mod alias;
 mod completion;
 mod config;
+mod install;
 mod link;
 mod llm_help;
 mod repo;
@@ -14,6 +15,7 @@ mod todo;
 pub use alias::handle_alias;
 pub use completion::{handle_complete, handle_completion};
 pub use config::handle_config;
+pub use install::handle_install_agents;
 pub use link::handle_link;
 pub use llm_help::handle_llm_help;
 pub use repo::handle_repo;

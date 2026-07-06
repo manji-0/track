@@ -10,6 +10,33 @@ Track skills manage **tasks and TODOs**. They assume **[agent-skill-jj](https://
 - **`jj` skill** from agent-skill-jj (via `npx skills`)
 - **Node.js 18+** (for `npx skills` only)
 
+### Install global AGENTS.md instructions (recommended)
+
+Append track workflow rules to your global `~/.agents/AGENTS.md` (idempotent — safe to re-run):
+
+```bash
+# With track CLI installed
+track install agents --global
+
+# One-liner (works before track is installed)
+curl -fsSL https://raw.githubusercontent.com/manji-0/track/master/scripts/install-agents.sh | bash
+
+# Preview without writing
+track install agents --global --dry-run
+```
+
+Also install skills in the same step:
+
+```bash
+track install agents --global --skills
+```
+
+Project-scoped install (writes `./AGENTS.md`):
+
+```bash
+track install agents --project
+```
+
 ### Install agent-skill-jj (required)
 
 ```bash

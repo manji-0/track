@@ -7,7 +7,8 @@
 pub mod handler;
 pub mod handlers;
 
-use clap::{Parser, Subcommand, ValueEnum};
+use clap::{Args, Parser, Subcommand, ValueEnum};
+use std::path::PathBuf;
 
 /// Types of completion data that can be output
 #[derive(Debug, Clone, ValueEnum)]
@@ -137,6 +138,10 @@ pub enum Commands {
     /// Show help optimized for LLM agents
     LlmHelp,
 
+    /// Install track integrations (AGENTS.md, skills)
+    #[command(subcommand)]
+    Install(InstallCommands),
+
     /// Generate shell completion script
     Completion {
         /// Shell to generate completions for
@@ -171,6 +176,35 @@ pub enum Commands {
         #[arg(short, long)]
         open: bool,
     },
+}
+
+#[derive(Subcommand)]
+pub enum InstallCommands {
+    /// Append or refresh track instructions in AGENTS.md
+    Agents(InstallAgentsArgs),
+}
+
+#[derive(Args)]
+pub struct InstallAgentsArgs {
+    /// Install to ~/.agents/AGENTS.md (default)
+    #[arg(long, conflicts_with_all = ["project", "path"])]
+    pub global: bool,
+
+    /// Install to ./AGENTS.md in the current directory
+    #[arg(long, conflicts_with_all = ["global", "path"])]
+    pub project: bool,
+
+    /// Custom AGENTS.md path
+    #[arg(long, value_name = "PATH")]
+    pub path: Option<PathBuf>,
+
+    /// Preview changes without writing files
+    #[arg(long)]
+    pub dry_run: bool,
+
+    /// Also install track + agent-skill-jj skills via npx
+    #[arg(long)]
+    pub skills: bool,
 }
 
 #[derive(Subcommand)]

@@ -72,6 +72,7 @@ track archive
 
 **Install skills:**
 ```bash
+track install agents --global
 npx skills add ./skills -s track -s track-task-execute -g -y
 npx skills add manji-0/agent-skill-jj -s jj -g -y
 ```
@@ -179,6 +180,7 @@ This guide explains the standard workflow for completing tasks.
 | `track scrap list` | List all scraps |
 | `track webui` | Start web-based UI (default: http://localhost:3000) |
 | `track llm-help` | Show this help message |
+| `track install agents --global` | Append track rules to `~/.agents/AGENTS.md` (idempotent) |
 
 ## Task-Scoped Indices
 

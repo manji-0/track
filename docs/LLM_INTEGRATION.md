@@ -5,6 +5,10 @@ Track provides **Agent Skills** for task/TODO management. **[agent-skill-jj](htt
 ## Quick Start for Agents
 
 ```bash
+# Global AGENTS.md — tell every agent to use track
+track install agents --global
+# or: curl -fsSL https://raw.githubusercontent.com/manji-0/track/master/scripts/install-agents.sh | bash
+
 # Track — WHAT to work on
 npx skills add manji-0/track \
   -s track -s track-task-setup -s track-task-execute -s track-advanced -g -y
@@ -28,6 +32,7 @@ Full strategy: **[JJ_INTEGRATION.md](JJ_INTEGRATION.md)**
 
 | Method | Command |
 |--------|---------|
+| **Global AGENTS.md** | `track install agents --global` |
 | **Track skills** | `npx skills add manji-0/track -s track -s track-task-execute -g -y` |
 | **JJ skill (required)** | `npx skills add manji-0/agent-skill-jj -s jj -g -y` |
 | **jj-task script** | `ln -s .../agent-skill-jj/skills/jj/scripts/jj-task.sh ~/.local/bin/jj-task` |
