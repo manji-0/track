@@ -1,28 +1,19 @@
 //! HTTP route handlers for the WebUI.
 
-mod formatters;
-
-use self::formatters::{build_status_context, format_scraps, format_todos};
-
 use crate::models::TodoStatus;
-use crate::models::{
-    AgentGuardrails, GitAgentContext, JjAgentContext, TodoAgentView, VcsMode, WorkflowContext,
-};
-use crate::services::agent_context::build_agent_extensions;
-use crate::services::{
-    LinkService, RepoService, ScrapService, TaskService, TodoService, WorktreeService,
-};
-use crate::use_cases::ApplyTodoActionUseCase;
+use crate::services::{LinkService, RepoService, ScrapService, TaskService, TodoService};
+use crate::use_cases::{ApplyTodoActionUseCase, GetTaskInfoUseCase};
 use crate::utils::TrackError;
 use crate::webui::error::WebError;
 use crate::webui::state::{AppState, SseEvent};
 use crate::webui::templates::SharedTemplates;
+use crate::webui::view::{self, format_scraps, format_todos, StatusResponse};
 use axum::{
     extract::{Path, State},
     response::Html,
     Form, Json,
 };
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
 /// Extended application state with templates
 #[derive(Clone)]
@@ -33,29 +24,6 @@ pub struct WebState {
 
 /// Error response wrapper
 pub type AppError = WebError;
-
-/// Status response for JSON API
-#[derive(Serialize)]
-pub struct StatusResponse {
-    pub task: Option<serde_json::Value>,
-    pub todos: Vec<serde_json::Value>,
-    pub links: Vec<serde_json::Value>,
-    pub scraps: Vec<serde_json::Value>,
-    pub worktrees: Vec<serde_json::Value>,
-    pub repos: Vec<serde_json::Value>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub workflow: Option<WorkflowContext>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub vcs_mode: Option<VcsMode>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub jj: Option<JjAgentContext>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub git: Option<GitAgentContext>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub todos_agent: Option<Vec<TodoAgentView>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub guardrails: Option<AgentGuardrails>,
-}
 
 /// Form data for adding a todo
 #[derive(Deserialize)]
@@ -93,6 +61,19 @@ pub struct AddLinkForm {
     pub title: Option<String>,
 }
 
+fn render_todo_list_html(
+    templates: &crate::webui::templates::Templates,
+    db: &crate::db::Database,
+    task_id: i64,
+) -> Result<String, AppError> {
+    let snapshot = GetTaskInfoUseCase::new(db).load(task_id)?;
+    let todos = format_todos(&snapshot.todos, &snapshot.worktrees, &snapshot.scraps)?;
+    Ok(templates.render(
+        "partials/todo_list.html",
+        serde_json::json!({ "todos": todos }),
+    )?)
+}
+
 /// Main dashboard page
 pub async fn index(State(state): State<WebState>) -> Result<Html<String>, AppError> {
     let db = state.app.db.lock().await;
@@ -115,7 +96,7 @@ pub async fn index(State(state): State<WebState>) -> Result<Html<String>, AppErr
         }
     };
 
-    let context = build_status_context(&db, current_task_id)?;
+    let context = view::build_template_context(&db, current_task_id)?;
     let html = state.templates.render("index.html", context)?;
     Ok(Html(html))
 }
@@ -126,78 +107,14 @@ pub async fn api_status(State(state): State<WebState>) -> Result<Json<StatusResp
 
     let current_task_id = match db.get_current_task_id()? {
         Some(id) => id,
-        None => {
-            return Ok(Json(StatusResponse {
-                task: None,
-                todos: vec![],
-                links: vec![],
-                scraps: vec![],
-                worktrees: vec![],
-                repos: vec![],
-                workflow: None,
-                vcs_mode: None,
-                jj: None,
-                git: None,
-                todos_agent: None,
-                guardrails: None,
-            }));
-        }
+        None => return Ok(Json(StatusResponse::empty())),
     };
 
-    let task_service = TaskService::new(&db);
-    let task = task_service.get_task(current_task_id)?;
+    let info = GetTaskInfoUseCase::new(&db);
+    let snapshot = info.load(current_task_id)?;
+    let response = view::build_api_status(&db, &snapshot)?;
 
-    let todo_service = TodoService::new(&db);
-    let todos = todo_service.list_todos(current_task_id)?;
-
-    let link_service = LinkService::new(&db);
-    let links = link_service.list_links(current_task_id)?;
-
-    let scrap_service = ScrapService::new(&db);
-    let scraps = scrap_service.list_scraps(current_task_id)?;
-
-    let worktree_service = WorktreeService::new(&db);
-    let worktrees = worktree_service.list_worktrees(current_task_id)?;
-
-    let repo_service = RepoService::new(&db);
-    let repos = repo_service.list_repos(current_task_id)?;
-
-    let vcs_mode = db.get_vcs_mode()?;
-    let agent = build_agent_extensions(
-        vcs_mode,
-        &task,
-        &todos,
-        &worktrees,
-        &repos,
-        &worktree_service,
-    );
-
-    Ok(Json(StatusResponse {
-        task: Some(serde_json::to_value(&task)?),
-        todos: format_todos(todos, &worktrees, &scraps),
-        links: links
-            .iter()
-            .map(|l| serde_json::to_value(l).unwrap_or_default())
-            .collect(),
-        scraps: scraps
-            .iter()
-            .map(|s| serde_json::to_value(s).unwrap_or_default())
-            .collect(),
-        worktrees: worktrees
-            .iter()
-            .map(|w| serde_json::to_value(w).unwrap_or_default())
-            .collect(),
-        repos: repos
-            .iter()
-            .map(|r| serde_json::to_value(r).unwrap_or_default())
-            .collect(),
-        workflow: Some(agent.workflow),
-        vcs_mode: Some(agent.vcs_mode),
-        jj: agent.jj,
-        git: agent.git,
-        todos_agent: Some(agent.todos_agent),
-        guardrails: Some(agent.guardrails),
-    }))
+    Ok(Json(response))
 }
 
 /// Get description card HTML
@@ -276,23 +193,7 @@ pub async fn get_repos(State(state): State<WebState>) -> Result<Html<String>, Ap
 pub async fn get_todos(State(state): State<WebState>) -> Result<Html<String>, AppError> {
     let db = state.app.db.lock().await;
     let current_task_id = db.get_current_task_id()?.ok_or(TrackError::NoActiveTask)?;
-
-    let todo_service = TodoService::new(&db);
-    let todos = todo_service.list_todos(current_task_id)?;
-
-    let scrap_service = ScrapService::new(&db);
-    let scraps = scrap_service.list_scraps(current_task_id)?;
-
-    let worktree_service = WorktreeService::new(&db);
-    let worktrees = worktree_service.list_worktrees(current_task_id)?;
-
-    let html = state.templates.render(
-        "partials/todo_list.html",
-        serde_json::json!({
-            "todos": format_todos(todos, &worktrees, &scraps),
-        }),
-    )?;
-
+    let html = render_todo_list_html(&state.templates, &db, current_task_id)?;
     Ok(Html(html))
 }
 
@@ -337,20 +238,7 @@ pub async fn add_todo(
     // Broadcast SSE event
     state.app.broadcast(SseEvent::Todos);
 
-    // Return updated todo list partial
-    let todos = todo_service.list_todos(current_task_id)?;
-    let scrap_service = ScrapService::new(&db);
-    let scraps = scrap_service.list_scraps(current_task_id)?;
-    let worktree_service = WorktreeService::new(&db);
-    let worktrees = worktree_service.list_worktrees(current_task_id)?;
-
-    let html = state.templates.render(
-        "partials/todo_list.html",
-        serde_json::json!({
-            "todos": format_todos(todos, &worktrees, &scraps),
-        }),
-    )?;
-
+    let html = render_todo_list_html(&state.templates, &db, current_task_id)?;
     Ok(Html(html))
 }
 
@@ -376,20 +264,7 @@ pub async fn update_todo_status(
     // Broadcast SSE event
     state.app.broadcast(SseEvent::Todos);
 
-    // Return updated todo list partial
-    let todos = todo_service.list_todos(current_task_id)?;
-    let scrap_service = ScrapService::new(&db);
-    let scraps = scrap_service.list_scraps(current_task_id)?;
-    let worktree_service = WorktreeService::new(&db);
-    let worktrees = worktree_service.list_worktrees(current_task_id)?;
-
-    let html = state.templates.render(
-        "partials/todo_list.html",
-        serde_json::json!({
-            "todos": format_todos(todos, &worktrees, &scraps),
-        }),
-    )?;
-
+    let html = render_todo_list_html(&state.templates, &db, current_task_id)?;
     Ok(Html(html))
 }
 
@@ -409,20 +284,7 @@ pub async fn delete_todo(
     // Broadcast SSE event
     state.app.broadcast(SseEvent::Todos);
 
-    // Return updated todo list partial
-    let todos = todo_service.list_todos(current_task_id)?;
-    let scrap_service = ScrapService::new(&db);
-    let scraps = scrap_service.list_scraps(current_task_id)?;
-    let worktree_service = WorktreeService::new(&db);
-    let worktrees = worktree_service.list_worktrees(current_task_id)?;
-
-    let html = state.templates.render(
-        "partials/todo_list.html",
-        serde_json::json!({
-            "todos": format_todos(todos, &worktrees, &scraps),
-        }),
-    )?;
-
+    let html = render_todo_list_html(&state.templates, &db, current_task_id)?;
     Ok(Html(html))
 }
 
@@ -441,20 +303,7 @@ pub async fn move_todo_to_next(
     // Broadcast SSE event
     state.app.broadcast(SseEvent::Todos);
 
-    // Return updated todo list partial
-    let todos = todo_service.list_todos(current_task_id)?;
-    let scrap_service = ScrapService::new(&db);
-    let scraps = scrap_service.list_scraps(current_task_id)?;
-    let worktree_service = WorktreeService::new(&db);
-    let worktrees = worktree_service.list_worktrees(current_task_id)?;
-
-    let html = state.templates.render(
-        "partials/todo_list.html",
-        serde_json::json!({
-            "todos": format_todos(todos, &worktrees, &scraps),
-        }),
-    )?;
-
+    let html = render_todo_list_html(&state.templates, &db, current_task_id)?;
     Ok(Html(html))
 }
 
