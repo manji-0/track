@@ -3,13 +3,13 @@ use crate::models::VcsMode;
 use crate::use_cases::{RepoSyncOutcome, SyncTaskUseCase};
 use crate::utils::{Result, TrackError};
 
-pub fn handle_sync(ctx: &CommandCtx) -> Result<()> {
+pub fn handle_sync(ctx: &CommandCtx, legacy: bool) -> Result<()> {
     let current_task_id = ctx
         .db
         .get_current_task_id()?
         .ok_or(TrackError::NoActiveTask)?;
 
-    let outcome = SyncTaskUseCase::new(ctx.db).execute(current_task_id)?;
+    let outcome = SyncTaskUseCase::new(ctx.db).execute(current_task_id, legacy)?;
 
     match outcome.vcs_mode {
         VcsMode::Jj => {
@@ -84,6 +84,26 @@ pub fn handle_sync(ctx: &CommandCtx) -> Result<()> {
             "  Error creating workspace for {}: {}",
             err.repo_path, err.detail
         );
+    }
+
+    if outcome.vcs_mode == VcsMode::Jj {
+        if legacy {
+            eprintln!(
+                "warning: `track sync --legacy` uses the deprecated per-TODO worktree model."
+            );
+        } else if !outcome.workspaces_created.is_empty() {
+            eprintln!(
+                "warning: legacy per-TODO workspaces created — run `track migrate legacy-worktrees` after finishing."
+            );
+        }
+    }
+
+    if outcome.vcs_mode == VcsMode::Jj && outcome.workspaces_created.is_empty() && !legacy {
+        println!(
+            "\nTip: use `jj-task start <slug>` for task workspaces (see `track status --json`)."
+        );
+    } else if outcome.vcs_mode == VcsMode::Jj && outcome.workspaces_created.is_empty() && legacy {
+        println!("\nLegacy sync finished (bookmark only). Prefer jj-task for new work.");
     }
 
     println!("Sync complete.");

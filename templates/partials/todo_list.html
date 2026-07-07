@@ -9,9 +9,9 @@
         <div class="input-form-container">
             <form hx-post="/api/todo" hx-swap="none" hx-on::after-request="this.reset()" class="input-group">
                 <input type="text" name="content" placeholder="Add a new todo..." required autocomplete="off">
-                <label class="checkbox-container" title="Create a JJ workspace for this todo">
-                    <input type="checkbox" name="create_worktree" value="true">
-                    <span class="icon">🌿</span>
+                <label class="checkbox-container" title="Research/planning — no jj-task workspace needed">
+                    <input type="checkbox" name="no_workspace" value="true">
+                    <span class="icon">📋</span>
                 </label>
                 <button type="submit">
                     <span>✅</span> Add

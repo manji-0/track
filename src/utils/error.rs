@@ -27,6 +27,14 @@ pub enum TrackError {
     #[error("Task name cannot be empty")]
     EmptyTaskName,
 
+    #[error(
+        "track sync is deprecated in JJ mode. Use `jj-task start {slug}` instead (or `track sync --legacy` for old per-TODO worktrees)."
+    )]
+    SyncUseJjTask { slug: String },
+
+    #[error("--worktree was removed. Use one jj-task workspace per task (`jj-task start <slug>`). See `track llm-help`.")]
+    WorktreeFlagRemoved,
+
     #[error("TODO content cannot be empty")]
     EmptyTodoContent,
 
@@ -35,6 +43,14 @@ pub enum TrackError {
 
     #[error("Workspaces have uncommitted changes: {0:?}")]
     UncommittedWorkspaces(Vec<String>),
+
+    #[error(
+        "jj-task workspace '{slug}' is not complete — run `jj-task done {slug}` after merging your PR. Active workspaces: {workspaces:?}"
+    )]
+    JjTaskNotCompleted {
+        slug: String,
+        workspaces: Vec<String>,
+    },
 
     #[error("Ticket '{0}' is already linked to task #{1}")]
     DuplicateTicket(String, i64),

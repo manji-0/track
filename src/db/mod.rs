@@ -130,6 +130,7 @@ impl Database {
                 content TEXT NOT NULL,
                 status TEXT NOT NULL DEFAULT '{todo_pending}' CHECK (status IN ('{todo_pending}', '{todo_done}', '{todo_cancelled}')),
                 worktree_requested INTEGER NOT NULL DEFAULT 0,
+                requires_workspace INTEGER NOT NULL DEFAULT 1,
                 created_at TEXT NOT NULL,
                 completed_at TEXT,
                 FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
@@ -290,12 +291,13 @@ impl Database {
                 content TEXT NOT NULL,
                 status TEXT NOT NULL DEFAULT '{todo_pending}' {todo_check},
                 worktree_requested INTEGER NOT NULL DEFAULT 0,
+                requires_workspace INTEGER NOT NULL DEFAULT 1,
                 created_at TEXT NOT NULL,
                 completed_at TEXT,
                 FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
             );
-            INSERT INTO todos_new (id, task_id, task_index, content, status, worktree_requested, created_at, completed_at)
-            SELECT id, task_id, task_index, content, status, worktree_requested, created_at, completed_at FROM todos;
+            INSERT INTO todos_new (id, task_id, task_index, content, status, worktree_requested, requires_workspace, created_at, completed_at)
+            SELECT id, task_id, task_index, content, status, worktree_requested, 1, created_at, completed_at FROM todos;
             DROP TABLE todos;
             ALTER TABLE todos_new RENAME TO todos;
             CREATE INDEX IF NOT EXISTS idx_todos_task_id ON todos(task_id);
@@ -463,6 +465,20 @@ impl Database {
         if count == 0 {
             self.conn.execute(
                 "ALTER TABLE todos ADD COLUMN worktree_requested INTEGER NOT NULL DEFAULT 0",
+                [],
+            )?;
+        }
+
+        // Check for requires_workspace column in todos
+        let count: i64 = self.conn.query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('todos') WHERE name='requires_workspace'",
+            [],
+            |row| row.get(0),
+        )?;
+
+        if count == 0 {
+            self.conn.execute(
+                "ALTER TABLE todos ADD COLUMN requires_workspace INTEGER NOT NULL DEFAULT 1",
                 [],
             )?;
         }

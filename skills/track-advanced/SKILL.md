@@ -64,7 +64,7 @@ track scrap list
 ## Research / non-code TODOs
 
 ```bash
-track todo add "Compare providers"    # no jj workspace needed
+track todo add "Compare providers" --no-workspace
 track scrap add "Finding: ..."
 track todo done 1
 ```

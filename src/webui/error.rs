@@ -28,7 +28,10 @@ impl WebError {
             | TrackError::DuplicateTicket(_, _)
             | TrackError::TaskArchived(_)
             | TrackError::NoRepositoriesRegistered
-            | TrackError::RepoHasPendingChanges(_) => StatusCode::BAD_REQUEST,
+            | TrackError::RepoHasPendingChanges(_)
+            | TrackError::WorktreeFlagRemoved
+            | TrackError::SyncUseJjTask { .. }
+            | TrackError::JjTaskNotCompleted { .. } => StatusCode::BAD_REQUEST,
             TrackError::TaskNotFound(_)
             | TrackError::TodoNotFound(_)
             | TrackError::WorktreeNotFound(_) => StatusCode::NOT_FOUND,

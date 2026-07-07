@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `track archive --force` to skip jj-task and dirty-workspace checks
+- `track migrate legacy-worktrees [--dry-run]` to clear legacy worktree flags
+- `requires_workspace` on TODOs and `--no-workspace` flag for research/planning items
+- `workflow.checklist` in `track status --json` and WebUI
+- `jj.repos` per-repo workspace status and `jj.task_phase` from jj-task map
+- WebUI workflow panel (phase, next action, checklist)
+
+### Changed
+- JJ mode: `track sync` rejected unless legacy `--worktree` TODOs are pending (`--legacy` to force)
+- `--worktree` removed from CLI (returns error; use jj-task per task)
+- Archive validates jj-task phase before archiving
+- Workflow sync uses `all_repos_registered` for multi-repo tasks
+- `task_complete` suggests `$jj` skill when jj-task phase is not `done`
+- README, skills, and legacy docs aligned with JJ_INTEGRATION strategy
+
 ## [0.6.1] - 2026-07-07
 
 ### Changed

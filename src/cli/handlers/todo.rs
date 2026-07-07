@@ -1,6 +1,6 @@
 use crate::cli::handlers::CommandCtx;
 use crate::cli::TodoCommands;
-use crate::models::{TaskRepo, TodoAction, TodoStatus};
+use crate::models::{TaskRepo, TodoAction, TodoAddOptions, TodoStatus};
 use crate::services::{RepoService, TaskService, TodoService, WorktreeService};
 use crate::use_cases::ApplyTodoActionUseCase;
 use crate::utils::{Result, TrackError};
@@ -16,12 +16,20 @@ pub fn handle_todo(ctx: &CommandCtx, command: TodoCommands) -> Result<()> {
     let todo_service = TodoService::new(ctx.db);
 
     match command {
-        TodoCommands::Add { text, worktree } => {
-            let todo = todo_service.add_todo(current_task_id, &text, worktree)?;
+        TodoCommands::Add {
+            text,
+            worktree,
+            no_workspace,
+        } => {
+            if worktree {
+                return Err(TrackError::WorktreeFlagRemoved);
+            }
+            let options = TodoAddOptions::from_flags(false, no_workspace);
+            let todo = todo_service.add_todo(current_task_id, &text, options)?;
             println!("Added TODO #{}: {}", todo.task_index, todo.content);
 
-            if worktree {
-                println!("Workspace creation scheduled for 'track sync'");
+            if no_workspace {
+                println!("No jj-task/git workspace required for this TODO");
             }
         }
         TodoCommands::List => {

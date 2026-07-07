@@ -1,5 +1,8 @@
 # JJ Workspace Bookmark Strategy
 
+> **Note:** Prefer [JJ_INTEGRATION.md](JJ_INTEGRATION.md) — one **jj-task** workspace per track task.
+> Per-TODO `--worktree` bookmarks below are **legacy**.
+
 track adopts a hierarchical bookmark strategy using JJ workspaces to manage tasks and subtasks (TODOs) efficiently. This strategy ensures independent working environments for granular units of work while maintaining a clean task history.
 
 ## Concept: Hierarchical Bookmarks

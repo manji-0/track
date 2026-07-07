@@ -1,4 +1,5 @@
 use crate::cli::handlers::CommandCtx;
+use crate::models::TodoAddOptions;
 use crate::services::agent_context::build_agent_extensions;
 use crate::services::{
     LinkService, RepoService, ScrapService, TaskService, TodoService, WorktreeService,
@@ -54,7 +55,10 @@ pub fn handle_new(
                 todo_service.add_todo(
                     task.id,
                     &template_todo.content,
-                    template_todo.worktree_requested,
+                    TodoAddOptions {
+                        worktree_requested: template_todo.worktree_requested,
+                        requires_workspace: template_todo.requires_workspace,
+                    },
                 )?;
             }
 
@@ -508,11 +512,11 @@ pub fn handle_ticket(
     Ok(())
 }
 
-pub fn handle_archive(ctx: &CommandCtx, task_ref: Option<&str>) -> Result<()> {
+pub fn handle_archive(ctx: &CommandCtx, task_ref: Option<&str>, force: bool) -> Result<()> {
     let use_case = ArchiveTaskUseCase::new(ctx.db);
     let task_id = use_case.resolve_task_id(task_ref)?;
 
-    let outcome = match use_case.execute(task_id, false) {
+    let outcome = match use_case.execute(task_id, force) {
         Ok(outcome) => outcome,
         Err(TrackError::UncommittedWorkspaces(workspaces)) => {
             println!("WARNING: The following workspaces have uncommitted changes:");
@@ -521,6 +525,25 @@ pub fn handle_archive(ctx: &CommandCtx, task_ref: Option<&str>) -> Result<()> {
             }
             println!();
             print!("Archive and remove workspaces anyway? [y/N]: ");
+            io::stdout().flush()?;
+            let mut input = String::new();
+            io::stdin().read_line(&mut input)?;
+
+            if !matches!(input.trim().to_lowercase().as_str(), "y" | "yes") {
+                println!("Cancelled.");
+                return Ok(());
+            }
+
+            use_case.execute(task_id, true)?
+        }
+        Err(TrackError::JjTaskNotCompleted { slug, workspaces }) => {
+            println!("WARNING: jj-task workspace '{slug}' is not marked done.",);
+            println!("  Merge your PR with the $jj skill, then run: jj-task done {slug}");
+            for path in &workspaces {
+                println!("  {}", path);
+            }
+            println!();
+            print!("Archive the track task anyway (jj-task map unchanged)? [y/N]: ");
             io::stdout().flush()?;
             let mut input = String::new();
             io::stdin().read_line(&mut input)?;

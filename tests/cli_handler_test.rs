@@ -6,6 +6,7 @@ use track::models::{TaskStatus, TodoStatus};
 use track::services::{
     LinkService, RepoService, ScrapService, TaskService, TodoService, WorktreeService,
 };
+use track::utils::TrackError;
 
 fn jj_available() -> bool {
     std::process::Command::new("jj")
@@ -140,6 +141,7 @@ fn test_handle_todo_add_and_update() {
     let cmd = Commands::Todo(TodoCommands::Add {
         text: "My Todo".to_string(),
         worktree: false,
+        no_workspace: false,
     });
     handler.handle(cmd).unwrap();
 
@@ -156,6 +158,22 @@ fn test_handle_todo_add_and_update() {
 }
 
 #[test]
+fn test_handle_todo_add_rejects_worktree_flag() {
+    let db = Database::new_in_memory().unwrap();
+    let handler = CommandHandler::from_db(db);
+    let task_service = TaskService::new(handler.get_db());
+    task_service.create_task("Task", None, None, None).unwrap();
+
+    let cmd = Commands::Todo(TodoCommands::Add {
+        text: "Legacy".to_string(),
+        worktree: true,
+        no_workspace: false,
+    });
+    let result = handler.handle(cmd);
+    assert!(matches!(result, Err(TrackError::WorktreeFlagRemoved)));
+}
+
+#[test]
 fn test_handle_todo_update_done_is_rejected() {
     let db = Database::new_in_memory().unwrap();
     let handler = CommandHandler::from_db(db);
@@ -168,6 +186,7 @@ fn test_handle_todo_update_done_is_rejected() {
     let cmd = Commands::Todo(TodoCommands::Add {
         text: "My Todo".to_string(),
         worktree: false,
+        no_workspace: false,
     });
     handler.handle(cmd).unwrap();
 
@@ -455,6 +474,7 @@ fn test_handle_archive_clean_worktree() {
 
     let cmd = Commands::Archive {
         task_ref: Some(task.id.to_string()),
+        force: false,
     };
 
     // Note: This relies on stdin being empty in test env.
@@ -501,7 +521,7 @@ fn test_handle_sync() {
     todo_service.add_todo(task.id, "Todo WT", true).unwrap();
 
     // Call Sync
-    let cmd = Commands::Sync;
+    let cmd = Commands::Sync { legacy: false };
     handler.handle(cmd).unwrap();
 
     // Verify bookmarks created
@@ -536,6 +556,32 @@ fn test_handle_sync() {
 }
 
 #[test]
+fn test_handle_migrate_legacy_worktrees() {
+    let db = Database::new_in_memory().unwrap();
+    let handler = CommandHandler::from_db(db);
+    let db = handler.get_db();
+    let task_service = TaskService::new(db);
+    let todo_service = TodoService::new(db);
+
+    let task = task_service
+        .create_task("Legacy task", None, None, None)
+        .unwrap();
+    todo_service.add_todo(task.id, "Old", true).unwrap();
+
+    handler
+        .handle(Commands::Migrate(
+            track::cli::MigrateCommands::LegacyWorktrees {
+                task_ref: None,
+                dry_run: false,
+            },
+        ))
+        .unwrap();
+
+    let todos = todo_service.list_todos(task.id).unwrap();
+    assert!(!todos[0].worktree_requested);
+}
+
+#[test]
 fn test_handle_sync_dirty_repo() {
     if !require_jj() {
         return;
@@ -563,7 +609,7 @@ fn test_handle_sync_dirty_repo() {
 
     std::fs::write(std::path::Path::new(&repo_path).join("README.md"), "dirty").unwrap();
 
-    let cmd = Commands::Sync;
+    let cmd = Commands::Sync { legacy: true };
     let result = handler.handle(cmd);
 
     assert!(result.is_err());
@@ -601,7 +647,7 @@ fn test_handle_sync_repo_not_found() {
     drop(temp_dir); // This removes the directory
 
     // Sync should handle this gracefully (skip non-existent repos)
-    let cmd = Commands::Sync;
+    let cmd = Commands::Sync { legacy: true };
     let result = handler.handle(cmd);
 
     // Should succeed (just skip the missing repo)
@@ -639,7 +685,7 @@ fn test_handle_sync_branch_already_exists() {
         .unwrap();
 
     // Call Sync - should detect existing branch and checkout
-    let cmd = Commands::Sync;
+    let cmd = Commands::Sync { legacy: true };
     handler.handle(cmd).unwrap();
 
     // Verify task bookmark exists
@@ -697,7 +743,7 @@ fn test_handle_sync_worktree_already_exists() {
         .unwrap();
 
     // Call Sync - should detect existing worktree and NOT create duplicate
-    let cmd = Commands::Sync;
+    let cmd = Commands::Sync { legacy: false };
     handler.handle(cmd).unwrap();
 
     // Verify only 1 worktree exists (not duplicated)
@@ -739,7 +785,7 @@ fn test_handle_sync_skip_done_todos() {
     todo_service.update_status(todo.id, "done").unwrap();
 
     // Call Sync - should NOT create worktree for done TODO
-    let cmd = Commands::Sync;
+    let cmd = Commands::Sync { legacy: true };
     handler.handle(cmd).unwrap();
 
     // Verify no worktrees created
@@ -782,7 +828,7 @@ fn test_handle_sync_failed_branch_create() {
     std::fs::set_permissions(&jj_dir, perms).ok(); // May fail on some systems
 
     // Sync should handle failures gracefully (they cause continue, not panic)
-    let cmd = Commands::Sync;
+    let cmd = Commands::Sync { legacy: true };
     let result = handler.handle(cmd);
 
     // Should succeed even if JJ operations failed
@@ -873,7 +919,7 @@ fn test_handle_sync_multiple_todos_different_worktrees() {
         .unwrap();
 
     // Call Sync - should create worktree for todo2, but NOT todo1 (exists check)
-    let cmd = Commands::Sync;
+    let cmd = Commands::Sync { legacy: false };
     handler.handle(cmd).unwrap();
 
     // Verify both worktrees exist with correct todo_id linkage
@@ -909,7 +955,10 @@ fn test_handle_archive_default_current_task() {
     assert_eq!(db.get_current_task_id().unwrap(), Some(t1.id));
 
     // Archive without specifying task_ref (None)
-    let cmd = Commands::Archive { task_ref: None };
+    let cmd = Commands::Archive {
+        task_ref: None,
+        force: false,
+    };
     handler.handle(cmd).unwrap();
 
     let t = task_service.get_task(t1.id).unwrap();

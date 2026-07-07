@@ -9,18 +9,21 @@ use serde::Serialize;
 mod jj;
 mod status;
 mod todo_action;
+mod todo_add_options;
 mod vcs_mode;
 mod workflow;
 
 pub use jj::{jj_slug, sanitize_jj_slug};
 pub use status::{TaskStatus, TodoStatus};
 pub use todo_action::TodoAction;
+pub use todo_add_options::TodoAddOptions;
 pub use vcs_mode::VcsMode;
 pub use workflow::{
-    build_git_context, build_jj_context, build_next_action, compute_workflow_phase,
-    oldest_pending_todo, workspace_lifecycle, AgentGuardrails, GitAgentContext, JjAgentContext,
-    NextAction, TodoAgentView, WorkflowContext, WorkflowPhase, WorkspaceAgentView,
-    WorkspaceLifecycle,
+    build_git_context, build_jj_context, build_next_action, build_workflow_checklist,
+    build_workflow_context, compute_workflow_phase, legacy_worktree_pending,
+    legacy_worktree_sync_needed, oldest_pending_todo, workspace_lifecycle, AgentGuardrails,
+    GitAgentContext, JjAgentContext, NextAction, TodoAgentView, WorkflowContext, WorkflowPhase,
+    WorkflowStep, WorkspaceAgentView, WorkspaceLifecycle,
 };
 
 fn render_markdown_with_links(content: &str) -> String {
@@ -153,6 +156,9 @@ pub struct Todo {
     pub status: TodoStatus,
     #[serde(skip)]
     pub worktree_requested: bool,
+    /// When false, this TODO does not require a jj-task/git workspace (e.g. research).
+    #[serde(skip)]
+    pub requires_workspace: bool,
     #[serde(skip)]
     #[allow(dead_code)]
     pub created_at: DateTime<Utc>,
@@ -458,6 +464,7 @@ mod tests {
             content: "This is a plain text todo.".to_string(),
             status: TodoStatus::Pending,
             worktree_requested: false,
+            requires_workspace: true,
             created_at: Utc::now(),
             completed_at: None,
         };
@@ -474,6 +481,7 @@ mod tests {
             content: "Check https://example.com for details".to_string(),
             status: TodoStatus::Pending,
             worktree_requested: false,
+            requires_workspace: true,
             created_at: Utc::now(),
             completed_at: None,
         };
@@ -493,6 +501,7 @@ mod tests {
             created_at: Utc::now(),
             completed_at: None,
             worktree_requested: false,
+            requires_workspace: true,
         };
         let html = todo.content_html();
         assert!(html.contains("<h1>Heading</h1>"));
@@ -511,6 +520,7 @@ mod tests {
             created_at: Utc::now(),
             completed_at: None,
             worktree_requested: false,
+            requires_workspace: true,
         };
         let html = todo.content_html();
         assert!(!html.contains("<img"));

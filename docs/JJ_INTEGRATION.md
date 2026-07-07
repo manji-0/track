@@ -78,15 +78,17 @@ track alias set fix-oauth-refresh
 {
   "workflow": {
     "phase": "sync_required",
-    "next_action": {
-      "command": "jj-task start proj-123",
-      "reason": "Start a jj-task workspace..."
-    }
+    "next_action": { "command": "jj-task start proj-123", "reason": "..." },
+    "checklist": [
+      { "id": "jj_task_start", "label": "jj-task start in /repo", "done": false, "command": "jj-task start proj-123" }
+    ]
   },
   "jj": {
     "slug": "proj-123",
     "skill": "jj",
     "workspace_registered": false,
+    "task_phase": null,
+    "repos": [{ "repo_path": "/repo", "registered": false }],
     "workspace_path": "/repo/.worktrees/proj-123",
     "start_command": "jj-task start proj-123",
     "path_command": "jj-task path proj-123",
@@ -103,17 +105,25 @@ track alias set fix-oauth-refresh
 
 | Phase | Track action | JJ action |
 |-------|--------------|-----------|
-| `setup` | `track repo add` | `jj-task repo init` (once) |
-| `sync_required` | — | `jj-task start <slug>` |
+| `setup` | `track repo add`, `track todo add` | `jj-task repo init` (once) |
+| `sync_required` | follow `workflow.checklist` | `jj-task start <slug>` per repo |
 | `execute` | `track scrap add`, `track todo done` | `$jj` for all jj commands |
-| `task_complete` | `track archive` | `jj-task done <slug>`, PR merge via `$jj` |
+| `task_complete` | `track archive` (after `jj-task done`) | `$jj` if phase not `done` |
+
+Research TODOs: `track todo add "..." --no-workspace`  
+Legacy tasks: `track migrate legacy-worktrees` then jj-task.
 
 ## Legacy: per-TODO `--worktree`
 
-`track todo add --worktree` still creates track-managed workspaces (older model).  
-**New tasks should not use `--worktree`.** Use one jj-task workspace per track task and sequential TODOs.
+`track todo add --worktree` was **removed**. Existing DB rows with `worktree_requested` still work until migrated:
 
-When `--worktree` is used, `guardrails.complete_requires_jj_merge` is `true` and `track sync` / `track todo done` handle JJ merge.
+```bash
+track migrate legacy-worktrees --dry-run   # inspect
+track migrate legacy-worktrees             # clear flags, use jj-task
+jj-task start <slug>
+```
+
+JJ mode `track sync` runs only when legacy TODOs are pending, or with `--legacy` explicitly.
 
 ## What changed from track-only JJ docs
 

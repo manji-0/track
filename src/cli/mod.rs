@@ -109,6 +109,10 @@ pub enum Commands {
     Archive {
         /// Task ID or ticket reference (defaults to current task)
         task_ref: Option<String>,
+
+        /// Skip jj-task and dirty-workspace checks
+        #[arg(short, long)]
+        force: bool,
     },
 
     /// TODO management
@@ -124,7 +128,15 @@ pub enum Commands {
     Scrap(ScrapCommands),
 
     /// Sync repositories and setup task branches
-    Sync,
+    Sync {
+        /// JJ mode only: run legacy bookmark/per-TODO workspace sync (deprecated)
+        #[arg(long)]
+        legacy: bool,
+    },
+
+    /// Migrate data between workflow models
+    #[command(subcommand)]
+    Migrate(MigrateCommands),
 
     /// Repository management
     #[command(subcommand)]
@@ -174,15 +186,32 @@ pub enum Commands {
 }
 
 #[derive(Subcommand)]
+pub enum MigrateCommands {
+    /// Clear legacy per-TODO worktree flags (switch to jj-task)
+    LegacyWorktrees {
+        /// Task ID or ticket reference (defaults to all tasks)
+        task_ref: Option<String>,
+
+        /// Show what would change without writing
+        #[arg(long)]
+        dry_run: bool,
+    },
+}
+
+#[derive(Subcommand)]
 pub enum TodoCommands {
     /// Add a new TODO
     Add {
         /// TODO content
         text: String,
 
-        /// Create worktrees for this TODO
-        #[arg(short, long)]
+        /// [DEPRECATED] Legacy per-TODO worktree — use jj-task per task instead
+        #[arg(short, long, hide = true)]
         worktree: bool,
+
+        /// Research/planning TODO that does not need a jj-task or git worktree
+        #[arg(long, conflicts_with = "worktree")]
+        no_workspace: bool,
     },
 
     /// List TODOs

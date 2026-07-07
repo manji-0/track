@@ -17,7 +17,8 @@ pub fn handle_config(ctx: &CommandCtx, command: ConfigCommands) -> Result<()> {
                     match mode {
                         VcsMode::Jj => {
                             println!("\nJJ mode uses agent-skill-jj (jj-task + $jj skill).");
-                            println!("Run `track sync` or `jj-task start <slug>` to begin work.");
+                            println!("Run `jj-task start <slug>` to begin work.");
+                            println!("(`track sync` is legacy-only — see `track migrate legacy-worktrees`)");
                         }
                         VcsMode::Git => {
                             println!("\nGit mode uses plain git worktrees and branches.");

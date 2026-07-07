@@ -72,7 +72,7 @@ impl<'a> SyncTaskUseCase<'a> {
         Self { db }
     }
 
-    pub fn execute(&self, task_id: i64) -> Result<SyncTaskOutcome> {
+    pub fn execute(&self, task_id: i64, legacy: bool) -> Result<SyncTaskOutcome> {
         let vcs_mode = self.db.get_vcs_mode()?;
         let task_service = TaskService::new(self.db);
         let task = task_service.get_task(task_id)?;
@@ -84,6 +84,17 @@ impl<'a> SyncTaskUseCase<'a> {
         }
 
         let slug = jj_slug(&task);
+        let worktree_service = WorktreeService::new(self.db);
+        let existing_worktrees = worktree_service.list_worktrees(task_id)?;
+
+        if vcs_mode == VcsMode::Jj && !legacy {
+            let todo_service = TodoService::new(self.db);
+            let todos = todo_service.list_todos(task_id)?;
+            if !crate::models::legacy_worktree_pending(&todos) {
+                return Err(TrackError::SyncUseJjTask { slug });
+            }
+        }
+
         let task_bookmark = match vcs_mode {
             VcsMode::Jj => {
                 let worktree_service = WorktreeService::new(self.db);
@@ -93,7 +104,6 @@ impl<'a> SyncTaskUseCase<'a> {
         };
 
         let worktree_service = WorktreeService::new(self.db);
-        let existing_worktrees = worktree_service.list_worktrees(task_id)?;
 
         let mut repo_outcomes = Vec::new();
 
@@ -312,6 +322,7 @@ fn try_edit_workspace(repo_path: &str, task_bookmark: &str) -> bool {
 mod tests {
     use super::*;
     use crate::db::Database;
+    use crate::services::TodoService;
 
     #[test]
     fn sync_requires_registered_repos() {
@@ -321,7 +332,28 @@ mod tests {
             .create_task("Sync task", None, None, None)
             .unwrap();
 
-        let result = SyncTaskUseCase::new(&db).execute(task.id);
+        let result = SyncTaskUseCase::new(&db).execute(task.id, false);
         assert!(matches!(result, Err(TrackError::NoRepositoriesRegistered)));
+    }
+
+    #[test]
+    fn sync_rejects_jj_mode_without_legacy_or_worktree_todos() {
+        let db = Database::new_in_memory().unwrap();
+        let task_service = TaskService::new(&db);
+        let task = task_service
+            .create_task("Modern", None, Some("MOD-1"), None)
+            .unwrap();
+        let todo_service = TodoService::new(&db);
+        todo_service.add_todo(task.id, "Implement", false).unwrap();
+
+        db.get_connection()
+            .execute(
+                "INSERT INTO task_repos (task_id, task_index, repo_path, created_at) VALUES (?1, 1, '/repo', datetime('now'))",
+                rusqlite::params![task.id],
+            )
+            .unwrap();
+
+        let result = SyncTaskUseCase::new(&db).execute(task.id, false);
+        assert!(matches!(result, Err(TrackError::SyncUseJjTask { .. })));
     }
 }

@@ -31,30 +31,24 @@ track new "Implement User Authentication" \
   --ticket AUTH-456 \
   --ticket-url https://jira.example.com/browse/AUTH-456
 
-# Add TODOs
-track todo add "Design database schema"
-track todo add "Implement JWT token generation" --worktree
-
-# Register repo and sync workspaces
+# Register repo and add TODOs
 track repo add .
-track sync
+track todo add "Design database schema"
+track todo add "Compare auth providers" --no-workspace   # research — no jj-task workspace
 
-# Add reference links
-track link add https://jwt.io/introduction "JWT Documentation"
+# Start jj-task workspace (from repo root; see docs/JJ_INTEGRATION.md)
+jj-task repo init    # once per repo
+jj-task start auth-456
+cd "$(jj-task path auth-456)"
 
 # Record work notes
 track scrap add "Using bcrypt for password hashing"
 
-# Work in the TODO workspace
-cd "$(track todo workspace 2)"
-jj status
-jj describe -m "Implement JWT token generation"
+# Mark TODO complete (track DB only; use $jj skill for jj commits)
+track todo done 1
 
-# Mark TODO as complete
-track todo done 2
-
-# View current task status
-track status
+# Agent-oriented status
+track status --json
 ```
 
 
@@ -90,7 +84,7 @@ track status
 
 | Command | Description |
 |---------|-------------|
-| `track todo add <text> [--worktree]` | Add a TODO (optionally create workspaces) |
+| `track todo add <text> [--no-workspace]` | Add a TODO (`--no-workspace` for research/planning) |
 | `track todo list` | Display TODO list |
 | `track todo update <index> <status>` | Update TODO status |
 | `track todo done <index>` | Complete a TODO (rebases and removes workspaces) |

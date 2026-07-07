@@ -1,8 +1,7 @@
 use crate::models::{
-    build_git_context, build_jj_context, build_next_action, compute_workflow_phase,
-    oldest_pending_todo, workspace_lifecycle, AgentGuardrails, GitAgentContext, JjAgentContext,
-    Task, TaskRepo, Todo, TodoAction, TodoAgentView, TodoStatus, VcsMode, WorkflowContext,
-    WorkspaceAgentView, Worktree,
+    build_git_context, build_jj_context, build_workflow_context, oldest_pending_todo,
+    workspace_lifecycle, AgentGuardrails, GitAgentContext, JjAgentContext, Task, TaskRepo, Todo,
+    TodoAction, TodoAgentView, TodoStatus, VcsMode, WorkflowContext, WorkspaceAgentView, Worktree,
 };
 use crate::services::WorktreeService;
 use serde::Serialize;
@@ -29,17 +28,12 @@ pub fn build_agent_extensions(
     repos: &[TaskRepo],
     worktree_service: &WorktreeService<'_>,
 ) -> AgentStatusExtensions {
-    let phase = compute_workflow_phase(vcs_mode, task, todos, worktrees, repos);
+    let workflow = build_workflow_context(vcs_mode, task, todos, worktrees, repos);
     let next_todo_id = oldest_pending_todo(todos).map(|todo| todo.id);
     let legacy_merge_required = vcs_mode == VcsMode::Jj
         && todos
             .iter()
             .any(|todo| todo.status == TodoStatus::Pending && todo.worktree_requested);
-
-    let workflow = WorkflowContext {
-        phase,
-        next_action: build_next_action(vcs_mode, phase, task, todos, worktrees, repos),
-    };
 
     let git_ctx = build_git_context(task, repos);
     let git_worktree_path = git_ctx.workspace_path.clone();

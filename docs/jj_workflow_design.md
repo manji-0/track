@@ -1,5 +1,9 @@
 # JJ Workflow Design and Implementation Plan
 
+> **Note:** The recommended workflow is documented in [JJ_INTEGRATION.md](JJ_INTEGRATION.md).
+> New tasks should use **jj-task** (one workspace per task) and `--no-workspace` for research TODOs.
+> Per-TODO `--worktree` and `track sync` are legacy.
+
 ## Overview
 
 This document defines the JJ-centered workflow for Track, replacing Git branch/worktree assumptions with JJ bookmarks and workspaces. It also outlines the design and implementation work required to support JJ end-to-end.

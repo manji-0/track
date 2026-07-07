@@ -60,6 +60,8 @@ pub struct AddTodoForm {
     pub content: String,
     #[serde(default)]
     pub create_worktree: bool,
+    #[serde(default)]
+    pub no_workspace: bool,
 }
 
 /// Form data for adding a scrap
@@ -318,8 +320,16 @@ pub async fn add_todo(
 
     let current_task_id = db.get_current_task_id()?.ok_or(TrackError::NoActiveTask)?;
 
+    if form.create_worktree {
+        return Err(TrackError::WorktreeFlagRemoved.into());
+    }
+
     let todo_service = TodoService::new(&db);
-    let _todo = todo_service.add_todo(current_task_id, &form.content, form.create_worktree)?;
+    let _todo = todo_service.add_todo(
+        current_task_id,
+        &form.content,
+        crate::models::TodoAddOptions::from_flags(false, form.no_workspace),
+    )?;
 
     // Broadcast SSE event
     state.app.broadcast(SseEvent::Todos);
@@ -533,6 +543,16 @@ fn build_status_context(db: &Database, task_id: i64) -> anyhow::Result<serde_jso
     // Get calendar ID if configured
     let calendar_id = db.get_app_state("calendar_id").ok().flatten();
 
+    let vcs_mode = db.get_vcs_mode()?;
+    let agent = build_agent_extensions(
+        vcs_mode,
+        &task,
+        &todos,
+        &worktrees,
+        &repos,
+        &worktree_service,
+    );
+
     Ok(serde_json::json!({
         "task": task,
         "todos": format_todos(todos, &worktrees, &scraps),
@@ -542,6 +562,11 @@ fn build_status_context(db: &Database, task_id: i64) -> anyhow::Result<serde_jso
         "repos": repos,
         "base_branch": base_branch,
         "calendar_id": calendar_id,
+        "workflow": agent.workflow,
+        "vcs_mode": agent.vcs_mode,
+        "jj": agent.jj,
+        "git": agent.git,
+        "guardrails": agent.guardrails,
     }))
 }
 
@@ -583,6 +608,10 @@ fn format_todos(
                 obj.insert(
                     "worktree_requested".to_string(),
                     serde_json::Value::Bool(todo.worktree_requested),
+                );
+                obj.insert(
+                    "requires_workspace".to_string(),
+                    serde_json::Value::Bool(todo.requires_workspace),
                 );
                 obj.insert(
                     "worktree_paths".to_string(),

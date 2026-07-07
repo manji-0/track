@@ -15,7 +15,13 @@ impl<'a> TodoService<'a> {
         Self { db }
     }
 
-    pub fn add_todo(&self, task_id: i64, content: &str, worktree_requested: bool) -> Result<Todo> {
+    pub fn add_todo(
+        &self,
+        task_id: i64,
+        content: &str,
+        options: impl Into<crate::models::TodoAddOptions>,
+    ) -> Result<Todo> {
+        let options = options.into();
         if content.trim().is_empty() {
             return Err(TrackError::EmptyTodoContent);
         }
@@ -36,8 +42,16 @@ impl<'a> TodoService<'a> {
             )?;
 
             conn.execute(
-                "INSERT INTO todos (task_id, task_index, content, status, worktree_requested, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-                params![task_id, next_index, content, status, worktree_requested, now],
+                "INSERT INTO todos (task_id, task_index, content, status, worktree_requested, requires_workspace, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                params![
+                    task_id,
+                    next_index,
+                    content,
+                    status,
+                    options.worktree_requested,
+                    options.requires_workspace,
+                    now
+                ],
             )?;
 
             let todo_id = conn.last_insert_rowid();
@@ -49,7 +63,7 @@ impl<'a> TodoService<'a> {
     pub fn get_todo(&self, todo_id: i64) -> Result<Todo> {
         let conn = self.db.get_connection();
         let mut stmt = conn.prepare(
-            "SELECT id, task_id, task_index, content, status, worktree_requested, created_at, completed_at FROM todos WHERE id = ?1"
+            "SELECT id, task_id, task_index, content, status, worktree_requested, requires_workspace, created_at, completed_at FROM todos WHERE id = ?1"
         )?;
 
         let todo = stmt
@@ -62,7 +76,7 @@ impl<'a> TodoService<'a> {
     pub fn list_todos(&self, task_id: i64) -> Result<Vec<Todo>> {
         let conn = self.db.get_connection();
         let mut stmt = conn.prepare(
-            "SELECT id, task_id, task_index, content, status, worktree_requested, created_at, completed_at FROM todos WHERE task_id = ?1 ORDER BY task_index ASC"
+            "SELECT id, task_id, task_index, content, status, worktree_requested, requires_workspace, created_at, completed_at FROM todos WHERE task_id = ?1 ORDER BY task_index ASC"
         )?;
 
         let todos = stmt
@@ -75,7 +89,7 @@ impl<'a> TodoService<'a> {
     pub fn get_todo_by_index(&self, task_id: i64, task_index: i64) -> Result<Todo> {
         let conn = self.db.get_connection();
         let mut stmt = conn.prepare(
-            "SELECT id, task_id, task_index, content, status, worktree_requested, created_at, completed_at FROM todos WHERE task_id = ?1 AND task_index = ?2"
+            "SELECT id, task_id, task_index, content, status, worktree_requested, requires_workspace, created_at, completed_at FROM todos WHERE task_id = ?1 AND task_index = ?2"
         )?;
 
         let todo = stmt
@@ -132,6 +146,28 @@ impl<'a> TodoService<'a> {
 
         self.db.increment_rev("todos")?;
         Ok(())
+    }
+
+    /// Clears legacy per-TODO `worktree_requested` flags (jj-task migration).
+    pub fn clear_legacy_worktree_flags(&self, task_id: Option<i64>) -> Result<usize> {
+        let conn = self.db.get_connection();
+        let affected = if let Some(task_id) = task_id {
+            conn.execute(
+                "UPDATE todos SET worktree_requested = 0 WHERE task_id = ?1 AND worktree_requested = 1",
+                params![task_id],
+            )?
+        } else {
+            conn.execute(
+                "UPDATE todos SET worktree_requested = 0 WHERE worktree_requested = 1",
+                [],
+            )?
+        };
+
+        if affected > 0 {
+            self.db.increment_rev("todos")?;
+        }
+
+        Ok(affected)
     }
 
     pub fn delete_todo(&self, todo_id: i64) -> Result<()> {
@@ -280,8 +316,16 @@ impl<'a> TodoService<'a> {
             let now = Utc::now().to_rfc3339();
 
             conn.execute(
-                "INSERT INTO todos (task_id, task_index, content, status, worktree_requested, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-                params![to_task_id, next_index, content, TodoStatus::Pending.as_str(), 0, now],
+                "INSERT INTO todos (task_id, task_index, content, status, worktree_requested, requires_workspace, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                params![
+                    to_task_id,
+                    next_index,
+                    content,
+                    TodoStatus::Pending.as_str(),
+                    0,
+                    1,
+                    now
+                ],
             )?;
 
             mapping.insert(old_index, next_index);
@@ -333,6 +377,22 @@ mod tests {
         assert_eq!(todo.content, "Test TODO");
         assert_eq!(todo.status, TodoStatus::Pending);
         assert!(!todo.worktree_requested);
+    }
+
+    #[test]
+    fn test_add_todo_no_workspace() {
+        let db = setup_db();
+        let task_id = create_test_task(&db);
+        let service = TodoService::new(&db);
+
+        let todo = service
+            .add_todo(
+                task_id,
+                "Research",
+                crate::models::TodoAddOptions::from_flags(false, true),
+            )
+            .unwrap();
+        assert!(!todo.requires_workspace);
     }
 
     #[test]

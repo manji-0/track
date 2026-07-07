@@ -59,10 +59,11 @@ jj-task repo init
 
 ```bash
 track todo add "Implement token refresh"
+track todo add "Compare providers" --no-workspace
 track todo add "Add integration tests"
 ```
 
-Do **not** use `--worktree` for new tasks. One **jj-task** workspace covers all TODOs sequentially.
+Do **not** use `--worktree` (deprecated). One **jj-task** workspace covers all code TODOs sequentially.
 
 ### 6. Review
 

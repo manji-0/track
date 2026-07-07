@@ -56,13 +56,14 @@ impl CommandHandler {
                 url,
                 task,
             } => super::handlers::handle_ticket(&ctx, &ticket_id, &url, task),
-            Commands::Archive { task_ref } => {
-                super::handlers::handle_archive(&ctx, task_ref.as_deref())
+            Commands::Archive { task_ref, force } => {
+                super::handlers::handle_archive(&ctx, task_ref.as_deref(), force)
             }
             Commands::Todo(cmd) => super::handlers::handle_todo(&ctx, cmd),
             Commands::Link(cmd) => super::handlers::handle_link(&ctx, cmd),
             Commands::Scrap(cmd) => super::handlers::handle_scrap(&ctx, cmd),
-            Commands::Sync => super::handlers::handle_sync(&ctx),
+            Commands::Sync { legacy } => super::handlers::handle_sync(&ctx, legacy),
+            Commands::Migrate(cmd) => super::handlers::handle_migrate(&ctx, cmd),
             Commands::Repo(cmd) => super::handlers::handle_repo(&ctx, cmd),
             Commands::Alias(cmd) => super::handlers::handle_alias(&ctx, cmd),
             Commands::LlmHelp => super::handlers::handle_llm_help(&ctx),

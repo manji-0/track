@@ -105,37 +105,33 @@ This guide explains the standard workflow for completing tasks.
    - Optionally specify base bookmark: `track repo add --base <bookmark>`
    - Run this for each repository involved in the task.
 
-5. **Add TODOs**: `track todo add "<content>" [--worktree]`
-   - Add actionable items. Use `--worktree` flag to schedule workspace creation.
+5. **Add TODOs**: `track todo add "<content>"` or `track todo add "<content>" --no-workspace`
+   - Default TODOs expect a jj-task workspace. Use `--no-workspace` for research/planning items.
+   - Legacy `--worktree` is deprecated — use one jj-task workspace per task.
 
 6. **Add Links**: `track link add <url> [--title "<title>"]`
    - Add reference links (documentation, PRs, issues, etc.)
 
 ### Phase 2: Task Execution (LLM or Human)
 
-7. **Sync Repositories**: `track sync` **(MANDATORY FIRST STEP)**
-   - Creates task bookmarks on all registered repos.
-   - Moves workspaces to the task bookmark.
-   - Creates workspaces for TODOs that requested them.
-   - Sync aborts if the repo has pending changes.
-   - **You MUST run this before making any code changes.**
+7. **Start workspace** (when `workflow.phase` is `sync_required`):
+   - JJ mode: `jj-task repo init` (once), then `jj-task start <jj.slug>`
+   - Git mode: `track sync`
+   - Follow `workflow.next_action` and `workflow.checklist` from JSON.
 
-8. **Verify Bookmark**: `jj status`
-   - **STOP if you are not on the task bookmark. Run `track sync` again.**
+8. **Work in task workspace**: `cd "$(jj-task path <jj.slug>)"` — not repo root.
 
 9. **Check Current State**: `track status --json` (prefer JSON; use `track status` for humans)
    - Follow `workflow.next_action` — do not guess the next step
    - WebUI `/api/status` exposes the same agent fields
 
 10. **Execute TODOs**:
-    - Run `track todo workspace <index>` to get the workspace path.
-    - Implement the required changes.
+    - Implement changes; use **`$jj` skill** for all jj commit/PR operations.
     - Run tests to verify.
     - Use `track scrap add "<note>"` to record findings, decisions, or progress.
 
 11. **Complete TODO**: `track todo done <index>`
-    - Marks the TODO as done.
-    - If workspace exists: rebases the TODO bookmark onto the task bookmark, moves the task bookmark, and removes the workspace.
+    - Marks the TODO as done in track DB (not a substitute for `$jj` commits).
 
 12. **Repeat** until all TODOs are complete.
 
@@ -143,7 +139,8 @@ This guide explains the standard workflow for completing tasks.
 
 | Command | Description |
 |---------|-------------|
-| `track sync` | **MANDATORY FIRST STEP** - Sync bookmarks and create workspaces |
+| `track sync [--legacy]` | Git: create worktree. JJ: legacy per-TODO only (else use jj-task) |
+| `track migrate legacy-worktrees [--dry-run]` | Clear legacy `--worktree` flags; switch to jj-task |
 | `track status` | Show current task, TODOs, workspaces, links |
 | `track status --json` | **Preferred for agents** — task + workflow + todos_agent + guardrails |
 | `track status --all` | Show all scraps instead of recent |
@@ -156,7 +153,7 @@ This guide explains the standard workflow for completing tasks.
 | `track switch <id>` | Switch to another task |
 | `track switch t:<ticket_id>` | Switch by ticket reference |
 | `track switch a:<alias>` | Switch by alias |
-| `track archive [task_ref]` | Archive task (removes workspaces) |
+| `track archive [task_ref] [--force]` | Archive task (requires `jj-task done` when workspace active) |
 | `track alias set <alias>` | Set alias for current task |
 | `track alias set <alias> --force` | Overwrite existing alias on another task |
 | `track alias remove` | Remove alias from current task |
@@ -165,7 +162,7 @@ This guide explains the standard workflow for completing tasks.
 | `track repo list` | List registered repositories |
 | `track repo remove <index>` | Remove repository by task-scoped index |
 | `track todo add "<text>"` | Add TODO |
-| `track todo add "<text>" --worktree` | Add TODO with workspace |
+| `track todo add "<text>" [--no-workspace]` | Add TODO (`--no-workspace` for research) |
 | `track todo list` | List TODOs |
 | `track todo workspace <index>` | Show or recreate TODO workspace |
 | `track todo done <index>` | Complete TODO (rebases workspace if exists) |
@@ -267,37 +264,24 @@ Access at: http://localhost:3000
 
 ## Important Notes
 
-- **ALWAYS run `track sync` before making code changes.**
-- **ALWAYS verify you are on the task bookmark, not main/master/develop.**
+- **JJ mode**: use `jj-task start <slug>` and work in `.worktrees/<slug>/` — not repo root.
+- **Git mode**: run `track sync` before coding in the task worktree.
 - TODO, Link, and Repository indices are **task-scoped**, not global.
-- Use `track todo workspace <index>` to find the workspace path.
-- `track sync` aborts if the repo has uncommitted changes.
-- `track todo done` automatically rebases and removes associated workspaces.
-- Always register repos with `track repo add` before running `track sync`.
+- `track archive` requires `jj-task done <slug>` when the jj-task map shows an active workspace.
+- Use `track archive --force` to skip jj-task/dirty checks (interactive prompt without flag).
+- `track sync` in JJ mode is for **legacy** per-TODO `--worktree` tasks only (or `--legacy` flag).
+- Run `track migrate legacy-worktrees` to move old tasks to jj-task.
 - Use `track scrap add` to document decisions and findings during work.
-- Ticket IDs are used in bookmark names when linked (e.g., `task/PROJ-123`).
 - Scraps support Markdown formatting and are sanitized for WebUI rendering.
 
-## Detailed Specifications
+## Legacy (existing tasks only)
 
-### Workspace Location
-Workspaces are created as subdirectories inside the registered repository:
-- **Path**: `<repo_root>/<bookmark_name>` (slashes are replaced with `_`)
-- **Example**: `/src/my-app/task_PROJ-123-todo-1`
-
-### TODO Completion Process
-Executing `track todo done <index>` performs the following:
-1. **Checks** for uncommitted changes in the TODO workspace (must be clean).
-2. **Merges** the TODO bookmark into the Task Base bookmark (in the base workspace).
-3. **Removes** the TODO workspace directory and DB record.
-4. **Updates** TODO status to 'done'.
+Per-TODO `--worktree` was removed from the CLI. Existing DB rows with `worktree_requested` still use `track sync` and `track todo workspace`.
 
 ### Archive Process
-Executing `track archive` performs the following:
-1. **Checks** for uncommitted changes in all workspaces.
-2. **Prompts** for confirmation if dirty workspaces are found.
-3. **Removes** all workspaces associated with the task.
-4. **Marks** the task as archived.
+1. Verifies jj-task workspace is `done` (or prompts / use `--force`).
+2. Checks track-managed workspaces for uncommitted changes.
+3. Removes track-managed workspaces and marks the task archived.
 "#
     );
     Ok(())

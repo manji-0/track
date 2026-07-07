@@ -45,10 +45,11 @@ pub fn row_to_todo(row: &Row<'_>) -> rusqlite::Result<Todo> {
         task_index: row.get(2)?,
         content: row.get(3)?,
         status: parse_todo_status(row.get(4)?)?,
-        worktree_requested: row.get(5)?,
-        created_at: parse_datetime(row.get(6)?)?,
+        worktree_requested: row.get::<_, i64>(5)? != 0,
+        requires_workspace: row.get::<_, i64>(6)? != 0,
+        created_at: parse_datetime(row.get(7)?)?,
         completed_at: row
-            .get::<_, Option<String>>(7)?
+            .get::<_, Option<String>>(8)?
             .map(parse_datetime)
             .transpose()?,
     })
