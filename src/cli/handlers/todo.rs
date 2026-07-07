@@ -3,7 +3,8 @@ use crate::cli::TodoCommands;
 use crate::models::{TodoAction, TodoAddOptions, TodoStatus};
 use crate::services::TodoService;
 use crate::use_cases::{
-    ApplyTodoActionUseCase, CompleteTodoUseCase, TodoWorkspaceRequest, TodoWorkspaceUseCase,
+    ApplyTodoActionUseCase, CompleteTodoUseCase, DeleteTodoStep, DeleteTodoUseCase,
+    TodoWorkspaceRequest, TodoWorkspaceUseCase,
 };
 use crate::utils::{Result, TrackError};
 use prettytable::{format, Cell, Row, Table};
@@ -108,24 +109,26 @@ pub fn handle_todo(ctx: &CommandCtx, command: TodoCommands) -> Result<()> {
             }
         }
         TodoCommands::Delete { id, force } => {
-            // Resolve task_index to internal ID
-            let todo = todo_service.get_todo_by_index(current_task_id, id)?;
+            let use_case = DeleteTodoUseCase::new(ctx.db);
+            let outcome = match use_case.run(current_task_id, id, force)? {
+                DeleteTodoStep::Completed(outcome) => outcome,
+                DeleteTodoStep::NeedsConfirmation(prompt) => {
+                    let view = prompt.view();
+                    print!("{}", view.prompt);
+                    io::stdout().flush()?;
+                    let mut input = String::new();
+                    io::stdin().read_line(&mut input)?;
 
-            if !force {
-                print!("Delete TODO #{}: \"{}\"? [y/N]: ", id, todo.content);
-                io::stdout().flush()?;
+                    if !matches!(input.trim().to_lowercase().as_str(), "y" | "yes") {
+                        println!("Cancelled.");
+                        return Ok(());
+                    }
 
-                let mut input = String::new();
-                io::stdin().read_line(&mut input)?;
-
-                if !matches!(input.trim().to_lowercase().as_str(), "y" | "yes") {
-                    println!("Cancelled.");
-                    return Ok(());
+                    use_case.confirm_and_run(current_task_id, id)?
                 }
-            }
+            };
 
-            todo_service.delete_todo(todo.id)?;
-            println!("Deleted TODO #{}", id);
+            println!("{}", outcome.completion_view().summary);
         }
         TodoCommands::Next { id } => {
             todo_service.move_to_next(current_task_id, id)?;

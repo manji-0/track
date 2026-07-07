@@ -466,10 +466,7 @@ mod tests {
         };
         let view = prompt.view();
         assert!(view.warning_lines[0].contains("uncommitted"));
-        assert_eq!(
-            view.prompt,
-            "Archive and remove workspaces anyway? [y/N]: "
-        );
+        assert_eq!(view.prompt, "Archive and remove workspaces anyway? [y/N]: ");
     }
 
     #[test]
