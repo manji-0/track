@@ -1,10 +1,7 @@
 use crate::cli::handlers::CommandCtx;
 use crate::models::TodoAddOptions;
-use crate::services::agent_context::build_agent_extensions;
-use crate::services::{
-    LinkService, RepoService, ScrapService, TaskService, TodoService, WorktreeService,
-};
-use crate::use_cases::{ArchiveTaskUseCase, CreateTodayTaskUseCase};
+use crate::services::{TaskService, TodoService, WorktreeService};
+use crate::use_cases::{ArchiveTaskUseCase, CreateTodayTaskUseCase, GetTaskInfoUseCase};
 use crate::utils::{Result, TrackError};
 use chrono::Local;
 use prettytable::{format, Cell, Row, Table};
@@ -135,7 +132,7 @@ pub fn handle_info(
     all_scraps: bool,
 ) -> Result<()> {
     let task_service = TaskService::new(ctx.db);
-    let current_task_id = match task_ref {
+    let task_id = match task_ref {
         Some(ref t_ref) => task_service.resolve_task_id(t_ref)?,
         None => ctx
             .db
@@ -143,166 +140,44 @@ pub fn handle_info(
             .ok_or(TrackError::NoActiveTask)?,
     };
 
-    let task = task_service.get_task(current_task_id)?;
-
-    let todo_service = TodoService::new(ctx.db);
-    let todos = todo_service.list_todos(current_task_id)?;
-
-    let link_service = LinkService::new(ctx.db);
-    let links = link_service.list_links(current_task_id)?;
-
-    let scrap_service = ScrapService::new(ctx.db);
-    let scraps = scrap_service.list_scraps(current_task_id)?;
-
+    let info = GetTaskInfoUseCase::new(ctx.db);
+    let snapshot = info.load(task_id)?;
     let worktree_service = WorktreeService::new(ctx.db);
-    let worktrees = worktree_service.list_worktrees(current_task_id)?;
-
-    let repo_service = RepoService::new(ctx.db);
-    let repos = repo_service.list_repos(current_task_id)?;
 
     if json {
-        // Build todos with worktree_branch
-        let mut todos_json = Vec::new();
-        for todo in &todos {
-            let mut todo_val = serde_json::to_value(todo).unwrap_or(serde_json::Value::Null);
-            if let Some(obj) = todo_val.as_object_mut() {
-                // Determine worktree branch
-                let worktree_branch =
-                    if let Some(wt) = worktrees.iter().find(|wt| wt.todo_id == Some(todo.id)) {
-                        // Use existing worktree branch
-                        Some(wt.branch.clone())
-                    } else if todo.worktree_requested {
-                        // Calculate expected branch name
-                        worktree_service
-                            .get_todo_branch_name(
-                                current_task_id,
-                                task.ticket_id.as_deref(),
-                                todo.task_index, // Note: this is todo_id in JSON but task_index in struct
-                            )
-                            .ok()
-                    } else {
-                        None
-                    };
-
-                obj.insert(
-                    "worktree_branch".to_string(),
-                    serde_json::to_value(&worktree_branch).unwrap_or(serde_json::Value::Null),
-                );
-            }
-            todos_json.push(todo_val);
-        }
-
-        let mut worktrees_json = Vec::new();
-        for wt in &worktrees {
-            let mut wt_val = serde_json::to_value(wt).unwrap_or(serde_json::Value::Null);
-            if let Some(obj) = wt_val.as_object_mut() {
-                obj.remove("id");
-                obj.remove("is_base");
-                obj.remove("task_id");
-
-                let task_scoped_id = wt
-                    .todo_id
-                    .and_then(|id| todos.iter().find(|t| t.id == id).map(|t| t.task_index));
-                obj.insert(
-                    "todo_id".to_string(),
-                    serde_json::to_value(task_scoped_id).unwrap_or(serde_json::Value::Null),
-                );
-            }
-            worktrees_json.push(wt_val);
-        }
-
-        // Add pending worktrees (requested in TODOs but not yet created via sync)
-        for todo in &todos {
-            if todo.worktree_requested && !worktrees.iter().any(|wt| wt.todo_id == Some(todo.id)) {
-                let branch_name = worktree_service
-                    .get_todo_branch_name(
-                        current_task_id,
-                        task.ticket_id.as_deref(),
-                        todo.task_index,
-                    )
-                    .ok();
-
-                // Create a virtual worktree object for the pending state
-                let pending_wt = serde_json::json!({
-                    "todo_id": todo.task_index,
-                    "branch": branch_name,
-                    "status": "requested",
-                    "path": null,
-                    "created_at": null,
-                    "base_repo": null
-                });
-                worktrees_json.push(pending_wt);
-            }
-        }
-
-        let mut output = serde_json::json!({
-            "task": task,
-            "todos": todos_json,
-            "links": links,
-            "scraps": scraps,
-            "worktrees": worktrees_json,
-            "repos": repos,
-        });
-
-        let vcs_mode = ctx.db.get_vcs_mode()?;
-        let agent = build_agent_extensions(
-            vcs_mode,
-            &task,
-            &todos,
-            &worktrees,
-            &repos,
-            &worktree_service,
-        );
-        let agent_val = serde_json::to_value(&agent)
-            .map_err(|e| TrackError::SerializationFailed(e.to_string()))?;
-        if let Some(obj) = output.as_object_mut() {
-            if let Some(agent_obj) = agent_val.as_object() {
-                for (key, value) in agent_obj {
-                    obj.insert(key.clone(), value.clone());
-                }
-            }
-        }
-
+        let output = info.to_cli_json(&snapshot)?;
         let json = serde_json::to_string_pretty(&output)
             .map_err(|e| TrackError::SerializationFailed(e.to_string()))?;
         println!("{json}");
         return Ok(());
     }
 
-    // Task header
+    let task = &snapshot.task;
+    let todos = &snapshot.todos;
+    let links = &snapshot.links;
+    let scraps = &snapshot.scraps;
+    let worktrees = &snapshot.worktrees;
+    let repos = &snapshot.repos;
+    let base_branch = GetTaskInfoUseCase::base_bookmark(&snapshot);
+
     println!("# Task #{}: {}", task.id, task.name);
     println!();
 
-    // Metadata section
     let created = task
         .created_at
         .with_timezone(&Local)
         .format("%Y-%m-%d %H:%M:%S");
-    println!("**Created:** {}", created);
+    println!("**Created:** {created}");
 
     if let Some(ticket_id) = &task.ticket_id {
         if let Some(url) = &task.ticket_url {
-            println!("**Ticket:** [{}]({})", ticket_id, url);
+            println!("**Ticket:** [{}]({url})", ticket_id);
         } else {
-            println!("**Ticket:** {}", ticket_id);
+            println!("**Ticket:** {ticket_id}");
         }
     }
 
-    // Display base bookmark (the task bookmark that serves as integration target for TODO workspaces)
-    let base_branch = if let Some(base_wt) = worktrees.iter().find(|wt| wt.is_base) {
-        // If base workspace exists, use its bookmark
-        base_wt.branch.clone()
-    } else {
-        // Otherwise, calculate the task branch name (same logic as in handle_sync)
-        if let Some(ticket_id) = &task.ticket_id {
-            format!("task/{}", ticket_id)
-        } else {
-            format!("task/task-{}", task.id)
-        }
-    };
-
-    println!("**Base Bookmark:** `{}`", base_branch);
-
+    println!("**Base Bookmark:** `{base_branch}`");
     println!();
 
     // Description
@@ -317,7 +192,7 @@ pub fn handle_info(
     if !todos.is_empty() {
         println!("## TODOs");
         println!();
-        for todo in &todos {
+        for todo in todos {
             let marker = match todo.status.as_str() {
                 "done" => "x",
                 "cancelled" => " ",
@@ -345,7 +220,7 @@ pub fn handle_info(
             }
 
             // Find and display worktree for this TODO
-            for worktree in &worktrees {
+            for worktree in worktrees {
                 if worktree.todo_id == Some(todo.id) {
                     println!("  - **Workspace:**");
                     println!("    - **Path:** `{}`", worktree.path);
@@ -378,7 +253,7 @@ pub fn handle_info(
     if !repos.is_empty() {
         println!("## Repositories");
         println!();
-        for repo in &repos {
+        for repo in repos {
             print!("- `{}`", repo.repo_path);
 
             // Display base branch and commit hash if available
@@ -431,7 +306,7 @@ pub fn handle_info(
     }
 
     // Worktrees (only those not associated with a TODO, e.g., base worktrees)
-    let orphan_worktrees: Vec<_> = worktrees.iter().filter(|wt| wt.todo_id.is_none()).collect();
+    let orphan_worktrees = GetTaskInfoUseCase::orphan_worktrees(&snapshot);
 
     if !orphan_worktrees.is_empty() {
         println!("## Workspaces");

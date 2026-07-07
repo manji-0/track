@@ -7,6 +7,7 @@ pub mod apply_todo_action;
 pub mod archive_task;
 pub mod complete_todo;
 pub mod create_today_task;
+pub mod get_task_info;
 pub mod migrate_legacy_worktrees;
 pub mod sync_task;
 pub mod todo_workspace;
@@ -15,6 +16,7 @@ pub use apply_todo_action::ApplyTodoActionUseCase;
 pub use archive_task::{ArchiveBlockers, ArchiveTaskOutcome, ArchiveTaskUseCase, DirtyWorkspace};
 pub use complete_todo::{CompleteTodoOutcome, CompleteTodoUseCase};
 pub use create_today_task::CreateTodayTaskUseCase;
+pub use get_task_info::{GetTaskInfoUseCase, TaskInfoSnapshot};
 pub use migrate_legacy_worktrees::{
     LegacyWorktreeTaskReport, MigrateLegacyWorktreesOutcome, MigrateLegacyWorktreesUseCase,
 };
