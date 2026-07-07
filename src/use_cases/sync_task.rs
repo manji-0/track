@@ -240,10 +240,7 @@ impl<'a> SyncTaskUseCase<'a> {
         }
 
         if !git_worktree::is_git_repository(&repo.repo_path) {
-            return Err(TrackError::Other(format!(
-                "Not a git repository: {}",
-                repo.repo_path
-            )));
+            return Err(TrackError::NotGitRepository(repo.repo_path.clone()));
         }
 
         let worktree_path = git_worktree::git_worktree_path(&repo.repo_path, slug);
@@ -282,7 +279,7 @@ impl<'a> SyncTaskUseCase<'a> {
     ) -> Result<bool> {
         let repo_root = Path::new(repo_path)
             .canonicalize()
-            .map_err(|e| TrackError::Other(format!("Failed to resolve repo path: {}", e)))?;
+            .map_err(|e| TrackError::PathResolutionFailed(e.to_string()))?;
         let repo_worktrees: Vec<PathBuf> = existing_worktrees
             .iter()
             .filter(|wt| wt.base_repo.as_deref() == Some(repo_path))

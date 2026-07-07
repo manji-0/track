@@ -99,7 +99,7 @@ impl<'a> LinkService<'a> {
         let affected = conn.execute("DELETE FROM links WHERE id = ?1", params![link_id])?;
 
         if affected == 0 {
-            return Err(TrackError::Other(format!("Link #{} not found", link_id)));
+            return Err(TrackError::LinkNotFound(link_id));
         }
 
         self.db.increment_rev("links")?;

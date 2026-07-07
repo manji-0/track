@@ -9,6 +9,7 @@ pub mod complete_todo;
 pub mod create_today_task;
 pub mod migrate_legacy_worktrees;
 pub mod sync_task;
+pub mod todo_workspace;
 
 pub use apply_todo_action::ApplyTodoActionUseCase;
 pub use archive_task::{ArchiveBlockers, ArchiveTaskOutcome, ArchiveTaskUseCase, DirtyWorkspace};
@@ -20,3 +21,4 @@ pub use migrate_legacy_worktrees::{
 pub use sync_task::{
     RepoSyncOutcome, SyncTaskOutcome, SyncTaskUseCase, WorkspaceCreateError, WorkspaceCreated,
 };
+pub use todo_workspace::{TodoWorkspaceOutcome, TodoWorkspaceRequest, TodoWorkspaceUseCase};

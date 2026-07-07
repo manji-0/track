@@ -1,5 +1,6 @@
 //! WebUI server implementation.
 
+use crate::utils::{Result, TrackError};
 use crate::webui::routes::{self, WebState};
 use crate::webui::sse::sse_handler;
 use crate::webui::state::AppState;
@@ -46,7 +47,7 @@ pub fn build_router(web_state: WebState) -> Router {
 }
 
 /// Start the WebUI server
-pub async fn start_server(port: u16, open_browser: bool) -> anyhow::Result<()> {
+pub async fn start_server(port: u16, open_browser: bool) -> Result<()> {
     // Initialize application state
     let app_state = AppState::new()?;
 
@@ -83,8 +84,8 @@ pub async fn start_server(port: u16, open_browser: bool) -> anyhow::Result<()> {
     }
 
     // Start server
-    let listener = TcpListener::bind(addr).await?;
-    axum::serve(listener, app).await?;
+    let listener = TcpListener::bind(addr).await.map_err(TrackError::Io)?;
+    axum::serve(listener, app).await.map_err(TrackError::Io)?;
 
     Ok(())
 }

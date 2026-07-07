@@ -149,8 +149,38 @@ pub enum TrackError {
     #[error("Link #{0} not found")]
     LinkNotFound(i64),
 
+    #[error("No task found with reference '{0}'")]
+    TaskReferenceNotFound(String),
+
+    #[error("Alias '{alias}' is already in use by task #{task_id}")]
+    AliasInUse { alias: String, task_id: i64 },
+
+    #[error("Invalid alias: {0}")]
+    InvalidAlias(String),
+
+    #[error("Repository already registered for this task")]
+    RepoAlreadyRegistered,
+
+    #[error("Repository #{0} not found")]
+    TaskRepoNotFound(i64),
+
+    #[error("Repository #{0} not found in current task")]
+    TaskRepoIndexNotFound(i64),
+
+    #[error("Link #{0} not found in current task")]
+    LinkIndexNotFound(i64),
+
+    #[error("Path '{0}' is not a git repository")]
+    NotGitRepository(String),
+
+    #[error("Git error: {0}")]
+    Git(String),
+
     #[error("Invalid jj-task workspace map at {path}: {detail}")]
     JjTaskMapInvalid { path: String, detail: String },
+
+    #[error("Template '{name}' render failed: {detail}")]
+    TemplateRenderFailed { name: String, detail: String },
 
     #[error("{0}")]
     Other(String),

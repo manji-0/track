@@ -39,15 +39,24 @@ impl WebError {
             | TrackError::TodoIndexNotFound(_)
             | TrackError::TodoNotPending(_)
             | TrackError::NoPendingTodos
+            | TrackError::InvalidAlias(_)
+            | TrackError::AliasInUse { .. }
+            | TrackError::RepoAlreadyRegistered
+            | TrackError::TaskRepoIndexNotFound(_)
+            | TrackError::LinkIndexNotFound(_)
+            | TrackError::TaskReferenceNotFound(_)
             | TrackError::LinkNotFound(_) => StatusCode::BAD_REQUEST,
             TrackError::TaskNotFound(_)
             | TrackError::TodoNotFound(_)
-            | TrackError::WorktreeNotFound(_) => StatusCode::NOT_FOUND,
+            | TrackError::WorktreeNotFound(_)
+            | TrackError::TaskRepoNotFound(_) => StatusCode::NOT_FOUND,
             TrackError::Database(_)
             | TrackError::UncommittedWorkspaces(_)
             | TrackError::TodoCompletionDbFailed { .. }
             | TrackError::Jj(_)
+            | TrackError::Git(_)
             | TrackError::NotJjRepository(_)
+            | TrackError::NotGitRepository(_)
             | TrackError::BookmarkExists(_)
             | TrackError::FailedRepoStatusCheck(_)
             | TrackError::WorkspaceRemovalFailed(_)
@@ -57,6 +66,7 @@ impl WebError {
             | TrackError::PathResolutionFailed(_)
             | TrackError::Io(_)
             | TrackError::Cancelled
+            | TrackError::TemplateRenderFailed { .. }
             | TrackError::Other(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
@@ -70,12 +80,21 @@ impl WebError {
     }
 }
 
-impl<E> From<E> for WebError
-where
-    E: Into<anyhow::Error>,
-{
-    fn from(err: E) -> Self {
-        match err.into().downcast::<TrackError>() {
+impl From<TrackError> for WebError {
+    fn from(err: TrackError) -> Self {
+        Self::from_track(err)
+    }
+}
+
+impl From<serde_json::Error> for WebError {
+    fn from(err: serde_json::Error) -> Self {
+        Self::from_track(TrackError::SerializationFailed(err.to_string()))
+    }
+}
+
+impl From<anyhow::Error> for WebError {
+    fn from(err: anyhow::Error) -> Self {
+        match err.downcast::<TrackError>() {
             Ok(track) => Self::from_track(track),
             Err(err) => Self {
                 status: StatusCode::INTERNAL_SERVER_ERROR,

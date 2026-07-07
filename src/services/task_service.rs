@@ -264,9 +264,9 @@ impl<'a> TaskService<'a> {
     pub fn resolve_task_id(&self, reference: &str) -> Result<i64> {
         // Priority 1: If it starts with "t:", it's a ticket reference
         if let Some(ticket_id) = reference.strip_prefix("t:") {
-            return self.find_task_by_ticket(ticket_id)?.ok_or_else(|| {
-                TrackError::Other(format!("No task found with ticket '{}'", ticket_id))
-            });
+            return self
+                .find_task_by_ticket(ticket_id)?
+                .ok_or_else(|| TrackError::TaskReferenceNotFound(format!("t:{ticket_id}")));
         }
 
         // Priority 2: Try to parse as numeric task ID
@@ -279,10 +279,7 @@ impl<'a> TaskService<'a> {
             return Ok(task_id);
         }
 
-        Err(TrackError::Other(format!(
-            "No task found with reference '{}'",
-            reference
-        )))
+        Err(TrackError::TaskReferenceNotFound(reference.to_string()))
     }
 
     /// Sets an alias for a task.
@@ -313,10 +310,10 @@ impl<'a> TaskService<'a> {
                         params![existing_id],
                     )?;
                 } else {
-                    return Err(TrackError::Other(format!(
-                        "Alias '{}' is already in use by task #{}. Use --force to overwrite.",
-                        alias, existing_id
-                    )));
+                    return Err(TrackError::AliasInUse {
+                        alias: alias.to_string(),
+                        task_id: existing_id,
+                    });
                 }
             }
         }
@@ -378,7 +375,7 @@ impl<'a> TaskService<'a> {
     fn validate_alias(&self, alias: &str) -> Result<()> {
         // Check length
         if alias.is_empty() || alias.len() > 50 {
-            return Err(TrackError::Other(
+            return Err(TrackError::InvalidAlias(
                 "Alias must be between 1 and 50 characters".to_string(),
             ));
         }
@@ -388,7 +385,7 @@ impl<'a> TaskService<'a> {
             .chars()
             .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
         {
-            return Err(TrackError::Other(
+            return Err(TrackError::InvalidAlias(
                 "Alias can only contain alphanumeric characters, hyphens, and underscores"
                     .to_string(),
             ));
@@ -400,9 +397,8 @@ impl<'a> TaskService<'a> {
             "link", "repo", "desc", "ticket", "alias", "help", "webui",
         ];
         if reserved.contains(&alias.to_lowercase().as_str()) {
-            return Err(TrackError::Other(format!(
-                "Alias '{}' is a reserved word",
-                alias
+            return Err(TrackError::InvalidAlias(format!(
+                "Alias '{alias}' is a reserved word"
             )));
         }
 

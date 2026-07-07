@@ -38,9 +38,7 @@ pub fn branch_exists(repo_path: &str, branch: &str) -> Result<bool> {
 /// Create a git worktree and branch for a task slug.
 pub fn create_git_worktree(repo_path: &str, slug: &str, base_ref: &str) -> Result<String> {
     if !is_git_repository(repo_path) {
-        return Err(TrackError::Other(format!(
-            "Not a git repository: {repo_path}"
-        )));
+        return Err(TrackError::NotGitRepository(repo_path.to_string()));
     }
 
     let worktree_path = git_worktree_path(repo_path, slug);
@@ -59,7 +57,7 @@ pub fn create_git_worktree(repo_path: &str, slug: &str, base_ref: &str) -> Resul
         .output()?;
     if !fetch.status.success() {
         let stderr = String::from_utf8_lossy(&fetch.stderr);
-        return Err(TrackError::Other(format!("git fetch failed: {stderr}")));
+        return Err(TrackError::Git(format!("git fetch failed: {stderr}")));
     }
 
     let create = if branch_exists(repo_path, &format!("refs/heads/{branch}"))? {
@@ -83,7 +81,7 @@ pub fn create_git_worktree(repo_path: &str, slug: &str, base_ref: &str) -> Resul
 
     if !create.status.success() {
         let stderr = String::from_utf8_lossy(&create.stderr);
-        return Err(TrackError::Other(format!(
+        return Err(TrackError::Git(format!(
             "git worktree add failed: {stderr}"
         )));
     }

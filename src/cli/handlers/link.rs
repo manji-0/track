@@ -43,7 +43,7 @@ pub fn handle_link(ctx: &CommandCtx, command: LinkCommands) -> Result<()> {
             let link = links
                 .iter()
                 .find(|l| l.task_index == index as i64)
-                .ok_or_else(|| TrackError::Other(format!("Link #{} not found", index)))?;
+                .ok_or(TrackError::LinkIndexNotFound(index as i64))?;
 
             // Delete link via service
             link_service.delete_link(link.id)?;

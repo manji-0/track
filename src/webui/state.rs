@@ -1,6 +1,7 @@
 //! Application state shared across handlers.
 
 use crate::db::{Database, SectionRevs};
+use crate::utils::Result;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::{broadcast, Mutex};
@@ -58,7 +59,7 @@ impl AppState {
     }
 
     /// Create new application state with database connection
-    pub fn new() -> anyhow::Result<Self> {
+    pub fn new() -> Result<Self> {
         let db = Database::new()?;
         let (sse_tx, _) = broadcast::channel(100);
 
@@ -76,7 +77,7 @@ impl AppState {
     }
 
     /// Get current change state (task ID and all revision numbers)
-    async fn get_change_state(&self) -> anyhow::Result<ChangeState> {
+    async fn get_change_state(&self) -> Result<ChangeState> {
         let db = self.db.lock().await;
         let current_task_id = db.get_current_task_id()?;
         let revs = db.get_all_revs()?;

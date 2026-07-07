@@ -27,10 +27,7 @@ impl<'a> RepoService<'a> {
 
         // Validate it's a JJ repository
         if !self.is_jj_repository(&abs_path)? {
-            return Err(TrackError::Other(format!(
-                "{} is not a JJ repository",
-                abs_path.display()
-            )));
+            return Err(TrackError::NotJjRepository(abs_path.display().to_string()));
         }
 
         let path_str = abs_path.to_string_lossy().to_string();
@@ -50,9 +47,7 @@ impl<'a> RepoService<'a> {
                 .optional()?;
 
             if existing.is_some() {
-                return Err(TrackError::Other(
-                    "Repository already registered for this task".to_string(),
-                ));
+                return Err(TrackError::RepoAlreadyRegistered);
             }
 
             // Get the next task_index for this task
@@ -116,10 +111,7 @@ impl<'a> RepoService<'a> {
             .execute("DELETE FROM task_repos WHERE id = ?1", params![repo_id])?;
 
         if rows_affected == 0 {
-            return Err(TrackError::Other(format!(
-                "Repository #{} not found",
-                repo_id
-            )));
+            return Err(TrackError::TaskRepoNotFound(repo_id));
         }
 
         self.db.increment_rev("repos")?;
@@ -136,7 +128,7 @@ impl<'a> RepoService<'a> {
             std::env::current_dir()?
                 .join(path_buf)
                 .canonicalize()
-                .map_err(|e| TrackError::Other(format!("Failed to resolve path: {}", e)))
+                .map_err(|e| TrackError::PathResolutionFailed(e.to_string()))
         }
     }
 

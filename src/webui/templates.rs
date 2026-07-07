@@ -1,5 +1,6 @@
 //! MiniJinja template engine setup.
 
+use crate::utils::{Result, TrackError};
 use minijinja::{path_loader, AutoEscape, Environment};
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -82,9 +83,19 @@ impl Templates {
     }
 
     /// Render a template with the given context
-    pub fn render<S: serde::Serialize>(&self, name: &str, ctx: S) -> anyhow::Result<String> {
-        let tmpl = self.env.get_template(name)?;
-        Ok(tmpl.render(ctx)?)
+    pub fn render<S: serde::Serialize>(&self, name: &str, ctx: S) -> Result<String> {
+        let tmpl = self
+            .env
+            .get_template(name)
+            .map_err(|err| TrackError::TemplateRenderFailed {
+                name: name.to_string(),
+                detail: err.to_string(),
+            })?;
+        tmpl.render(ctx)
+            .map_err(|err| TrackError::TemplateRenderFailed {
+                name: name.to_string(),
+                detail: err.to_string(),
+            })
     }
 }
 

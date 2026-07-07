@@ -31,9 +31,8 @@ pub fn handle_repo(ctx: &CommandCtx, command: RepoCommands) -> Result<()> {
                     .output()?;
 
                 if !hash_output.status.success() {
-                    return Err(TrackError::Other(format!(
-                        "Failed to get change ID for bookmark '{}'",
-                        bookmark
+                    return Err(TrackError::Jj(format!(
+                        "Failed to get change ID for bookmark '{bookmark}'"
                     )));
                 }
 
@@ -47,7 +46,7 @@ pub fn handle_repo(ctx: &CommandCtx, command: RepoCommands) -> Result<()> {
                     .output()?;
 
                 if !bookmark_output.status.success() {
-                    return Err(TrackError::Other(
+                    return Err(TrackError::Jj(
                         "Failed to resolve current bookmark".to_string(),
                     ));
                 }
@@ -72,7 +71,7 @@ pub fn handle_repo(ctx: &CommandCtx, command: RepoCommands) -> Result<()> {
                         .output()?;
 
                     if !hash_output.status.success() {
-                        return Err(TrackError::Other(
+                        return Err(TrackError::Jj(
                             "Failed to get change ID for current bookmark".to_string(),
                         ));
                     }
@@ -129,7 +128,7 @@ pub fn handle_repo(ctx: &CommandCtx, command: RepoCommands) -> Result<()> {
             let repo = repos
                 .iter()
                 .find(|r| r.task_index == id)
-                .ok_or_else(|| TrackError::Other(format!("Repository #{} not found", id)))?;
+                .ok_or(TrackError::TaskRepoIndexNotFound(id))?;
 
             repo_service.remove_repo(repo.id)?;
             println!("Removed repository #{}", id);

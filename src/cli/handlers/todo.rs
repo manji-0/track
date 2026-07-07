@@ -1,12 +1,13 @@
 use crate::cli::handlers::CommandCtx;
 use crate::cli::TodoCommands;
-use crate::models::{TaskRepo, TodoAction, TodoAddOptions, TodoStatus};
-use crate::services::{RepoService, TaskService, TodoService, WorktreeService};
-use crate::use_cases::{ApplyTodoActionUseCase, CompleteTodoUseCase};
+use crate::models::{TodoAction, TodoAddOptions, TodoStatus};
+use crate::services::TodoService;
+use crate::use_cases::{
+    ApplyTodoActionUseCase, CompleteTodoUseCase, TodoWorkspaceRequest, TodoWorkspaceUseCase,
+};
 use crate::utils::{Result, TrackError};
 use prettytable::{format, Cell, Row, Table};
 use std::io::{self, Write};
-use std::path::{Path, PathBuf};
 
 pub fn handle_todo(ctx: &CommandCtx, command: TodoCommands) -> Result<()> {
     let current_task_id = ctx
@@ -78,160 +79,27 @@ pub fn handle_todo(ctx: &CommandCtx, command: TodoCommands) -> Result<()> {
             force,
             all,
         } => {
-            let todo = todo_service.get_todo_by_index(current_task_id, id)?;
-            let worktree_service = WorktreeService::new(ctx.db);
-            let repo_service = RepoService::new(ctx.db);
-            let repos = repo_service.list_repos(current_task_id)?;
-
-            if repos.is_empty() {
-                return Err(TrackError::NoRepositoriesRegistered);
-            }
-
-            let target_repos = if all {
-                repos
-            } else {
-                let current_path = std::env::current_dir()
-                    .and_then(|path| path.canonicalize())
-                    .map_err(|e| TrackError::PathResolutionFailed(e.to_string()))?;
-
-                let mut matching: Vec<(TaskRepo, PathBuf)> = repos
-                    .into_iter()
-                    .filter_map(|repo| {
-                        let repo_path = PathBuf::from(&repo.repo_path);
-                        let repo_path = repo_path.canonicalize().ok()?;
-                        if current_path.starts_with(&repo_path) {
-                            Some((repo, repo_path))
-                        } else {
-                            None
-                        }
-                    })
-                    .collect();
-
-                matching.sort_by_key(|(_, repo_path)| repo_path.to_string_lossy().len());
-                let repo = matching
-                    .pop()
-                    .map(|(repo, _)| repo)
-                    .ok_or(TrackError::CurrentDirectoryNotRegistered)?;
-                vec![repo]
-            };
-
-            let worktrees = worktree_service.list_worktrees(current_task_id)?;
-            let task_service = TaskService::new(ctx.db);
-            let task = task_service.get_task(current_task_id)?;
-            let branch_name = worktree_service.get_todo_branch_name(
+            let outcome = TodoWorkspaceUseCase::new(ctx.db).execute(
                 current_task_id,
-                task.ticket_id.as_deref(),
-                todo.task_index,
+                id,
+                TodoWorkspaceRequest {
+                    recreate,
+                    force,
+                    all_repos: all,
+                },
             )?;
 
-            let mut output_paths: Vec<String> = Vec::new();
-
-            for repo in target_repos {
-                let mut todo_worktrees: Vec<_> = worktrees
-                    .iter()
-                    .filter(|wt| {
-                        wt.todo_id == Some(todo.id)
-                            && wt.base_repo.as_deref() == Some(repo.repo_path.as_str())
-                    })
-                    .cloned()
-                    .collect();
-
-                if !todo_worktrees.is_empty() {
-                    if !recreate {
-                        output_paths
-                            .extend(todo_worktrees.iter().map(|worktree| worktree.path.clone()));
-                        continue;
-                    }
-
-                    if !force {
-                        for worktree in &todo_worktrees {
-                            if Path::new(&worktree.path).exists()
-                                && worktree_service.has_uncommitted_changes(&worktree.path)?
-                            {
-                                return Err(TrackError::WorkspaceHasUncommittedChanges {
-                                    path: worktree.path.clone(),
-                                });
-                            }
-                        }
-                    }
-
-                    for worktree in todo_worktrees.drain(..) {
-                        if !worktree_service
-                            .bookmark_exists_in_repo(repo.repo_path.as_str(), &worktree.branch)?
-                        {
-                            if Path::new(&worktree.path).exists() {
-                                output_paths.push(worktree.path.clone());
-                            }
-                            if all {
-                                eprintln!(
-                                    "Skipping recreate for {} (missing branch/bookmark).",
-                                    worktree.path
-                                );
-                                continue;
-                            }
-                            return Err(TrackError::BookmarkNotFound {
-                                bookmark: worktree.branch.clone(),
-                                repo_path: repo.repo_path.clone(),
-                            });
-                        }
-
-                        let recreated = worktree_service.recreate_worktree(&worktree, force)?;
-                        output_paths.push(recreated.path);
-                    }
-                } else {
-                    if recreate
-                        && !worktree_service
-                            .bookmark_exists_in_repo(repo.repo_path.as_str(), &branch_name)?
-                    {
-                        if all {
-                            eprintln!(
-                                "Skipping create for {} (missing branch/bookmark).",
-                                repo.repo_path
-                            );
-                            continue;
-                        }
-                        return Err(TrackError::BookmarkNotFound {
-                            bookmark: branch_name.clone(),
-                            repo_path: repo.repo_path.clone(),
-                        });
-                    }
-
-                    let created = match worktree_service.add_worktree(
-                        current_task_id,
-                        &repo.repo_path,
-                        None,
-                        task.ticket_id.as_deref(),
-                        Some(todo.id),
-                        false,
-                    ) {
-                        Ok(worktree) => worktree,
-                        Err(TrackError::BookmarkExists(_)) => worktree_service
-                            .add_existing_worktree(
-                                current_task_id,
-                                &repo.repo_path,
-                                &branch_name,
-                                Some(todo.id),
-                                false,
-                                None,
-                            )?,
-                        Err(e) => return Err(e),
-                    };
-
-                    output_paths.push(created.path);
-                }
-            }
-
-            if output_paths.is_empty() {
-                return Err(TrackError::NoWorkspacePathsAvailable);
+            for warning in &outcome.warnings {
+                eprintln!("{warning}");
             }
 
             if all {
-                for path in output_paths {
-                    println!("{}", path);
+                for path in outcome.paths {
+                    println!("{path}");
                 }
             } else {
-                println!("{}", output_paths[0]);
-                if output_paths.len() > 1 {
+                println!("{}", outcome.paths[0]);
+                if outcome.paths.len() > 1 {
                     eprintln!(
                         "Multiple workspaces exist for TODO #{}. Using first path.",
                         id
