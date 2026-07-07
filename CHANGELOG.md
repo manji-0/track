@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-07-08
+
 ### Added
 - `track archive --force` to skip jj-task and dirty-workspace checks
 - `track migrate legacy-worktrees [--dry-run] [--force]` to clear legacy worktree flags
