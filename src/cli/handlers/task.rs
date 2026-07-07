@@ -1,7 +1,9 @@
 use crate::cli::handlers::CommandCtx;
 use crate::models::TodoAddOptions;
 use crate::services::{TaskService, TodoService, WorktreeService};
-use crate::use_cases::{ArchiveTaskUseCase, CreateTodayTaskUseCase, GetTaskInfoUseCase};
+use crate::use_cases::{
+    ArchiveTaskStep, ArchiveTaskUseCase, CreateTodayTaskUseCase, GetTaskInfoUseCase,
+};
 use crate::utils::{Result, TrackError};
 use chrono::Local;
 use prettytable::{format, Cell, Row, Table};
@@ -393,15 +395,14 @@ pub fn handle_archive(ctx: &CommandCtx, task_ref: Option<&str>, force: bool) -> 
     let use_case = ArchiveTaskUseCase::new(ctx.db);
     let task_id = use_case.resolve_task_id(task_ref)?;
 
-    let outcome = match use_case.execute(task_id, force) {
-        Ok(outcome) => outcome,
-        Err(TrackError::UncommittedWorkspaces(workspaces)) => {
-            println!("WARNING: The following workspaces have uncommitted changes:");
-            for line in &workspaces {
-                println!("  {}", line);
+    let outcome = match use_case.run(task_id, force)? {
+        ArchiveTaskStep::Completed(outcome) => outcome,
+        ArchiveTaskStep::NeedsConfirmation(prompt) => {
+            let view = prompt.view();
+            for line in &view.warning_lines {
+                println!("{line}");
             }
-            println!();
-            print!("Archive and remove workspaces anyway? [y/N]: ");
+            print!("{}", view.prompt);
             io::stdout().flush()?;
             let mut input = String::new();
             io::stdin().read_line(&mut input)?;
@@ -411,42 +412,18 @@ pub fn handle_archive(ctx: &CommandCtx, task_ref: Option<&str>, force: bool) -> 
                 return Ok(());
             }
 
-            use_case.execute(task_id, true)?
+            use_case.confirm_and_run(task_id)?
         }
-        Err(TrackError::JjTaskNotCompleted { slug, workspaces }) => {
-            println!("WARNING: jj-task workspace '{slug}' is not marked done.",);
-            println!("  Merge your PR with the $jj skill, then run: jj-task done {slug}");
-            for path in &workspaces {
-                println!("  {}", path);
-            }
-            println!();
-            print!("Archive the track task anyway (jj-task map unchanged)? [y/N]: ");
-            io::stdout().flush()?;
-            let mut input = String::new();
-            io::stdin().read_line(&mut input)?;
-
-            if !matches!(input.trim().to_lowercase().as_str(), "y" | "yes") {
-                println!("Cancelled.");
-                return Ok(());
-            }
-
-            use_case.execute(task_id, true)?
-        }
-        Err(err) => return Err(err),
     };
 
-    if !outcome.removed_workspaces.is_empty() {
-        println!("Cleaning up workspaces...");
-        for (id, path) in &outcome.removed_workspaces {
-            println!("  Removed workspace #{}: {}", id, path);
-        }
+    let view = outcome.completion_view();
+    for line in &view.info_lines {
+        println!("{line}");
     }
-
-    for err in &outcome.workspace_errors {
-        eprintln!("  Error removing workspace: {}", err);
+    for line in &view.error_lines {
+        eprintln!("{line}");
     }
-
-    println!("Archived task #{}: {}", outcome.task.id, outcome.task.name);
+    println!("{}", view.summary);
 
     Ok(())
 }

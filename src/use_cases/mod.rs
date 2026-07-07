@@ -13,7 +13,10 @@ pub mod sync_task;
 pub mod todo_workspace;
 
 pub use apply_todo_action::ApplyTodoActionUseCase;
-pub use archive_task::{ArchiveBlockers, ArchiveTaskOutcome, ArchiveTaskUseCase, DirtyWorkspace};
+pub use archive_task::{
+    ArchiveBlockers, ArchiveCompletionView, ArchivePrompt, ArchivePromptKind, ArchivePromptView,
+    ArchiveTaskOutcome, ArchiveTaskStep, ArchiveTaskUseCase, DirtyWorkspace,
+};
 pub use complete_todo::{CompleteTodoOutcome, CompleteTodoUseCase};
 pub use create_today_task::CreateTodayTaskUseCase;
 pub use get_task_info::{GetTaskInfoUseCase, TaskInfoSnapshot};

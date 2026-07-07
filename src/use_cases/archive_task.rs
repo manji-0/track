@@ -26,6 +26,99 @@ pub struct ArchiveTaskOutcome {
     pub workspace_errors: Vec<String>,
 }
 
+/// CLI-facing lines after a successful archive.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ArchiveCompletionView {
+    pub info_lines: Vec<String>,
+    pub error_lines: Vec<String>,
+    pub summary: String,
+}
+
+impl ArchiveTaskOutcome {
+    pub fn completion_view(&self) -> ArchiveCompletionView {
+        let mut info_lines = Vec::new();
+        if !self.removed_workspaces.is_empty() {
+            info_lines.push("Cleaning up workspaces...".to_string());
+            for (id, path) in &self.removed_workspaces {
+                info_lines.push(format!("  Removed workspace #{}: {}", id, path));
+            }
+        }
+
+        let error_lines = self
+            .workspace_errors
+            .iter()
+            .map(|err| format!("  Error removing workspace: {err}"))
+            .collect();
+
+        ArchiveCompletionView {
+            info_lines,
+            error_lines,
+            summary: format!("Archived task #{}: {}", self.task.id, self.task.name),
+        }
+    }
+}
+
+/// Interactive archive flow step.
+#[derive(Debug, Clone)]
+pub enum ArchiveTaskStep {
+    Completed(ArchiveTaskOutcome),
+    NeedsConfirmation(ArchivePrompt),
+}
+
+/// Confirmation required before forcing archive.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ArchivePrompt {
+    pub task_id: i64,
+    pub kind: ArchivePromptKind,
+}
+
+/// Reason archive needs explicit user confirmation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ArchivePromptKind {
+    UncommittedWorkspaces(Vec<String>),
+    JjTaskNotCompleted {
+        slug: String,
+        workspaces: Vec<String>,
+    },
+}
+
+/// CLI-facing warning and prompt text for archive confirmation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ArchivePromptView {
+    pub warning_lines: Vec<String>,
+    pub prompt: String,
+}
+
+impl ArchivePrompt {
+    pub fn view(&self) -> ArchivePromptView {
+        match &self.kind {
+            ArchivePromptKind::UncommittedWorkspaces(workspaces) => {
+                let mut warning_lines =
+                    vec!["WARNING: The following workspaces have uncommitted changes:".to_string()];
+                warning_lines.extend(workspaces.iter().map(|line| format!("  {line}")));
+                warning_lines.push(String::new());
+                ArchivePromptView {
+                    warning_lines,
+                    prompt: "Archive and remove workspaces anyway? [y/N]: ".to_string(),
+                }
+            }
+            ArchivePromptKind::JjTaskNotCompleted { slug, workspaces } => {
+                let mut warning_lines = vec![
+                    format!("WARNING: jj-task workspace '{slug}' is not marked done."),
+                    format!("  Merge your PR with the $jj skill, then run: jj-task done {slug}"),
+                ];
+                warning_lines.extend(workspaces.iter().map(|path| format!("  {path}")));
+                warning_lines.push(String::new());
+                ArchivePromptView {
+                    warning_lines,
+                    prompt: "Archive the track task anyway (jj-task map unchanged)? [y/N]: "
+                        .to_string(),
+                }
+            }
+        }
+    }
+}
+
 /// Archives a task after optionally removing JJ workspaces.
 pub struct ArchiveTaskUseCase<'a> {
     db: &'a Database,
@@ -113,10 +206,37 @@ impl<'a> ArchiveTaskUseCase<'a> {
         Ok(dirty)
     }
 
+    /// Runs archive, returning either completion or a confirmation prompt.
+    ///
+    /// When `force` is true, blockers are ignored and archive proceeds immediately.
+    pub fn run(&self, task_id: i64, force: bool) -> Result<ArchiveTaskStep> {
+        match self.execute(task_id, force) {
+            Ok(outcome) => Ok(ArchiveTaskStep::Completed(outcome)),
+            Err(TrackError::UncommittedWorkspaces(workspaces)) => {
+                Ok(ArchiveTaskStep::NeedsConfirmation(ArchivePrompt {
+                    task_id,
+                    kind: ArchivePromptKind::UncommittedWorkspaces(workspaces),
+                }))
+            }
+            Err(TrackError::JjTaskNotCompleted { slug, workspaces }) => {
+                Ok(ArchiveTaskStep::NeedsConfirmation(ArchivePrompt {
+                    task_id,
+                    kind: ArchivePromptKind::JjTaskNotCompleted { slug, workspaces },
+                }))
+            }
+            Err(err) => Err(err),
+        }
+    }
+
+    /// Archives after the user confirmed a [`ArchivePrompt`].
+    pub fn confirm_and_run(&self, task_id: i64) -> Result<ArchiveTaskOutcome> {
+        self.execute(task_id, true)
+    }
+
     /// Removes workspaces and archives the task.
     ///
     /// When `force` is false, returns [`TrackError::UncommittedWorkspaces`] or
-    /// [`TrackError::JjTaskNotCompleted`] so the caller can prompt the user.
+    /// [`TrackError::JjTaskNotCompleted`]. Prefer [`Self::run`] for interactive flows.
     pub fn execute(&self, task_id: i64, force: bool) -> Result<ArchiveTaskOutcome> {
         let task_service = TaskService::new(self.db);
         let worktree_service = WorktreeService::new(self.db);
@@ -336,5 +456,90 @@ mod tests {
 
         let still_active = task_service.get_task(task.id).unwrap();
         assert_eq!(still_active.status, TaskStatus::Active);
+    }
+
+    #[test]
+    fn archive_prompt_view_for_dirty_workspaces() {
+        let prompt = ArchivePrompt {
+            task_id: 1,
+            kind: ArchivePromptKind::UncommittedWorkspaces(vec!["#1 /path".to_string()]),
+        };
+        let view = prompt.view();
+        assert!(view.warning_lines[0].contains("uncommitted"));
+        assert_eq!(
+            view.prompt,
+            "Archive and remove workspaces anyway? [y/N]: "
+        );
+    }
+
+    #[test]
+    fn completion_view_formats_removed_workspaces() {
+        let db = Database::new_in_memory().unwrap();
+        let task = TaskService::new(&db)
+            .create_task("Done", None, None, None)
+            .unwrap();
+        let outcome = ArchiveTaskOutcome {
+            task: task.clone(),
+            removed_workspaces: vec![(7, "/tmp/wt".to_string())],
+            workspace_errors: vec!["#8: failed".to_string()],
+        };
+
+        let view = outcome.completion_view();
+        assert!(view.info_lines[0].contains("Cleaning up"));
+        assert!(view.info_lines[1].contains("#7"));
+        assert!(view.error_lines[0].contains("failed"));
+        assert_eq!(view.summary, format!("Archived task #{}: Done", task.id));
+    }
+
+    #[test]
+    fn run_returns_prompt_for_active_jj_task() {
+        let _guard = jj_task_map_lock();
+        let temp = tempfile::tempdir().unwrap();
+        let map_path = temp.path().join("task-workspaces.json");
+        let repo_path = temp.path().join("repo");
+        fs::create_dir_all(&repo_path).unwrap();
+        let repo_key = jj_task::repo_key(repo_path.to_str().unwrap());
+        fs::write(
+            &map_path,
+            format!(
+                r#"{{
+              "repos": {{
+                {repo_key:?}: {{
+                  "tasks": {{
+                    "task-1": {{
+                      "workspace": "/repo/.worktrees/task-1",
+                      "phase": "active"
+                    }}
+                  }}
+                }}
+              }}
+            }}"#
+            ),
+        )
+        .unwrap();
+
+        let prev = std::env::var("JJ_TASK_MAP").ok();
+        unsafe { std::env::set_var("JJ_TASK_MAP", &map_path) };
+
+        let db = Database::new_in_memory().unwrap();
+        let task_service = TaskService::new(&db);
+        let task = task_service.create_task("Task", None, None, None).unwrap();
+        insert_repo(&db, task.id, repo_path.to_str().unwrap());
+
+        let step = ArchiveTaskUseCase::new(&db).run(task.id, false).unwrap();
+
+        match prev {
+            Some(value) => unsafe { std::env::set_var("JJ_TASK_MAP", value) },
+            None => unsafe { std::env::remove_var("JJ_TASK_MAP") },
+        }
+
+        match step {
+            ArchiveTaskStep::NeedsConfirmation(prompt) => {
+                let view = prompt.view();
+                assert!(view.warning_lines[0].contains("jj-task"));
+                assert!(view.prompt.contains("jj-task map unchanged"));
+            }
+            ArchiveTaskStep::Completed(_) => panic!("expected confirmation prompt"),
+        }
     }
 }
