@@ -94,9 +94,7 @@ impl<'a> TodoService<'a> {
 
         let todo = stmt
             .query_row(params![task_id, task_index], row_to_todo)
-            .map_err(|_| {
-                TrackError::Other(format!("TODO #{} not found in current task", task_index))
-            })?;
+            .map_err(|_| TrackError::TodoIndexNotFound(task_index))?;
 
         Ok(todo)
     }
@@ -215,13 +213,13 @@ impl<'a> TodoService<'a> {
                 .collect::<std::result::Result<Vec<_>, _>>()?;
 
             if pending_todos.is_empty() {
-                return Err(TrackError::Other("No pending todos found".to_string()));
+                return Err(TrackError::NoPendingTodos);
             }
 
             // Find the position of the todo to move
             let move_pos = pending_todos.iter().position(|(_, idx)| *idx == task_index);
             if move_pos.is_none() {
-                return Err(TrackError::Other(format!("TODO #{} not found in pending todos", task_index)));
+                return Err(TrackError::TodoNotPending(task_index));
             }
             let move_pos = move_pos.unwrap();
 

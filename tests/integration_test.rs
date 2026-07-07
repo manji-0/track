@@ -1,28 +1,9 @@
-use std::process::Command;
+mod common;
+
+use common::jj::JjWorkspace;
 use track::db::Database;
 use track::models::{TaskStatus, TodoStatus};
 use track::services::{RepoService, TaskService, TodoService, WorktreeService};
-
-fn init_jj_repo(path: &str) {
-    Command::new("jj")
-        .args(["git", "init", path])
-        .output()
-        .unwrap();
-}
-
-fn describe_change(path: &str, message: &str) {
-    Command::new("jj")
-        .args(["-R", path, "describe", "-m", message])
-        .output()
-        .unwrap();
-}
-
-fn new_change(path: &str) {
-    Command::new("jj")
-        .args(["-R", path, "new"])
-        .output()
-        .unwrap();
-}
 
 /// Integration test: Full workflow from task creation to worktree management
 #[test]
@@ -72,7 +53,10 @@ fn test_full_task_workflow() {
 /// Integration test: Repository and worktree workflow
 #[test]
 fn test_repo_worktree_workflow() {
-    use std::fs;
+    let Some(ws) = JjWorkspace::new() else {
+        return;
+    };
+    let repo_path = ws.repo_path_string();
 
     let db = Database::new_in_memory().unwrap();
     let task_service = TaskService::new(&db);
@@ -84,20 +68,9 @@ fn test_repo_worktree_workflow() {
         .create_task("Repo Test Task", None, Some("PROJ-123"), None)
         .unwrap();
 
-    // Create a temporary JJ repository
-    let temp_dir = tempfile::tempdir().unwrap();
-    let repo_path = temp_dir.path().to_str().unwrap();
-
-    init_jj_repo(repo_path);
-
-    // Create initial change
-    fs::write(temp_dir.path().join("README.md"), "# Test Repo").unwrap();
-    describe_change(repo_path, "Initial commit");
-    new_change(repo_path);
-
     // Register repository
     let repo = repo_service
-        .add_repo(task.id, repo_path, None, None)
+        .add_repo(task.id, &repo_path, None, None)
         .unwrap();
     assert_eq!(repo.task_id, task.id);
 
@@ -107,7 +80,7 @@ fn test_repo_worktree_workflow() {
 
     // Create base worktree
     let base_wt = worktree_service
-        .add_worktree(task.id, repo_path, None, Some("PROJ-123"), None, true)
+        .add_worktree(task.id, &repo_path, None, Some("PROJ-123"), None, true)
         .unwrap();
     assert!(base_wt.is_base);
     assert_eq!(base_wt.branch, "task/PROJ-123");

@@ -31,3 +31,5 @@ jobs:
         run: cargo clippy -- -D warnings
       - name: Run tests
         run: cargo test --verbose
+      - name: Rustdoc
+        run: cargo doc --no-deps --document-private-items

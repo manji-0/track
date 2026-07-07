@@ -31,7 +31,15 @@ impl WebError {
             | TrackError::RepoHasPendingChanges(_)
             | TrackError::WorktreeFlagRemoved
             | TrackError::SyncUseJjTask { .. }
-            | TrackError::JjTaskNotCompleted { .. } => StatusCode::BAD_REQUEST,
+            | TrackError::JjTaskNotCompleted { .. }
+            | TrackError::CurrentDirectoryNotRegistered
+            | TrackError::WorkspaceHasUncommittedChanges { .. }
+            | TrackError::BookmarkNotFound { .. }
+            | TrackError::NoWorkspacePathsAvailable
+            | TrackError::TodoIndexNotFound(_)
+            | TrackError::TodoNotPending(_)
+            | TrackError::NoPendingTodos
+            | TrackError::LinkNotFound(_) => StatusCode::BAD_REQUEST,
             TrackError::TaskNotFound(_)
             | TrackError::TodoNotFound(_)
             | TrackError::WorktreeNotFound(_) => StatusCode::NOT_FOUND,
@@ -42,6 +50,11 @@ impl WebError {
             | TrackError::NotJjRepository(_)
             | TrackError::BookmarkExists(_)
             | TrackError::FailedRepoStatusCheck(_)
+            | TrackError::WorkspaceRemovalFailed(_)
+            | TrackError::WorkspaceStatusCheckFailed { .. }
+            | TrackError::SerializationFailed(_)
+            | TrackError::JjTaskMapInvalid { .. }
+            | TrackError::PathResolutionFailed(_)
             | TrackError::Io(_)
             | TrackError::Cancelled
             | TrackError::Other(_) => StatusCode::INTERNAL_SERVER_ERROR,

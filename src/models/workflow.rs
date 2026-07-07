@@ -15,10 +15,20 @@ pub enum WorkflowPhase {
     Archived,
 }
 
+/// Suggested next step kind for an agent.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum NextActionKind {
+    RunCommand,
+    ExecuteTodo,
+    UseJjSkill,
+    WaitHuman,
+}
+
 /// Suggested next step for an agent.
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 pub struct NextAction {
-    pub kind: &'static str,
+    pub kind: NextActionKind,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub command: Option<String>,
     pub reason: String,
@@ -310,7 +320,7 @@ pub fn build_next_action(
 
     match phase {
         WorkflowPhase::Setup => NextAction {
-            kind: "run_command",
+            kind: NextActionKind::RunCommand,
             command: Some("track repo add [path]".to_string()),
             reason: match vcs_mode {
                 VcsMode::Jj => {
@@ -325,7 +335,7 @@ pub fn build_next_action(
             VcsMode::Jj => {
                 if legacy_worktree_sync_needed(todos, worktrees) {
                     NextAction {
-                        kind: "run_command",
+                        kind: NextActionKind::RunCommand,
                         command: Some("track sync".to_string()),
                         reason: "Legacy per-TODO --worktree workspaces are pending (prefer jj-task for new tasks)".to_string(),
                     }
@@ -343,14 +353,14 @@ pub fn build_next_action(
                         )
                     };
                     NextAction {
-                        kind: "run_command",
+                        kind: NextActionKind::RunCommand,
                         command: Some(format!("jj-task start {slug}")),
                         reason,
                     }
                 }
             }
             VcsMode::Git => NextAction {
-                kind: "run_command",
+                kind: NextActionKind::RunCommand,
                 command: Some("track sync".to_string()),
                 reason: format!(
                     "Create git worktree at .worktrees/{slug} on branch track/{slug}"
@@ -365,7 +375,7 @@ pub fn build_next_action(
                         if todo.requires_workspace {
                             if jj_task::all_repos_registered(&slug, &paths) {
                                 return NextAction {
-                                    kind: "run_command",
+                                    kind: NextActionKind::RunCommand,
                                     command: Some(format!("cd \"$(jj-task path {slug})\"")),
                                     reason: format!(
                                         "Work on TODO #{} in jj-task workspace. Use $jj skill for jj commit/squash/push — not jj describe alone.",
@@ -375,7 +385,7 @@ pub fn build_next_action(
                             }
 
                             return NextAction {
-                                kind: "run_command",
+                                kind: NextActionKind::RunCommand,
                                 command: Some(format!("jj-task start {slug}")),
                                 reason: format!(
                                     "Workspace required for TODO #{} — run jj-task start first",
@@ -386,7 +396,7 @@ pub fn build_next_action(
 
                         if jj_task::slug_registered(&slug, &paths) {
                             return NextAction {
-                                kind: "run_command",
+                                kind: NextActionKind::RunCommand,
                                 command: Some(format!("cd \"$(jj-task path {slug})\"")),
                                 reason: format!(
                                     "Optional: work in jj-task workspace for TODO #{}",
@@ -398,7 +408,7 @@ pub fn build_next_action(
                         let has_workspace = worktrees.iter().any(|wt| wt.todo_id == Some(todo.id));
                         if todo.worktree_requested && has_workspace {
                             return NextAction {
-                                kind: "run_command",
+                                kind: NextActionKind::RunCommand,
                                 command: Some(format!("track todo workspace {}", todo.task_index)),
                                 reason: format!(
                                     "Legacy TODO workspace for #{}: {}",
@@ -414,7 +424,7 @@ pub fn build_next_action(
                                     git_worktree::git_worktree_path(&repo.repo_path, &slug);
                                 if git_worktree::git_worktree_exists(&worktree_path) {
                                     return NextAction {
-                                        kind: "run_command",
+                                        kind: NextActionKind::RunCommand,
                                         command: Some(format!("cd \"{worktree_path}\"")),
                                         reason: format!(
                                             "Work on TODO #{} in git worktree. Commit and push with standard git commands.",
@@ -424,7 +434,7 @@ pub fn build_next_action(
                                 }
                             }
                             return NextAction {
-                                kind: "run_command",
+                                kind: NextActionKind::RunCommand,
                                 command: Some("track sync".to_string()),
                                 reason: format!(
                                     "Git worktree required for TODO #{} — run track sync first",
@@ -437,7 +447,7 @@ pub fn build_next_action(
                                 git_worktree::git_worktree_path(&repo.repo_path, &slug);
                             if git_worktree::git_worktree_exists(&worktree_path) {
                                 return NextAction {
-                                    kind: "run_command",
+                                    kind: NextActionKind::RunCommand,
                                     command: Some(format!("cd \"{worktree_path}\"")),
                                     reason: format!(
                                         "Work on TODO #{} in git worktree. Commit and push with standard git commands.",
@@ -450,13 +460,13 @@ pub fn build_next_action(
                 }
 
                 NextAction {
-                    kind: "execute_todo",
+                    kind: NextActionKind::ExecuteTodo,
                     command: Some(format!("track todo done {}", todo.task_index)),
                     reason: format!("Continue with TODO #{}: {}", todo.task_index, todo.content),
                 }
             } else {
                 NextAction {
-                    kind: "wait_human",
+                    kind: NextActionKind::WaitHuman,
                     command: None,
                     reason: "No pending TODOs found".to_string(),
                 }
@@ -469,7 +479,7 @@ pub fn build_next_action(
                 let phase = jj_task::task_phase(&slug, &paths);
                 if had_workspace_todos && registered && phase.as_deref() != Some("done") {
                     NextAction {
-                        kind: "use_jj_skill",
+                        kind: NextActionKind::UseJjSkill,
                         command: None,
                         reason: format!(
                             "All TODOs done — use $jj skill to push/merge PR, then `jj-task done {slug}` and `track archive`"
@@ -477,20 +487,20 @@ pub fn build_next_action(
                     }
                 } else {
                     NextAction {
-                        kind: "run_command",
+                        kind: NextActionKind::RunCommand,
                         command: Some(format!("jj-task done {slug}; track archive")),
                         reason: "All TODOs done — use $jj skill to push/merge PR, then jj-task done and track archive".to_string(),
                     }
                 }
             }
             VcsMode::Git => NextAction {
-                kind: "run_command",
+                kind: NextActionKind::RunCommand,
                 command: Some("track archive".to_string()),
                 reason: "All TODOs done — push/merge your PR with git, then archive the task".to_string(),
             },
         },
         WorkflowPhase::Archived => NextAction {
-            kind: "wait_human",
+            kind: NextActionKind::WaitHuman,
             command: None,
             reason: "Task is archived".to_string(),
         },
@@ -734,5 +744,46 @@ mod tests {
         let guardrails = AgentGuardrails::for_mode(VcsMode::Git, false);
         assert!(!guardrails.must_use_jj_skill);
         assert!(guardrails.reopen_forbidden);
+    }
+
+    #[test]
+    fn research_todo_without_workspace_skips_sync_in_jj_mode() {
+        let task = sample_task(TaskStatus::Active);
+        let todos = vec![sample_research_todo(1)];
+        let repos = vec![sample_repo()];
+
+        assert_eq!(
+            compute_workflow_phase(VcsMode::Jj, &task, &todos, &[], &repos),
+            WorkflowPhase::Execute
+        );
+    }
+
+    #[test]
+    fn execute_action_for_no_workspace_todo_suggests_done() {
+        let task = sample_task(TaskStatus::Active);
+        let todos = vec![sample_research_todo(1)];
+        let repos = vec![sample_repo()];
+
+        let action = build_next_action(
+            VcsMode::Jj,
+            WorkflowPhase::Execute,
+            &task,
+            &todos,
+            &[],
+            &repos,
+        );
+        assert_eq!(action.kind, NextActionKind::ExecuteTodo);
+        assert_eq!(action.command.as_deref(), Some("track todo done 1"));
+    }
+
+    #[test]
+    fn next_action_kind_serializes_as_snake_case() {
+        let action = NextAction {
+            kind: NextActionKind::UseJjSkill,
+            command: None,
+            reason: "test".to_string(),
+        };
+        let json = serde_json::to_value(action).unwrap();
+        assert_eq!(json["kind"], "use_jj_skill");
     }
 }

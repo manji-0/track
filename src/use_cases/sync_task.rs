@@ -181,6 +181,7 @@ impl<'a> SyncTaskUseCase<'a> {
         }
 
         let status_output = Command::new("jj")
+            .current_dir(&repo.repo_path)
             .args(["-R", &repo.repo_path, "diff", "--summary"])
             .output()?;
 
@@ -297,9 +298,15 @@ impl<'a> SyncTaskUseCase<'a> {
             }
 
             let path = Path::new(path);
-            let is_worktree = repo_worktrees
-                .iter()
-                .any(|worktree_path| path.starts_with(worktree_path));
+            let resolved = Self::resolve_diff_path(&repo_root, path);
+            let is_worktree = resolved
+                .as_ref()
+                .and_then(|resolved| resolved.strip_prefix(&repo_root).ok())
+                .is_some_and(|relative| {
+                    repo_worktrees
+                        .iter()
+                        .any(|worktree_path| relative.starts_with(worktree_path))
+                });
 
             if !is_worktree {
                 return Ok(true);
@@ -307,6 +314,18 @@ impl<'a> SyncTaskUseCase<'a> {
         }
 
         Ok(false)
+    }
+
+    fn resolve_diff_path(repo_root: &Path, path: &Path) -> Option<PathBuf> {
+        if path.is_absolute() {
+            return path.canonicalize().ok();
+        }
+
+        repo_root
+            .join(path)
+            .canonicalize()
+            .ok()
+            .or_else(|| std::env::current_dir().ok()?.join(path).canonicalize().ok())
     }
 }
 

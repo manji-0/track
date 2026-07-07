@@ -22,8 +22,8 @@ pub use workflow::{
     build_git_context, build_jj_context, build_next_action, build_workflow_checklist,
     build_workflow_context, compute_workflow_phase, legacy_worktree_pending,
     legacy_worktree_sync_needed, oldest_pending_todo, workspace_lifecycle, AgentGuardrails,
-    GitAgentContext, JjAgentContext, NextAction, TodoAgentView, WorkflowContext, WorkflowPhase,
-    WorkflowStep, WorkspaceAgentView, WorkspaceLifecycle,
+    GitAgentContext, JjAgentContext, NextAction, NextActionKind, TodoAgentView, WorkflowContext,
+    WorkflowPhase, WorkflowStep, WorkspaceAgentView, WorkspaceLifecycle,
 };
 
 fn render_markdown_with_links(content: &str) -> String {

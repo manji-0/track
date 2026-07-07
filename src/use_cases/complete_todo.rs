@@ -86,4 +86,19 @@ mod tests {
             Err(TrackError::InvalidStatusTransition { .. })
         ));
     }
+
+    #[test]
+    fn complete_todo_surfaces_db_failure_after_merge_with_typed_error() {
+        let db = setup_db();
+        let task_id = TaskService::new(&db)
+            .create_task("Task", None, None, None)
+            .unwrap()
+            .id;
+        let todo_service = TodoService::new(&db);
+        let todo = todo_service.add_todo(task_id, "Item", false).unwrap();
+        todo_service.delete_todo(todo.id).unwrap();
+
+        let result = CompleteTodoUseCase::new(&db).execute(task_id, todo.task_index);
+        assert!(matches!(result, Err(TrackError::TodoIndexNotFound(_))));
+    }
 }

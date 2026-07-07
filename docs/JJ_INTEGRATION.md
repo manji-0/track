@@ -72,6 +72,13 @@ Set an alias when the ticket ID is not a good workspace slug:
 track alias set fix-oauth-refresh
 ```
 
+## Implementation reference
+
+Workflow phase computation and agent `next_action` generation are implemented in
+[`src/models/workflow.rs`](../src/models/workflow.rs) (`compute_workflow_phase`,
+`build_workflow_context`, `build_next_action`). JJ map reads use
+[`src/services/jj_task/`](../src/services/jj_task/).
+
 ## JSON fields (`track status --json`)
 
 ```json

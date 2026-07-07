@@ -254,7 +254,7 @@ pub fn handle_info(
             &worktree_service,
         );
         let agent_val = serde_json::to_value(&agent)
-            .map_err(|e| TrackError::Other(format!("JSON serialization error: {}", e)))?;
+            .map_err(|e| TrackError::SerializationFailed(e.to_string()))?;
         if let Some(obj) = output.as_object_mut() {
             if let Some(agent_obj) = agent_val.as_object() {
                 for (key, value) in agent_obj {
@@ -263,7 +263,9 @@ pub fn handle_info(
             }
         }
 
-        println!("{}", serde_json::to_string_pretty(&output).unwrap());
+        let json = serde_json::to_string_pretty(&output)
+            .map_err(|e| TrackError::SerializationFailed(e.to_string()))?;
+        println!("{json}");
         return Ok(());
     }
 

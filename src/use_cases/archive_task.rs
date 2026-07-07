@@ -98,19 +98,19 @@ impl<'a> ArchiveTaskUseCase<'a> {
     ) -> Result<Vec<DirtyWorkspace>> {
         let worktrees = worktree_service.list_worktrees(task_id)?;
 
-        Ok(worktrees
-            .into_iter()
-            .filter(|worktree| {
-                std::path::Path::new(&worktree.path).exists()
-                    && worktree_service
-                        .has_uncommitted_changes(&worktree.path)
-                        .unwrap_or(false)
-            })
-            .map(|worktree| DirtyWorkspace {
-                id: worktree.id,
-                path: worktree.path,
-            })
-            .collect())
+        let mut dirty = Vec::new();
+        for worktree in worktrees {
+            if !std::path::Path::new(&worktree.path).exists() {
+                continue;
+            }
+            if worktree_service.has_uncommitted_changes(&worktree.path)? {
+                dirty.push(DirtyWorkspace {
+                    id: worktree.id,
+                    path: worktree.path,
+                });
+            }
+        }
+        Ok(dirty)
     }
 
     /// Removes workspaces and archives the task.
@@ -160,6 +160,10 @@ impl<'a> ArchiveTaskUseCase<'a> {
             }
         }
 
+        if !force && !workspace_errors.is_empty() {
+            return Err(TrackError::WorkspaceRemovalFailed(workspace_errors));
+        }
+
         task_service.archive_task(task_id)?;
 
         Ok(ArchiveTaskOutcome {
@@ -176,6 +180,12 @@ mod tests {
     use crate::models::TaskStatus;
     use crate::services::jj_task;
     use std::fs;
+    use std::sync::{Mutex, OnceLock};
+
+    fn jj_task_map_lock() -> std::sync::MutexGuard<'static, ()> {
+        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        LOCK.get_or_init(|| Mutex::new(())).lock().unwrap()
+    }
 
     fn insert_repo(db: &Database, task_id: i64, repo_path: &str) {
         db.get_connection()
@@ -203,6 +213,7 @@ mod tests {
 
     #[test]
     fn find_archive_blockers_detects_active_jj_task() {
+        let _guard = jj_task_map_lock();
         let temp = tempfile::tempdir().unwrap();
         let map_path = temp.path().join("task-workspaces.json");
         let repo_path = temp.path().join("repo");
@@ -250,6 +261,7 @@ mod tests {
 
     #[test]
     fn archive_allows_done_jj_task_phase() {
+        let _guard = jj_task_map_lock();
         let temp = tempfile::tempdir().unwrap();
         let map_path = temp.path().join("task-workspaces.json");
         let repo_path = temp.path().join("repo");
@@ -290,5 +302,39 @@ mod tests {
         }
 
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn archive_aborts_when_workspace_removal_fails_without_force() {
+        let db = Database::new_in_memory().unwrap();
+        let task_service = TaskService::new(&db);
+        let task = task_service.create_task("Task", None, None, None).unwrap();
+
+        let now = chrono::Utc::now().to_rfc3339();
+        db.get_connection()
+            .execute(
+                "INSERT INTO worktrees (task_id, path, branch, base_repo, status, created_at, is_base)
+                 VALUES (?1, ?2, ?3, ?4, 'active', ?5, 0)",
+                rusqlite::params![
+                    task.id,
+                    "/tmp/missing-worktree",
+                    "track/task-1",
+                    "/tmp/missing-repo",
+                    now,
+                ],
+            )
+            .unwrap();
+
+        let result = ArchiveTaskUseCase::new(&db).execute(task.id, false);
+        assert!(
+            matches!(
+                result,
+                Err(TrackError::WorkspaceRemovalFailed(_)) | Err(TrackError::Jj(_))
+            ),
+            "unexpected result: {result:?}"
+        );
+
+        let still_active = task_service.get_task(task.id).unwrap();
+        assert_eq!(still_active.status, TaskStatus::Active);
     }
 }

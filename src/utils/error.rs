@@ -113,6 +113,45 @@ pub enum TrackError {
     #[allow(dead_code)]
     Cancelled,
 
+    #[error("Failed to resolve path: {0}")]
+    PathResolutionFailed(String),
+
+    #[error("Current directory is not a registered repository for this task")]
+    CurrentDirectoryNotRegistered,
+
+    #[error("Workspace {path} has uncommitted changes. Use --force to recreate.")]
+    WorkspaceHasUncommittedChanges { path: String },
+
+    #[error("Bookmark '{bookmark}' not found in {repo_path}")]
+    BookmarkNotFound { bookmark: String, repo_path: String },
+
+    #[error("No workspace paths available for this TODO")]
+    NoWorkspacePathsAvailable,
+
+    #[error("Workspace cleanup failed: {0:?}")]
+    WorkspaceRemovalFailed(Vec<String>),
+
+    #[error("Failed to check workspace status for {path}: {detail}")]
+    WorkspaceStatusCheckFailed { path: String, detail: String },
+
+    #[error("JSON serialization failed: {0}")]
+    SerializationFailed(String),
+
+    #[error("TODO #{0} not found in current task")]
+    TodoIndexNotFound(i64),
+
+    #[error("No pending TODOs to reorder")]
+    NoPendingTodos,
+
+    #[error("TODO #{0} is not among pending TODOs")]
+    TodoNotPending(i64),
+
+    #[error("Link #{0} not found")]
+    LinkNotFound(i64),
+
+    #[error("Invalid jj-task workspace map at {path}: {detail}")]
+    JjTaskMapInvalid { path: String, detail: String },
+
     #[error("{0}")]
     Other(String),
 }

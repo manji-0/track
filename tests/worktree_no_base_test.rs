@@ -1,40 +1,20 @@
+mod common;
+
+use common::jj::JjWorkspace;
 use std::fs;
-use std::process::Command;
 use track::db::Database;
 use track::services::{TaskService, TodoService, WorktreeService};
-
-fn init_jj_repo(path: &str) {
-    Command::new("jj")
-        .args(["git", "init", path])
-        .output()
-        .unwrap();
-}
-
-fn describe_change(path: &str, message: &str) {
-    Command::new("jj")
-        .args(["-R", path, "describe", "-m", message])
-        .output()
-        .unwrap();
-}
-
-fn new_change(path: &str) {
-    Command::new("jj")
-        .args(["-R", path, "new"])
-        .output()
-        .unwrap();
-}
-
-fn create_bookmark(path: &str, name: &str) {
-    Command::new("jj")
-        .args(["-R", path, "bookmark", "create", name, "-r", "@"])
-        .output()
-        .unwrap();
-}
 
 /// Test complete_worktree_for_todo without a base worktree registered in DB
 /// This tests the fallback to using base_repo when no base worktree exists
 #[test]
 fn test_complete_worktree_without_base_worktree() {
+    let Some(ws) = JjWorkspace::new() else {
+        return;
+    };
+    let repo_path = ws.repo_path();
+    ws.create_bookmark("task/ISSUE-123");
+
     let db = Database::new_in_memory().unwrap();
     let task_service = TaskService::new(&db);
     let todo_service = TodoService::new(&db);
@@ -45,58 +25,34 @@ fn test_complete_worktree_without_base_worktree() {
         .unwrap();
     let todo = todo_service.add_todo(task.id, "Fix bug", true).unwrap();
 
-    // Setup JJ repo
-    let temp_dir = tempfile::tempdir().unwrap();
-    let repo_path = temp_dir.path().to_str().unwrap();
-
-    init_jj_repo(repo_path);
-    fs::write(temp_dir.path().join("README.md"), "init").unwrap();
-    describe_change(repo_path, "init");
-    new_change(repo_path);
-
-    // Create task bookmark in the main repo (simulating `track sync`)
-    create_bookmark(repo_path, "task/ISSUE-123");
-
-    // Create todo worktree WITHOUT creating a base worktree entry
-    // This simulates the scenario where track sync checked out the task branch
-    // but didn't register the main repo as a base worktree
     let todo_wt = worktree_service
         .add_worktree(
             task.id,
-            repo_path,
+            &repo_path.to_string_lossy(),
             None,
             Some("ISSUE-123"),
             Some(todo.id),
-            false, // Not a base worktree
+            false,
         )
         .unwrap();
 
-    // Note: No base worktree exists in the DB at this point
-    // This simulates the issue where track sync doesn't register the main repo
-
-    // Make a commit in todo worktree
     fs::write(
         std::path::Path::new(&todo_wt.path).join("fix.txt"),
         "bug fixed",
     )
     .unwrap();
-    describe_change(&todo_wt.path, "fix bug");
-    new_change(&todo_wt.path);
+    common::jj::describe_change(std::path::Path::new(&todo_wt.path), "fix bug");
+    common::jj::new_change(std::path::Path::new(&todo_wt.path));
 
-    // Complete the worktree - this should work even without a base worktree in DB
-    // It should fall back to using the base_repo path
     let branch_name = worktree_service
         .complete_worktree_for_todo(todo.id)
         .unwrap();
 
-    // Verify branch was returned
     assert!(branch_name.is_some());
     assert_eq!(branch_name.unwrap(), todo_wt.branch);
 
-    // Verify worktree was removed from DB
     let worktrees = worktree_service.list_worktrees(task.id).unwrap();
-    assert_eq!(worktrees.len(), 0); // All TODO worktrees removed
+    assert_eq!(worktrees.len(), 0);
 
-    // Verify integration happened (fix.txt should exist in the main repository)
-    assert!(std::path::Path::new(repo_path).join("fix.txt").exists());
+    assert!(repo_path.join("fix.txt").exists());
 }

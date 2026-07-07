@@ -1,4 +1,6 @@
-use std::sync::{Mutex, OnceLock};
+mod common;
+
+use common::jj::{self, JjWorkspace};
 use track::cli::handler::CommandHandler;
 use track::cli::{Commands, LinkCommands, RepoCommands, ScrapCommands, TodoCommands};
 use track::db::Database;
@@ -8,77 +10,8 @@ use track::services::{
 };
 use track::utils::TrackError;
 
-fn jj_available() -> bool {
-    std::process::Command::new("jj")
-        .arg("--version")
-        .output()
-        .map(|output| output.status.success())
-        .unwrap_or(false)
-}
-
 fn cwd_lock() -> std::sync::MutexGuard<'static, ()> {
-    static CWD_MUTEX: OnceLock<Mutex<()>> = OnceLock::new();
-    CWD_MUTEX.get_or_init(|| Mutex::new(())).lock().unwrap()
-}
-
-fn require_jj() -> bool {
-    if !jj_available() {
-        eprintln!("Skipping test: jj binary not available");
-        return false;
-    }
-    true
-}
-
-fn init_jj_repo(path: &str) {
-    let output = std::process::Command::new("jj")
-        .current_dir(path)
-        .args(["git", "init", path])
-        .output()
-        .expect("failed to run jj git init");
-    assert!(
-        output.status.success(),
-        "jj git init failed: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-}
-
-fn describe_change(path: &str, message: &str) {
-    let output = std::process::Command::new("jj")
-        .current_dir(path)
-        .args(["-R", path, "describe", "-m", message])
-        .output()
-        .expect("failed to run jj describe");
-    assert!(
-        output.status.success(),
-        "jj describe failed: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-}
-
-fn new_change(path: &str) {
-    let output = std::process::Command::new("jj")
-        .current_dir(path)
-        .args(["-R", path, "new"])
-        .output()
-        .expect("failed to run jj new");
-    assert!(
-        output.status.success(),
-        "jj new failed: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-}
-
-fn create_bookmark(path: &str, name: &str) {
-    let output = std::process::Command::new("jj")
-        .current_dir(path)
-        .args(["-R", path, "bookmark", "create", name, "-r", "@"])
-        .output()
-        .expect("failed to run jj bookmark create");
-    assert!(
-        output.status.success(),
-        "jj bookmark create failed: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    jj::cwd_lock()
 }
 
 #[test]
@@ -248,9 +181,9 @@ fn test_handle_scrap_add() {
 
 #[test]
 fn test_handle_repo_add_remove() {
-    if !require_jj() {
+    let Some(ws) = JjWorkspace::new() else {
         return;
-    }
+    };
     let db = Database::new_in_memory().unwrap();
     let handler = CommandHandler::from_db(db);
     let db = handler.get_db();
@@ -259,14 +192,7 @@ fn test_handle_repo_add_remove() {
 
     let task = task_service.create_task("Task", None, None, None).unwrap();
 
-    let temp_dir = tempfile::tempdir().unwrap();
-    let repo_path = temp_dir.path().to_str().unwrap().to_string();
-    init_jj_repo(&repo_path);
-
-    // Add initial change so JJ has a base revision
-    std::fs::write(std::path::Path::new(&repo_path).join("README.md"), "init").unwrap();
-    describe_change(&repo_path, "init");
-    new_change(&repo_path);
+    let repo_path = ws.repo_path_string();
 
     let cmd = Commands::Repo(RepoCommands::Add {
         path: Some(repo_path.clone()),
@@ -308,9 +234,9 @@ fn test_todo_delete_force() {
 
 #[test]
 fn test_todo_workspace_requires_current_repo() {
-    if !require_jj() {
+    let Some(ws) = JjWorkspace::new() else {
         return;
-    }
+    };
     let _guard = cwd_lock();
     let db = Database::new_in_memory().unwrap();
     let handler = CommandHandler::from_db(db);
@@ -322,20 +248,14 @@ fn test_todo_workspace_requires_current_repo() {
     let task = task_service.create_task("Task", None, None, None).unwrap();
     let _todo = todo_service.add_todo(task.id, "Worktree", true).unwrap();
 
-    let temp_dir = tempfile::tempdir().unwrap();
-    let repo_path = temp_dir.path().join("repo");
-    std::fs::create_dir_all(&repo_path).unwrap();
-    init_jj_repo(repo_path.to_str().unwrap());
-    std::fs::write(repo_path.join("README.md"), "init").unwrap();
-    describe_change(repo_path.to_str().unwrap(), "init");
-    new_change(repo_path.to_str().unwrap());
+    let repo_path = ws.repo_path().to_path_buf();
 
     repo_service
         .add_repo(task.id, repo_path.to_str().unwrap(), None, None)
         .unwrap();
 
     let original_dir = std::env::current_dir().unwrap();
-    std::env::set_current_dir(temp_dir.path()).unwrap();
+    std::env::set_current_dir(ws.root().path()).unwrap();
 
     let cmd = Commands::Todo(TodoCommands::Workspace {
         id: 1,
@@ -356,9 +276,9 @@ fn test_todo_workspace_requires_current_repo() {
 
 #[test]
 fn test_todo_workspace_accepts_subdir_repo() {
-    if !require_jj() {
+    let Some(ws) = JjWorkspace::new() else {
         return;
-    }
+    };
     let _guard = cwd_lock();
     let db = Database::new_in_memory().unwrap();
     let handler = CommandHandler::from_db(db);
@@ -371,14 +291,8 @@ fn test_todo_workspace_accepts_subdir_repo() {
     let task = task_service.create_task("Task", None, None, None).unwrap();
     let _todo = todo_service.add_todo(task.id, "Worktree", false).unwrap();
 
-    let temp_dir = tempfile::tempdir().unwrap();
-    let repo_path = temp_dir.path().join("repo");
-    std::fs::create_dir_all(&repo_path).unwrap();
-    init_jj_repo(repo_path.to_str().unwrap());
-    std::fs::write(repo_path.join("README.md"), "init").unwrap();
-    describe_change(repo_path.to_str().unwrap(), "init");
-    new_change(repo_path.to_str().unwrap());
-    create_bookmark(repo_path.to_str().unwrap(), "task/task-1");
+    let repo_path = ws.repo_path().to_path_buf();
+    ws.create_bookmark("task/task-1");
 
     repo_service
         .add_repo(task.id, repo_path.to_str().unwrap(), None, None)
@@ -441,9 +355,9 @@ fn test_list_repo_links_manual() {
 
 #[test]
 fn test_handle_archive_clean_worktree() {
-    if !require_jj() {
+    let Some(ws) = JjWorkspace::new() else {
         return;
-    }
+    };
     let db = Database::new_in_memory().unwrap();
     let handler = CommandHandler::from_db(db);
     let db = handler.get_db();
@@ -454,14 +368,8 @@ fn test_handle_archive_clean_worktree() {
         .create_task("Task", None, Some("PROJ-999"), None)
         .unwrap();
 
-    // Create worktree
-    let temp_dir = tempfile::tempdir().unwrap();
-    let repo_path = temp_dir.path().to_str().unwrap().to_string();
-
-    init_jj_repo(&repo_path);
-    std::fs::write(std::path::Path::new(&repo_path).join("README.md"), "init").unwrap();
-    describe_change(&repo_path, "init");
-    new_change(&repo_path);
+    // Create worktree in an isolated clean jj repo.
+    let repo_path = ws.repo_path_string();
 
     worktree_service
         .add_worktree(task.id, &repo_path, None, Some("PROJ-999"), None, true)
@@ -490,9 +398,9 @@ fn test_handle_archive_clean_worktree() {
 
 #[test]
 fn test_handle_sync() {
-    if !require_jj() {
+    let Some(ws) = JjWorkspace::new() else {
         return;
-    }
+    };
     let db = Database::new_in_memory().unwrap();
     let handler = CommandHandler::from_db(db);
     let db = handler.get_db();
@@ -504,12 +412,7 @@ fn test_handle_sync() {
         .unwrap();
 
     // Setup JJ repo
-    let temp_dir = tempfile::tempdir().unwrap();
-    let repo_path = temp_dir.path().to_str().unwrap().to_string();
-    init_jj_repo(&repo_path);
-    std::fs::write(std::path::Path::new(&repo_path).join("README.md"), "init").unwrap();
-    describe_change(&repo_path, "init");
-    new_change(&repo_path);
+    let repo_path = ws.repo_path_string();
 
     // Register repo
     repo_service
@@ -583,9 +486,9 @@ fn test_handle_migrate_legacy_worktrees() {
 
 #[test]
 fn test_handle_sync_dirty_repo() {
-    if !require_jj() {
+    let Some(ws) = JjWorkspace::new() else {
         return;
-    }
+    };
     let db = Database::new_in_memory().unwrap();
     let handler = CommandHandler::from_db(db);
     let db = handler.get_db();
@@ -596,12 +499,7 @@ fn test_handle_sync_dirty_repo() {
         .create_task("Task", None, Some("SYNC-DIRTY"), None)
         .unwrap();
 
-    let temp_dir = tempfile::tempdir().unwrap();
-    let repo_path = temp_dir.path().to_str().unwrap().to_string();
-    init_jj_repo(&repo_path);
-    std::fs::write(std::path::Path::new(&repo_path).join("README.md"), "init").unwrap();
-    describe_change(&repo_path, "init");
-    new_change(&repo_path);
+    let repo_path = ws.repo_path_string();
 
     repo_service
         .add_repo(task.id, &repo_path, None, None)
@@ -618,9 +516,9 @@ fn test_handle_sync_dirty_repo() {
 
 #[test]
 fn test_handle_sync_repo_not_found() {
-    if !require_jj() {
+    let Some(ws) = JjWorkspace::new() else {
         return;
-    }
+    };
     let db = Database::new_in_memory().unwrap();
     let handler = CommandHandler::from_db(db);
     let db = handler.get_db();
@@ -635,16 +533,14 @@ fn test_handle_sync_repo_not_found() {
     // Note: RepoService validates JJ repos, so we can't directly add invalid ones
     // Instead, we'll add a valid one and then delete the directory
 
-    let temp_dir = tempfile::tempdir().unwrap();
-    let repo_path = temp_dir.path().to_str().unwrap().to_string();
-    init_jj_repo(&repo_path);
+    let repo_path = ws.repo_path_string();
 
     repo_service
         .add_repo(task.id, &repo_path, None, None)
         .unwrap();
 
-    // Delete the repo directory
-    drop(temp_dir); // This removes the directory
+    // Delete the repo directory by dropping the isolated workspace.
+    drop(ws);
 
     // Sync should handle this gracefully (skip non-existent repos)
     let cmd = Commands::Sync { legacy: true };
@@ -656,9 +552,9 @@ fn test_handle_sync_repo_not_found() {
 
 #[test]
 fn test_handle_sync_branch_already_exists() {
-    if !require_jj() {
+    let Some(ws) = JjWorkspace::new() else {
         return;
-    }
+    };
     let db = Database::new_in_memory().unwrap();
     let handler = CommandHandler::from_db(db);
     let db = handler.get_db();
@@ -670,15 +566,10 @@ fn test_handle_sync_branch_already_exists() {
         .unwrap();
 
     // Setup JJ repo
-    let temp_dir = tempfile::tempdir().unwrap();
-    let repo_path = temp_dir.path().to_str().unwrap().to_string();
-    init_jj_repo(&repo_path);
-    std::fs::write(std::path::Path::new(&repo_path).join("README.md"), "init").unwrap();
-    describe_change(&repo_path, "init");
-    new_change(&repo_path);
+    let repo_path = ws.repo_path_string();
 
     // Pre-create the task bookmark
-    create_bookmark(&repo_path, "task/SYNC-200");
+    ws.create_bookmark("task/SYNC-200");
 
     repo_service
         .add_repo(task.id, &repo_path, None, None)
@@ -699,9 +590,9 @@ fn test_handle_sync_branch_already_exists() {
 
 #[test]
 fn test_handle_sync_worktree_already_exists() {
-    if !require_jj() {
+    let Some(ws) = JjWorkspace::new() else {
         return;
-    }
+    };
     let db = Database::new_in_memory().unwrap();
     let handler = CommandHandler::from_db(db);
     let db = handler.get_db();
@@ -715,13 +606,8 @@ fn test_handle_sync_worktree_already_exists() {
         .unwrap();
 
     // Setup JJ repo
-    let temp_dir = tempfile::tempdir().unwrap();
-    let repo_path = temp_dir.path().to_str().unwrap().to_string();
-    init_jj_repo(&repo_path);
-    std::fs::write(std::path::Path::new(&repo_path).join("README.md"), "init").unwrap();
-    describe_change(&repo_path, "init");
-    new_change(&repo_path);
-    create_bookmark(&repo_path, "task/SYNC-300");
+    let repo_path = ws.repo_path_string();
+    ws.create_bookmark("task/SYNC-300");
 
     repo_service
         .add_repo(task.id, &repo_path, None, None)
@@ -753,9 +639,9 @@ fn test_handle_sync_worktree_already_exists() {
 
 #[test]
 fn test_handle_sync_skip_done_todos() {
-    if !require_jj() {
+    let Some(ws) = JjWorkspace::new() else {
         return;
-    }
+    };
     let db = Database::new_in_memory().unwrap();
     let handler = CommandHandler::from_db(db);
     let db = handler.get_db();
@@ -769,12 +655,7 @@ fn test_handle_sync_skip_done_todos() {
         .unwrap();
 
     // Setup JJ repo
-    let temp_dir = tempfile::tempdir().unwrap();
-    let repo_path = temp_dir.path().to_str().unwrap().to_string();
-    init_jj_repo(&repo_path);
-    std::fs::write(std::path::Path::new(&repo_path).join("README.md"), "init").unwrap();
-    describe_change(&repo_path, "init");
-    new_change(&repo_path);
+    let repo_path = ws.repo_path_string();
 
     repo_service
         .add_repo(task.id, &repo_path, None, None)
@@ -795,9 +676,9 @@ fn test_handle_sync_skip_done_todos() {
 
 #[test]
 fn test_handle_sync_failed_branch_create() {
-    if !require_jj() {
+    let Some(ws) = JjWorkspace::new() else {
         return;
-    }
+    };
     // Test scenario where bookmark creation fails
     let db = Database::new_in_memory().unwrap();
     let handler = CommandHandler::from_db(db);
@@ -810,12 +691,7 @@ fn test_handle_sync_failed_branch_create() {
         .unwrap();
 
     // Use an invalid repo path to cause JJ failures
-    let temp_dir = tempfile::tempdir().unwrap();
-    let repo_path = temp_dir.path().to_str().unwrap().to_string();
-    init_jj_repo(&repo_path);
-    std::fs::write(std::path::Path::new(&repo_path).join("README.md"), "init").unwrap();
-    describe_change(&repo_path, "init");
-    new_change(&repo_path);
+    let repo_path = ws.repo_path_string();
 
     repo_service
         .add_repo(task.id, &repo_path, None, None)
@@ -839,9 +715,9 @@ fn test_handle_sync_failed_branch_create() {
 fn test_worktree_complete_with_base_only() {
     use track::services::{TodoService, WorktreeService};
 
-    if !require_jj() {
+    let Some(ws) = JjWorkspace::new() else {
         return;
-    }
+    };
 
     let db = Database::new_in_memory().unwrap();
     let task_service = TaskService::new(&db);
@@ -853,12 +729,7 @@ fn test_worktree_complete_with_base_only() {
         .unwrap();
     let todo = todo_service.add_todo(task.id, "Test TODO", true).unwrap();
 
-    let temp_dir = tempfile::tempdir().unwrap();
-    let repo_path = temp_dir.path().to_str().unwrap().to_string();
-    init_jj_repo(&repo_path);
-    std::fs::write(std::path::Path::new(&repo_path).join("README.md"), "init").unwrap();
-    describe_change(&repo_path, "init");
-    new_change(&repo_path);
+    let repo_path = ws.repo_path_string();
 
     // Create only base worktree (is_base=true), no TODO-specific worktree
     let _base_wt = worktree_service
@@ -875,9 +746,9 @@ fn test_worktree_complete_with_base_only() {
 
 #[test]
 fn test_handle_sync_multiple_todos_different_worktrees() {
-    if !require_jj() {
+    let Some(ws) = JjWorkspace::new() else {
         return;
-    }
+    };
     let db = Database::new_in_memory().unwrap();
     let handler = CommandHandler::from_db(db);
     let db = handler.get_db();
@@ -890,13 +761,8 @@ fn test_handle_sync_multiple_todos_different_worktrees() {
         .create_task("Task", None, Some("SYNC-600"), None)
         .unwrap();
 
-    let temp_dir = tempfile::tempdir().unwrap();
-    let repo_path = temp_dir.path().to_str().unwrap().to_string();
-    init_jj_repo(&repo_path);
-    std::fs::write(std::path::Path::new(&repo_path).join("README.md"), "init").unwrap();
-    describe_change(&repo_path, "init");
-    new_change(&repo_path);
-    create_bookmark(&repo_path, "task/SYNC-600");
+    let repo_path = ws.repo_path_string();
+    ws.create_bookmark("task/SYNC-600");
 
     repo_service
         .add_repo(task.id, &repo_path, None, None)
@@ -988,4 +854,48 @@ fn test_handle_status_explicit_id() {
 
     // Should succeed
     handler.handle(cmd).unwrap();
+}
+
+#[test]
+fn test_handle_todo_add_no_workspace_flag() {
+    let db = Database::new_in_memory().unwrap();
+    let handler = CommandHandler::from_db(db);
+    let db = handler.get_db();
+    let task_service = TaskService::new(db);
+    let todo_service = TodoService::new(db);
+
+    task_service.create_task("Task", None, None, None).unwrap();
+
+    handler
+        .handle(Commands::Todo(TodoCommands::Add {
+            text: "Research".to_string(),
+            worktree: false,
+            no_workspace: true,
+        }))
+        .unwrap();
+
+    let task_id = db.get_current_task_id().unwrap().unwrap();
+    let todos = todo_service.list_todos(task_id).unwrap();
+    assert_eq!(todos.len(), 1);
+    assert!(!todos[0].requires_workspace);
+}
+
+#[test]
+fn test_handle_status_json_includes_workflow() {
+    let db = Database::new_in_memory().unwrap();
+    let handler = CommandHandler::from_db(db);
+    let db = handler.get_db();
+    let task_service = TaskService::new(db);
+
+    task_service
+        .create_task("JSON Task", None, Some("PROJ-1"), None)
+        .unwrap();
+
+    handler
+        .handle(Commands::Status {
+            id: None,
+            json: true,
+            all: false,
+        })
+        .unwrap();
 }

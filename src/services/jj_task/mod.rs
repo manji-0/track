@@ -1,43 +1,11 @@
-use serde::Deserialize;
+//! jj-task workspace map integration (reads `~/.config/jj/task-workspaces.json`).
+
+mod map;
+
+use map::load_map;
 use serde::Serialize;
-use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-
-#[derive(Debug, Deserialize)]
-struct JjTaskMap {
-    #[serde(default)]
-    repos: HashMap<String, JjRepoEntry>,
-}
-
-#[derive(Debug, Deserialize)]
-struct JjRepoEntry {
-    #[serde(default)]
-    tasks: HashMap<String, JjTaskEntry>,
-}
-
-#[derive(Debug, Deserialize)]
-struct JjTaskEntry {
-    workspace: String,
-    #[serde(default)]
-    phase: String,
-}
-
-fn map_path() -> PathBuf {
-    std::env::var("JJ_TASK_MAP")
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| {
-            directories::BaseDirs::new()
-                .map(|dirs| dirs.home_dir().join(".config/jj/task-workspaces.json"))
-                .unwrap_or_else(|| PathBuf::from(".config/jj/task-workspaces.json"))
-        })
-}
-
-fn load_map() -> Option<JjTaskMap> {
-    let path = map_path();
-    let content = std::fs::read_to_string(path).ok()?;
-    serde_json::from_str(&content).ok()
-}
 
 /// Normalizes a git remote URL to owner/repo (same logic as jj-task.sh).
 pub fn repo_key(repo_path: &str) -> String {

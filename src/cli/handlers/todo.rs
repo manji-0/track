@@ -2,7 +2,7 @@ use crate::cli::handlers::CommandCtx;
 use crate::cli::TodoCommands;
 use crate::models::{TaskRepo, TodoAction, TodoAddOptions, TodoStatus};
 use crate::services::{RepoService, TaskService, TodoService, WorktreeService};
-use crate::use_cases::ApplyTodoActionUseCase;
+use crate::use_cases::{ApplyTodoActionUseCase, CompleteTodoUseCase};
 use crate::utils::{Result, TrackError};
 use prettytable::{format, Cell, Row, Table};
 use std::io::{self, Write};
@@ -63,9 +63,7 @@ pub fn handle_todo(ctx: &CommandCtx, command: TodoCommands) -> Result<()> {
             println!("Updated TODO #{} status to '{}'", id, status);
         }
         TodoCommands::Done { id } => {
-            let outcome = ApplyTodoActionUseCase::new(ctx.db)
-                .execute(current_task_id, id, TodoAction::Complete)?
-                .expect("complete action returns outcome");
+            let outcome = CompleteTodoUseCase::new(ctx.db).execute(current_task_id, id)?;
             if let Some(branch) = outcome.merged_bookmark {
                 println!(
                     "Rebased and removed workspace for TODO #{} (bookmark: {}).",
@@ -86,9 +84,7 @@ pub fn handle_todo(ctx: &CommandCtx, command: TodoCommands) -> Result<()> {
             let repos = repo_service.list_repos(current_task_id)?;
 
             if repos.is_empty() {
-                return Err(TrackError::Other(
-                    "No repositories registered for this task.".to_string(),
-                ));
+                return Err(TrackError::NoRepositoriesRegistered);
             }
 
             let target_repos = if all {
@@ -96,9 +92,7 @@ pub fn handle_todo(ctx: &CommandCtx, command: TodoCommands) -> Result<()> {
             } else {
                 let current_path = std::env::current_dir()
                     .and_then(|path| path.canonicalize())
-                    .map_err(|e| {
-                        TrackError::Other(format!("Failed to resolve current path: {}", e))
-                    })?;
+                    .map_err(|e| TrackError::PathResolutionFailed(e.to_string()))?;
 
                 let mut matching: Vec<(TaskRepo, PathBuf)> = repos
                     .into_iter()
@@ -114,11 +108,10 @@ pub fn handle_todo(ctx: &CommandCtx, command: TodoCommands) -> Result<()> {
                     .collect();
 
                 matching.sort_by_key(|(_, repo_path)| repo_path.to_string_lossy().len());
-                let repo = matching.pop().map(|(repo, _)| repo).ok_or_else(|| {
-                    TrackError::Other(
-                        "Current directory is not a registered repo for this task.".to_string(),
-                    )
-                })?;
+                let repo = matching
+                    .pop()
+                    .map(|(repo, _)| repo)
+                    .ok_or(TrackError::CurrentDirectoryNotRegistered)?;
                 vec![repo]
             };
 
@@ -155,10 +148,9 @@ pub fn handle_todo(ctx: &CommandCtx, command: TodoCommands) -> Result<()> {
                             if Path::new(&worktree.path).exists()
                                 && worktree_service.has_uncommitted_changes(&worktree.path)?
                             {
-                                return Err(TrackError::Other(format!(
-                                        "Workspace {} has uncommitted changes. Use --force to recreate.",
-                                        worktree.path
-                                    )));
+                                return Err(TrackError::WorkspaceHasUncommittedChanges {
+                                    path: worktree.path.clone(),
+                                });
                             }
                         }
                     }
@@ -177,10 +169,10 @@ pub fn handle_todo(ctx: &CommandCtx, command: TodoCommands) -> Result<()> {
                                 );
                                 continue;
                             }
-                            return Err(TrackError::Other(format!(
-                                "Bookmark {} not found in {}.",
-                                worktree.branch, repo.repo_path
-                            )));
+                            return Err(TrackError::BookmarkNotFound {
+                                bookmark: worktree.branch.clone(),
+                                repo_path: repo.repo_path.clone(),
+                            });
                         }
 
                         let recreated = worktree_service.recreate_worktree(&worktree, force)?;
@@ -198,10 +190,10 @@ pub fn handle_todo(ctx: &CommandCtx, command: TodoCommands) -> Result<()> {
                             );
                             continue;
                         }
-                        return Err(TrackError::Other(format!(
-                            "Bookmark {} not found in {}.",
-                            branch_name, repo.repo_path
-                        )));
+                        return Err(TrackError::BookmarkNotFound {
+                            bookmark: branch_name.clone(),
+                            repo_path: repo.repo_path.clone(),
+                        });
                     }
 
                     let created = match worktree_service.add_worktree(
@@ -230,9 +222,7 @@ pub fn handle_todo(ctx: &CommandCtx, command: TodoCommands) -> Result<()> {
             }
 
             if output_paths.is_empty() {
-                return Err(TrackError::Other(
-                    "No workspace paths available for this TODO.".to_string(),
-                ));
+                return Err(TrackError::NoWorkspacePathsAvailable);
             }
 
             if all {
