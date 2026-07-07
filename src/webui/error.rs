@@ -45,7 +45,10 @@ impl WebError {
             | TrackError::TaskRepoIndexNotFound(_)
             | TrackError::LinkIndexNotFound(_)
             | TrackError::TaskReferenceNotFound(_)
-            | TrackError::LinkNotFound(_) => StatusCode::BAD_REQUEST,
+            | TrackError::LinkNotFound(_)
+            | TrackError::InvalidVcsMode(_)
+            | TrackError::UnknownConfigKey(_)
+            | TrackError::InvalidAppStateValue { .. } => StatusCode::BAD_REQUEST,
             TrackError::TaskNotFound(_)
             | TrackError::TodoNotFound(_)
             | TrackError::WorktreeNotFound(_)
@@ -67,6 +70,8 @@ impl WebError {
             | TrackError::Io(_)
             | TrackError::Cancelled
             | TrackError::TemplateRenderFailed { .. }
+            | TrackError::DataDirectoryUnavailable
+            | TrackError::MigrationBlocked { .. }
             | TrackError::Other(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }

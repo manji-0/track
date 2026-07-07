@@ -9,9 +9,7 @@ pub fn handle_config(ctx: &CommandCtx, command: ConfigCommands) -> Result<()> {
             let normalized = key.trim().to_ascii_lowercase().replace('_', "-");
             match normalized.as_str() {
                 "vcs-mode" => {
-                    let mode: VcsMode = value
-                        .parse()
-                        .map_err(|err: String| TrackError::Other(err))?;
+                    let mode: VcsMode = value.parse().map_err(TrackError::InvalidVcsMode)?;
                     ctx.db.set_vcs_mode(mode)?;
                     println!("Set VCS mode: {mode}");
                     match mode {
@@ -26,11 +24,7 @@ pub fn handle_config(ctx: &CommandCtx, command: ConfigCommands) -> Result<()> {
                         }
                     }
                 }
-                other => {
-                    return Err(TrackError::Other(format!(
-                        "unknown config key '{other}' (supported: vcs-mode)"
-                    )));
-                }
+                other => return Err(TrackError::UnknownConfigKey(other.to_string())),
             }
         }
         ConfigCommands::SetCalendar { calendar_id } => {

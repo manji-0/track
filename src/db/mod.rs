@@ -101,9 +101,8 @@ impl Database {
     }
 
     fn get_db_path() -> Result<PathBuf> {
-        let proj_dirs = ProjectDirs::from("", "", "track").ok_or_else(|| {
-            crate::utils::TrackError::Other("Failed to determine data directory".to_string())
-        })?;
+        let proj_dirs = ProjectDirs::from("", "", "track")
+            .ok_or(crate::utils::TrackError::DataDirectoryUnavailable)?;
 
         Ok(proj_dirs.data_dir().join("track.db"))
     }
@@ -273,9 +272,9 @@ impl Database {
     /// Returns the configured VCS backend (`jj` by default).
     pub fn get_vcs_mode(&self) -> Result<VcsMode> {
         match self.get_app_state(VcsMode::KEY)? {
-            Some(value) => value.parse().map_err(|err: String| {
-                crate::utils::TrackError::Other(format!("Invalid vcs_mode in database: {err}"))
-            }),
+            Some(value) => value
+                .parse()
+                .map_err(crate::utils::TrackError::InvalidVcsMode),
             None => Ok(VcsMode::default()),
         }
     }
@@ -293,7 +292,10 @@ impl Database {
     pub fn get_current_task_id(&self) -> Result<Option<i64>> {
         match self.get_app_state("current_task_id")? {
             Some(id_str) => Ok(Some(id_str.parse().map_err(|_| {
-                crate::utils::TrackError::Other("Invalid task ID in app_state".to_string())
+                crate::utils::TrackError::InvalidAppStateValue {
+                    key: "current_task_id".to_string(),
+                    detail: "expected integer".to_string(),
+                }
             })?)),
             None => Ok(None),
         }
@@ -475,7 +477,7 @@ mod tests {
         // Transaction should rollback on error
         let result: crate::utils::Result<()> = db.with_transaction(|| {
             db.set_app_state("rollback_key", "changed")?;
-            Err(crate::utils::TrackError::Other("forced error".to_string()))
+            Err(crate::utils::TrackError::Cancelled)
         });
 
         assert!(result.is_err());

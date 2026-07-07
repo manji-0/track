@@ -182,6 +182,21 @@ pub enum TrackError {
     #[error("Template '{name}' render failed: {detail}")]
     TemplateRenderFailed { name: String, detail: String },
 
+    #[error("Failed to determine data directory")]
+    DataDirectoryUnavailable,
+
+    #[error("Invalid VCS mode: {0}")]
+    InvalidVcsMode(String),
+
+    #[error("Invalid app_state value for '{key}': {detail}")]
+    InvalidAppStateValue { key: String, detail: String },
+
+    #[error("Migration blocked: {detail}")]
+    MigrationBlocked { detail: String },
+
+    #[error("Unknown config key '{0}' (supported: vcs-mode)")]
+    UnknownConfigKey(String),
+
     #[error("{0}")]
     Other(String),
 }

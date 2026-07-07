@@ -28,9 +28,9 @@ pub(crate) fn migrate_status_check_constraints(conn: &Connection) -> Result<()> 
         |row| row.get(0),
     )?;
     if invalid_tasks > 0 {
-        return Err(crate::utils::TrackError::Other(format!(
-            "Cannot migrate status constraints: {invalid_tasks} tasks have invalid status values"
-        )));
+        return Err(crate::utils::TrackError::MigrationBlocked {
+            detail: format!("{invalid_tasks} tasks have invalid status values"),
+        });
     }
 
     let invalid_todos: i64 = conn.query_row(
@@ -44,9 +44,9 @@ pub(crate) fn migrate_status_check_constraints(conn: &Connection) -> Result<()> 
         |row| row.get(0),
     )?;
     if invalid_todos > 0 {
-        return Err(crate::utils::TrackError::Other(format!(
-            "Cannot migrate status constraints: {invalid_todos} todos have invalid status values"
-        )));
+        return Err(crate::utils::TrackError::MigrationBlocked {
+            detail: format!("{invalid_todos} todos have invalid status values"),
+        });
     }
 
     let task_check = format!(
