@@ -195,6 +195,10 @@ pub enum MigrateCommands {
         /// Show what would change without writing
         #[arg(long)]
         dry_run: bool,
+
+        /// Remove legacy workspaces even when jj reports uncommitted changes
+        #[arg(short, long)]
+        force: bool,
     },
 }
 

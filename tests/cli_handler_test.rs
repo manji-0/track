@@ -476,6 +476,7 @@ fn test_handle_migrate_legacy_worktrees() {
             track::cli::MigrateCommands::LegacyWorktrees {
                 task_ref: None,
                 dry_run: false,
+                force: false,
             },
         ))
         .unwrap();

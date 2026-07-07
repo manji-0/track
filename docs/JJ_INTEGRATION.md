@@ -125,8 +125,9 @@ Legacy tasks: `track migrate legacy-worktrees` then jj-task.
 `track todo add --worktree` was **removed**. Existing DB rows with `worktree_requested` still work until migrated:
 
 ```bash
-track migrate legacy-worktrees --dry-run   # inspect
-track migrate legacy-worktrees             # clear flags, use jj-task
+track migrate legacy-worktrees --dry-run   # inspect flags + worktree records
+track migrate legacy-worktrees             # clear flags, remove legacy worktree DB/jj workspaces
+track migrate legacy-worktrees --force     # remove even when workspaces are dirty
 jj-task start <slug>
 ```
 

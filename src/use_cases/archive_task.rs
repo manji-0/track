@@ -425,7 +425,7 @@ mod tests {
     }
 
     #[test]
-    fn archive_aborts_when_workspace_removal_fails_without_force() {
+    fn archive_removes_stale_worktree_record_when_path_missing() {
         let db = Database::new_in_memory().unwrap();
         let task_service = TaskService::new(&db);
         let task = task_service.create_task("Task", None, None, None).unwrap();
@@ -438,6 +438,40 @@ mod tests {
                 rusqlite::params![
                     task.id,
                     "/tmp/missing-worktree",
+                    "track/task-1",
+                    "/tmp/missing-repo",
+                    now,
+                ],
+            )
+            .unwrap();
+
+        let outcome = ArchiveTaskUseCase::new(&db)
+            .execute(task.id, false)
+            .unwrap();
+
+        assert_eq!(outcome.removed_workspaces.len(), 1);
+        let archived = task_service.get_task(task.id).unwrap();
+        assert_eq!(archived.status, TaskStatus::Archived);
+    }
+
+    #[test]
+    fn archive_aborts_when_workspace_removal_fails_without_force() {
+        let db = Database::new_in_memory().unwrap();
+        let task_service = TaskService::new(&db);
+        let task = task_service.create_task("Task", None, None, None).unwrap();
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        let worktree_path = temp_dir.path().join("stale-workspace");
+        fs::create_dir(&worktree_path).unwrap();
+
+        let now = chrono::Utc::now().to_rfc3339();
+        db.get_connection()
+            .execute(
+                "INSERT INTO worktrees (task_id, path, branch, base_repo, status, created_at, is_base)
+                 VALUES (?1, ?2, ?3, ?4, 'active', ?5, 0)",
+                rusqlite::params![
+                    task.id,
+                    worktree_path.to_str().unwrap(),
                     "track/task-1",
                     "/tmp/missing-repo",
                     now,

@@ -17,4 +17,4 @@ pub use link_service::{LinkService, ScrapService};
 pub use repo_service::RepoService;
 pub use task_service::TaskService;
 pub use todo_service::TodoService;
-pub use worktree_service::WorktreeService;
+pub use worktree_service::{is_legacy_worktree, LegacyWorktreeCleanupOutcome, WorktreeService};

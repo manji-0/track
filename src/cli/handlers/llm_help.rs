@@ -140,7 +140,7 @@ This guide explains the standard workflow for completing tasks.
 | Command | Description |
 |---------|-------------|
 | `track sync [--legacy]` | Git: create worktree. JJ: legacy per-TODO only (else use jj-task) |
-| `track migrate legacy-worktrees [--dry-run]` | Clear legacy `--worktree` flags; switch to jj-task |
+| `track migrate legacy-worktrees [--dry-run] [--force]` | Clear legacy flags; remove legacy worktree DB/jj workspaces |
 | `track status` | Show current task, TODOs, workspaces, links |
 | `track status --json` | **Preferred for agents** — task + workflow + todos_agent + guardrails |
 | `track status --all` | Show all scraps instead of recent |
@@ -270,7 +270,7 @@ Access at: http://localhost:3000
 - `track archive` requires `jj-task done <slug>` when the jj-task map shows an active workspace.
 - Use `track archive --force` to skip jj-task/dirty checks (interactive prompt without flag).
 - `track sync` in JJ mode is for **legacy** per-TODO `--worktree` tasks only (or `--legacy` flag).
-- Run `track migrate legacy-worktrees` to move old tasks to jj-task.
+- Run `track migrate legacy-worktrees` to move old tasks to jj-task (removes legacy worktree records).
 - Use `track scrap add` to document decisions and findings during work.
 - Scraps support Markdown formatting and are sanitized for WebUI rendering.
 

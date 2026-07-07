@@ -9,6 +9,19 @@ use chrono::Utc;
 use rusqlite::{params, OptionalExtension};
 use std::path::Path;
 
+/// Result of removing legacy track-managed JJ workspaces for a task.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct LegacyWorktreeCleanupOutcome {
+    pub removed: Vec<(i64, String)>,
+    pub skipped_dirty: Vec<String>,
+    pub errors: Vec<String>,
+}
+
+/// Returns true for track-managed workspaces from the legacy sync / `--worktree` model.
+pub fn is_legacy_worktree(worktree: &Worktree) -> bool {
+    worktree.is_base || worktree.todo_id.is_some()
+}
+
 pub struct WorktreeService<'a> {
     db: &'a Database,
 }
@@ -197,7 +210,9 @@ impl<'a> WorktreeService<'a> {
 
         if !keep_files {
             if let Some(base_repo) = &worktree.base_repo {
-                jj::remove_workspace(base_repo, &worktree.path)?;
+                if Path::new(&worktree.path).exists() {
+                    jj::remove_workspace(base_repo, &worktree.path)?;
+                }
             }
         }
 
@@ -205,6 +220,55 @@ impl<'a> WorktreeService<'a> {
         conn.execute("DELETE FROM worktrees WHERE id = ?1", params![worktree_id])?;
         self.db.increment_rev("worktrees")?;
         Ok(())
+    }
+
+    /// Removes legacy track-managed workspaces (base + per-TODO) for jj-task migration.
+    pub fn cleanup_legacy_worktrees(
+        &self,
+        task_id: i64,
+        force: bool,
+    ) -> Result<LegacyWorktreeCleanupOutcome> {
+        let mut outcome = LegacyWorktreeCleanupOutcome::default();
+        let worktrees: Vec<Worktree> = self
+            .list_worktrees(task_id)?
+            .into_iter()
+            .filter(is_legacy_worktree)
+            .collect();
+
+        for worktree in worktrees {
+            match self.try_remove_legacy_worktree(&worktree, force) {
+                Ok(()) => outcome.removed.push((worktree.id, worktree.path)),
+                Err(TrackError::WorkspaceHasUncommittedChanges { path }) => {
+                    outcome.skipped_dirty.push(path);
+                }
+                Err(err) => outcome.errors.push(err.to_string()),
+            }
+        }
+
+        Ok(outcome)
+    }
+
+    /// Lists legacy worktrees registered for a task.
+    pub fn list_legacy_worktrees(&self, task_id: i64) -> Result<Vec<Worktree>> {
+        Ok(self
+            .list_worktrees(task_id)?
+            .into_iter()
+            .filter(is_legacy_worktree)
+            .collect())
+    }
+
+    fn try_remove_legacy_worktree(&self, worktree: &Worktree, force: bool) -> Result<()> {
+        if !Path::new(&worktree.path).exists() {
+            return self.remove_worktree(worktree.id, true);
+        }
+
+        if jj::has_uncommitted_changes(&worktree.path)? && !force {
+            return Err(TrackError::WorkspaceHasUncommittedChanges {
+                path: worktree.path.clone(),
+            });
+        }
+
+        self.remove_worktree(worktree.id, false)
     }
 
     pub fn bookmark_exists_in_repo(&self, repo_path: &str, bookmark: &str) -> Result<bool> {
@@ -365,6 +429,26 @@ mod tests {
             "jj bookmark create failed: {}",
             String::from_utf8_lossy(&output.stderr)
         );
+    }
+
+    #[test]
+    fn cleanup_removes_db_record_when_path_missing() {
+        let db = setup_db();
+        let task_service = TaskService::new(&db);
+        let service = WorktreeService::new(&db);
+        let task = task_service.create_task("Task", None, None, None).unwrap();
+
+        let now = Utc::now().to_rfc3339();
+        db.get_connection()
+            .execute(
+                "INSERT INTO worktrees (task_id, path, branch, base_repo, status, created_at, todo_id, is_base) VALUES (?1, ?2, ?3, ?4, 'active', ?5, NULL, 1)",
+                rusqlite::params![task.id, "/missing/path", "task/task-1", "/repo", now],
+            )
+            .unwrap();
+
+        let outcome = service.cleanup_legacy_worktrees(task.id, false).unwrap();
+        assert_eq!(outcome.removed.len(), 1);
+        assert!(service.list_worktrees(task.id).unwrap().is_empty());
     }
 
     #[test]
