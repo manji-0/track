@@ -5,7 +5,7 @@ license: MIT
 compatibility: Requires track CLI and jj-task (agent-skill-jj)
 metadata:
   author: track
-  version: 3.0.0
+  version: 3.1.0
   tags: [track, setup, planning, todo, repo]
 ---
 
@@ -22,7 +22,7 @@ Prepare **what** to build. JJ workspaces are created later via **jj-task** (see 
 
 - Task with name (ticket/alias recommended)
 - Registered repo(s)
-- TODO list (no `--worktree` — use one jj-task workspace per task)
+- TODO list (one jj-task workspace per task; `--no-workspace` for research TODOs)
 - `track alias set <slug>` when ticket ID is not a good jj-task slug
 
 ## Workflow
@@ -63,7 +63,7 @@ track todo add "Compare providers" --no-workspace
 track todo add "Add integration tests"
 ```
 
-Do **not** use `--worktree` (deprecated). One **jj-task** workspace covers all code TODOs sequentially.
+One **jj-task** workspace covers all code TODOs sequentially.
 
 ### 6. Review
 

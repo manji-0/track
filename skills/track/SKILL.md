@@ -5,7 +5,7 @@ license: MIT
 compatibility: Requires track CLI, jj, jj-task, and agent-skill-jj ($jj skill) on PATH
 metadata:
   author: track
-  version: 3.0.0
+  version: 3.1.0
   tags: [track, router, task-management]
 ---
 
@@ -51,7 +51,7 @@ track scrap / todo done  →  track DB only
 
 ## Universal guardrails
 
-1. **`track status --json` first** — follow `workflow.next_action` and `jj.slug`
+1. **`track status --json` first** — follow `workflow.next_action`, `workflow.checklist`, and `jj.slug`
 2. **Never feature-work in main workspace** — use `jj-task path <slug>`
 3. **All jj commands via `$jj` skill** — squash, commit, push, PR phases
 4. **`track todo done`** — marks TODO in track DB (not a substitute for `$jj`)

@@ -5,7 +5,7 @@ license: MIT
 compatibility: Requires track CLI, jj-task, and agent-skill-jj ($jj skill)
 metadata:
   author: track
-  version: 3.0.0
+  version: 3.1.0
   tags: [track, execute, agent, jj-task, todo]
 ---
 
@@ -50,6 +50,7 @@ track status --json
 | `jj.start_command` | Run when `sync_required` |
 | `jj.path_command` | cd target when `execute` |
 | `workflow.next_action` | Always follow this |
+| `workflow.checklist` | Ordered steps with `done` flags |
 | `guardrails.must_use_jj_skill` | Load `$jj` for jj commands |
 
 ## Step 2 — Start workspace (sync_required)
@@ -93,10 +94,6 @@ Marks TODO done in track. JJ history stays in the jj-task workspace via `$jj`.
 ## Step 6 — Repeat
 
 Re-run `track status --json` for the next TODO.
-
-## Legacy `--worktree`
-
-If a TODO used `--worktree`, `guardrails.complete_requires_jj_merge` is true — use `track sync` and `track todo workspace` instead of jj-task. Prefer jj-task for new work.
 
 ## Error recovery
 

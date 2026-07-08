@@ -69,7 +69,7 @@ npx skills add manji-0/track \
 | Router | `track` | Any track mention; routes by `workflow.phase` |
 | Setup | `track-task-setup` | Create task, repos, TODOs |
 | Execute | `track-task-execute` | Sync, implement, `todo done` |
-| Advanced | `track-advanced` | Multi-repo, parallel, archive |
+| Advanced | `track-advanced` | Multi-repo, archive, hotfix |
 
 Legacy monolithic skill **`track-task-management`** is deprecated — see `skills/task-management/SKILL.md`.
 
@@ -192,6 +192,7 @@ track status --json
 |-------|-----|
 | `workflow.phase` | Route to setup / execute / advanced skill |
 | `workflow.next_action` | Suggested command and reason |
+| `workflow.checklist` | Ordered setup/sync steps |
 | `todos_agent[].is_next` | Which TODO to work on |
 | `todos_agent[].allowed_actions` | Valid operations (no reopen) |
 | `guardrails` | Must-follow rules |

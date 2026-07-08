@@ -13,6 +13,7 @@ Complete workflow for creating and setting up development tasks.
 ## Prerequisites
 
 - `track` CLI installed and initialized
+- [agent-skill-jj](https://github.com/manji-0/agent-skill-jj) with `jj-task` on PATH
 
 ## Step-by-Step Workflow
 
@@ -26,6 +27,7 @@ track new "<task_name>"
 **With ticket (recommended):**
 ```bash
 track new "<task_name>" --ticket <TICKET_ID> --ticket-url <URL>
+track alias set <slug>    # optional: overrides jj.slug when ticket ID is awkward
 ```
 
 **Examples:**
@@ -56,61 +58,63 @@ track repo add [path]
 track repo add --base develop
 ```
 
-Required before `track sync` when TODOs use `--worktree`.
+Register every repo that will participate in the task (multi-repo tasks repeat this).
 
 ---
 
-### Step 4: Add TODOs
+### Step 4: Initialize jj-task (once per repo)
+
+From the **main workspace** (repo root):
+
+```bash
+jj git init --colocate    # if needed
+jj-task repo init
+```
+
+---
+
+### Step 5: Add TODOs
 
 ```bash
 track todo add "<description>"
-track todo add "<description>" --worktree
+track todo add "Compare providers" --no-workspace   # research / planning only
 ```
 
-Use `--worktree` for isolated or parallel work.
+One **jj-task** workspace covers all code TODOs for the task. Use `--no-workspace` when the TODO does not need a jj workspace (research, docs-only planning).
 
 ---
 
-### Step 5: Review Setup
+### Step 6: Review Setup
 
 ```bash
 track status --json
 ```
 
-Verify task, repos, and `todos_agent` list.
-
----
-
-### Step 6: Sync (optional before handoff)
-
-```bash
-track sync
-```
-
-Creates task bookmarks and workspaces. Can defer until execution starts.
+Verify task, repos, `todos_agent`, `jj.slug`, and `workflow.checklist`.
 
 ---
 
 ## Common Patterns
 
-### Simple Task (No Workspaces)
+### Simple Task (docs / planning)
 
 ```bash
 track new "Update documentation"
 track desc "Update README and add API examples"
-track todo add "Update README with new features"
-track todo add "Add API usage examples"
+track todo add "Update README with new features" --no-workspace
+track todo add "Add API usage examples" --no-workspace
 ```
 
-### Complex Feature with Workspaces
+### Feature with Code Changes
 
 ```bash
 track new "Add payment integration" --ticket PROJ-789
 track desc "Integrate Stripe payment processing"
 track repo add
-track todo add "Set up Stripe SDK" --worktree
-track todo add "Create payment models" --worktree
-track sync
+jj-task repo init
+track todo add "Set up Stripe SDK"
+track todo add "Create payment models"
+track todo add "Add integration tests"
 ```
 
 ---
@@ -125,7 +129,7 @@ track sync
 
 ## Next Step
 
-Switch to **track-task-execute** — see [execution-workflow.md](../../track-task-execute/references/execution-workflow.md).
+Switch to **track-task-execute** — `jj-task start <jj.slug>` — see [execution-workflow.md](../../track-task-execute/references/execution-workflow.md).
 
 ## Quick Reference
 
@@ -134,6 +138,7 @@ Switch to **track-task-execute** — see [execution-workflow.md](../../track-tas
 | `track new "<name>"` | Create task |
 | `track desc "<text>"` | Add description |
 | `track repo add [path]` | Register repository |
-| `track todo add "<text>" --worktree` | Add TODO with workspace |
+| `track todo add "<text>"` | Add code TODO |
+| `track todo add "<text>" --no-workspace` | Add research/planning TODO |
 | `track status --json` | Verify setup state |
-| `track sync` | Create bookmarks/workspaces |
+| `jj-task repo init` | Register repo with jj-task (once per repo) |

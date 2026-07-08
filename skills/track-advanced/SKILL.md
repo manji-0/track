@@ -5,7 +5,7 @@ license: MIT
 compatibility: Requires track CLI, jj-task, and agent-skill-jj ($jj skill)
 metadata:
   author: track
-  version: 3.0.0
+  version: 3.1.0
   tags: [track, advanced, multi-repo, archive]
 ---
 
@@ -19,7 +19,8 @@ Track handles **task state**; **`$jj`** handles **PR merge and push**.
 track status --json                    # confirm task_complete
 # $jj skill: merge PR, final push
 jj-task done <jj.slug>                 # mark workspace merged in jj map
-track archive                          # archive track task
+track archive                          # validates jj-task phase + dirty workspaces
+track archive --force                  # skip validation when intentional
 ```
 
 ## Multi-repository task
@@ -68,11 +69,5 @@ track todo add "Compare providers" --no-workspace
 track scrap add "Finding: ..."
 track todo done 1
 ```
-
-## Deprecated patterns
-
-- **`track todo add --worktree`** — legacy; use jj-task instead
-- **`track sync` + repo root editing** — replaced by jj-task workspace
-- **`jj describe` only** — use **`$jj`** for commit/PR rules
 
 Patterns: [references/advanced-patterns.md](references/advanced-patterns.md)

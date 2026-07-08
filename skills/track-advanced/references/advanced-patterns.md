@@ -1,6 +1,6 @@
 # Advanced Workflows — Detailed Patterns
 
-Advanced patterns for multi-repo, parallel, and long-running work.
+Advanced patterns for multi-repo, hotfixes, and long-running work.
 
 **Skill:** [track-advanced](../SKILL.md) · **Setup:** [track-task-setup](../../track-task-setup/SKILL.md) · **Execute:** [track-task-execute](../../track-task-execute/SKILL.md)
 
@@ -10,42 +10,13 @@ Advanced patterns for multi-repo, parallel, and long-running work.
 track new "Cross-service feature" --ticket PROJ-789
 track repo add /path/to/frontend
 track repo add /path/to/backend
-track todo add "Add sync API endpoint" --worktree
-track todo add "Implement sync client" --worktree
-track sync
+track todo add "Add sync API endpoint"
+track todo add "Implement sync client"
 ```
 
-Work each TODO via **track-task-execute** — `track sync` touches all repos.
+Each repo: `jj-task repo init` once, then `jj-task start <slug>` per repo (same slug, separate jj-task maps).
 
----
-
-## Parallel Development
-
-**Terminal 1:**
-```bash
-cd "$(track todo workspace 2)"
-# ... work ...
-track todo done 2
-```
-
-**Terminal 2:**
-```bash
-cd "$(track todo workspace 3)"
-# ... work ...
-track todo done 3
-```
-
----
-
-## Ticket-Based Organization
-
-```bash
-track new "Fix memory leak" --ticket GH-456
-track switch t:PROJ-123
-track archive t:PROJ-123
-```
-
-Bookmarks: `task/<ticket>` and `task/<ticket>-todo-<n>`.
+Work through TODOs sequentially in the jj-task workspace(s) via **track-task-execute** and **`$jj`**.
 
 ---
 
@@ -53,12 +24,12 @@ Bookmarks: `task/<ticket>` and `task/<ticket>-todo-<n>`.
 
 ```bash
 track new "Fix critical auth bug" --ticket BUG-999
-track todo add "Fix token refresh logic" --worktree
-track sync
-cd "$(track todo workspace 1)"
-# fix, test, describe, done
+track alias set fix-auth-bug
+track todo add "Fix token refresh logic"
+jj-task start fix-auth-bug
+cd "$(jj-task path fix-auth-bug)"
+# fix, test — $jj skill for squash/commit/PR
 track todo done 1
-jj git push --bookmark task/BUG-999
 ```
 
 ---
@@ -67,21 +38,30 @@ jj git push --bookmark task/BUG-999
 
 ```bash
 track new "Research authentication providers"
-track todo add "Compare Okta vs Auth0"    # no --worktree
+track todo add "Compare Okta vs Auth0" --no-workspace
 track scrap add "Finding: ..."
 track todo done 1
 ```
+
+Research TODOs skip workspace sync and go straight to `execute`.
 
 ---
 
 ## Team Collaboration
 
 ```bash
-jj git push --bookmark task/PROJ-123
-# teammate:
+# $jj skill: push bookmark, open PR
+track status --json    # share jj.slug + TODOs
+track scrap list
+```
+
+Teammate switches task and continues in their jj-task workspace:
+
+```bash
 track switch t:PROJ-123
 track status --json
-track scrap list
+jj-task start <jj.slug>
+cd "$(jj-task path <jj.slug>)"
 ```
 
 ---
@@ -90,18 +70,20 @@ track scrap list
 
 ```bash
 track status --json   # confirm task_complete
+# $jj skill: merge PR if needed
+jj-task done <jj.slug>
 track archive
 ```
 
-Dirty workspaces block archive — commit or discard first.
+`track archive` validates jj-task phase and dirty workspaces. Use `track archive --force` only when you intentionally skip those checks.
 
 ---
 
 ## Best Practices
 
-1. Use tickets for consistent bookmark naming
-2. Use `--worktree` for complex or parallel work
-3. Describe frequently with `jj describe`
+1. Use tickets or `track alias set` for stable jj-task slugs
+2. One jj-task workspace per track task — sequential TODOs, not per-TODO workspaces
+3. All jj commit/PR work through **`$jj`** skill
 4. Document decisions with `track scrap add`
-5. Read `track status --json` before and after work
+5. Read `track status --json` before and after work — follow `workflow.checklist`
 6. Archive completed tasks regularly

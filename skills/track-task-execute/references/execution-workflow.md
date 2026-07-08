@@ -13,7 +13,9 @@ Complete workflow for working through TODOs and completing tasks.
 ## Prerequisites
 
 - Task created with TODOs
-- Repos registered (if using workspaces)
+- Repos registered
+- [agent-skill-jj](https://github.com/manji-0/agent-skill-jj) `$jj` skill installed
+- `jj-task` on PATH
 
 ## Step-by-Step Workflow
 
@@ -23,50 +25,55 @@ Complete workflow for working through TODOs and completing tasks.
 track status --json
 ```
 
-Follow `workflow.next_action.command` — do not guess the next step.
+Follow `workflow.next_action.command` and `workflow.checklist` — do not guess the next step.
 
 Key fields:
 
 | Field | Action |
 |-------|--------|
-| `workflow.phase` | `sync_required` → sync; `execute` → work TODO |
+| `workflow.phase` | `sync_required` → start workspace; `execute` → work TODO |
+| `workflow.checklist` | Ordered setup/sync steps with `done` flags |
+| `workflow.next_action` | Suggested command and reason |
+| `jj.slug` | jj-task workspace name |
+| `jj.start_command` | Run when `sync_required` |
+| `jj.path_command` | cd target when `execute` |
 | `todos_agent[].is_next` | Current TODO |
 | `todos_agent[].allowed_actions` | Only listed actions (no reopen) |
-| `guardrails.must_sync_before_code_changes` | Run `track sync` before edits |
+| `guardrails.must_use_jj_skill` | Load `$jj` for all jj commands |
 
 ---
 
-### Step 2: Sync and Verify Bookmark
+### Step 2: Start jj-task Workspace (sync_required)
+
+From the **main workspace** (repo root):
 
 ```bash
-track sync
-jj status
-jj bookmark list -r @
+jj-task repo init          # once per repo, if not done in setup
+jj-task start <jj.slug>
+cd "$(jj-task path <jj.slug>)"
 ```
 
-Stop if bookmark is `main` / `master` / `develop`.
+Multi-repo tasks: repeat `jj-task start` per registered repo (same slug).
+
+Workspace path: `.worktrees/<slug>/` (agent-skill-jj convention).
 
 ---
 
-### Step 3: Navigate to Workspace
+### Step 3: Implement and Test
 
-```bash
-cd "$(track todo workspace <index>)"
-jj status
-```
+- Work only inside the jj-task workspace — **not** repo root
+- Run project tests / linters
+- For **all** jj operations, follow the **`$jj` skill**:
+  - Draft phase: `jj squash`, force push OK
+  - In review: `jj commit`, append only
+  - prek before commit when hook config exists
+  - Conventional Commits format
 
----
-
-### Step 4: Implement and Test
-
-```bash
-jj describe -m "<summary>"
-# run project tests / linters
-```
+Do **not** use bare `jj describe` as a substitute for `$jj` commit rules.
 
 ---
 
-### Step 5: Record Progress
+### Step 4: Record Progress
 
 ```bash
 track scrap add "<note>"
@@ -74,21 +81,21 @@ track scrap add "<note>"
 
 ---
 
-### Step 6: Complete TODO
+### Step 5: Complete TODO
 
 ```bash
 track todo done <index>
 ```
 
-**Never** `track todo update <index> done` — that skips JJ merge.
+Marks TODO done in track DB. JJ history stays in the jj-task workspace via `$jj`.
 
 **Never** reopen done/cancelled TODOs — add a new TODO instead.
 
 ---
 
-### Step 7: Repeat
+### Step 6: Repeat
 
-Re-run `track status --json` until `workflow.phase` is `task_complete`.
+Re-run `track status --json` for the next TODO until `workflow.phase` is `task_complete`.
 
 ---
 
@@ -96,11 +103,11 @@ Re-run `track status --json` until `workflow.phase` is `task_complete`.
 
 ```bash
 track status --json
-track sync
-cd "$(track todo workspace 2)"
+jj-task start proj-123
+cd "$(jj-task path proj-123)"
 # ... implement, test ...
-jj describe -m "Implement Google OAuth flow"
-track scrap add "Completed Google OAuth. Tests passing."
+# $jj skill: squash/commit per PR phase
+track scrap add "Completed OAuth flow. Tests passing."
 track todo done 2
 track status --json
 ```
@@ -113,8 +120,7 @@ When all TODOs are done:
 
 1. `track status --json` — confirm `task_complete`
 2. `track scrap list` — review notes
-3. `jj git push --bookmark task/PROJ-123`
-4. Switch to **track-advanced** for archive/handoff
+3. Switch to **track-advanced** for `$jj` merge/PR and `track archive`
 
 ---
 
@@ -122,16 +128,18 @@ When all TODOs are done:
 
 | Problem | Fix |
 |---------|-----|
-| `todo done` fails (dirty workspace) | `jj describe`, retry |
-| Workspace missing | `track sync` |
-| Wrong bookmark | `track sync`, verify with `jj status` |
+| Unknown slug | `jj-task start <jj.slug>` |
+| Wrong directory | `cd "$(jj-task path <jj.slug>)"` |
+| Commit/PR questions | Load **`$jj`** skill |
+| TODO state | `track status --json` |
+| jj-task phase not done at archive | `$jj` skill to finish PR, or `track archive --force` |
 
 ## Quick Reference
 
 | Command | Purpose |
 |---------|---------|
-| `track status --json` | Machine-readable context |
-| `track sync` | Bookmarks + workspaces |
+| `track status --json` | Machine-readable context + checklist |
+| `jj-task start <slug>` | Create/open task workspace |
+| `jj-task path <slug>` | Print workspace path for `cd` |
 | `track scrap add` | Record progress |
-| `track todo done <index>` | Complete + JJ merge |
-| `jj describe -m "..."` | Describe changes |
+| `track todo done <index>` | Mark TODO done in track DB |

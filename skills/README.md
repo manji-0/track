@@ -50,7 +50,7 @@ python3 scripts/validate_package.py
 | **track** | User mentions track; read `workflow.phase` and route | `skills/track/SKILL.md` |
 | **track-task-setup** | Create task, repos, TODOs, links (`setup`) | `skills/track-task-setup/SKILL.md` |
 | **track-task-execute** | Agent coding loop (`sync_required`, `execute`) | `skills/track-task-execute/SKILL.md` |
-| **track-advanced** | Multi-repo, parallel, hotfix, archive | `skills/track-advanced/SKILL.md` |
+| **track-advanced** | Multi-repo, hotfix, archive | `skills/track-advanced/SKILL.md` |
 
 ### Routing by workflow phase
 
@@ -61,7 +61,7 @@ Run `track status --json` first, then pick a skill:
 | `setup` | track-task-setup |
 | `sync_required` / `execute` | track-task-execute |
 | `task_complete` | track-advanced |
-| Multi-repo / parallel / hotfix | track-advanced |
+| Multi-repo / hotfix | track-advanced |
 
 The **track** skill is a lightweight router — it maps phase and intent to the specialized skills above.
 
