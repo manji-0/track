@@ -46,7 +46,7 @@ $jj skill + jj-task done <slug> + track archive
 - Scraps, links, tickets, aliases
 - `track status --json` / `GET /api/status` — `workflow`, `jj`, `todos_agent`, `guardrails`
 - WebUI
-- `track archive` (task-level cleanup)
+- `track archive` (task-level cleanup; treats jj-task phase `merged` or legacy `done` as complete)
 
 ### agent-skill-jj (`$jj`) owns
 
@@ -115,7 +115,7 @@ Workflow phase computation and agent `next_action` generation are implemented in
 | `setup` | `track repo add`, `track todo add` | `jj-task repo init` (once) |
 | `sync_required` | follow `workflow.checklist` | `jj-task start <slug>` per repo |
 | `execute` | `track scrap add`, `track todo done` | `$jj` for all jj commands |
-| `task_complete` | `track archive` (after `jj-task done`) | `$jj` if phase not `done` |
+| `task_complete` | `track archive` (after `jj-task done` → phase `merged`) | `$jj` if phase not `merged`/`done` |
 
 Research TODOs: `track todo add "..." --no-workspace`  
 Legacy tasks: `track migrate legacy-worktrees` then jj-task.

@@ -132,7 +132,7 @@ When all TODOs are done:
 | Wrong directory | `cd "$(jj-task path <jj.slug>)"` |
 | Commit/PR questions | Load **`$jj`** skill |
 | TODO state | `track status --json` |
-| jj-task phase not done at archive | `$jj` skill to finish PR, or `track archive --force` |
+| jj-task phase not merged at archive | `$jj` skill to finish PR, `jj-task done`, or `track archive --force` |
 
 ## Quick Reference
 

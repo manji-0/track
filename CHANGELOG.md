@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Treat jj-task map phase `merged` (from `jj-task done`) as completed; keep legacy `done` for compatibility
+
 ## [0.7.0] - 2026-07-08
 
 ### Added

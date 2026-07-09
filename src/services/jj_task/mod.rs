@@ -121,11 +121,19 @@ pub fn repo_initialized(repo_path: &str) -> bool {
     map.repos.contains_key(&repo_key(repo_path))
 }
 
-/// Returns registrations that are not marked `done` in the jj-task map.
+/// True when the jj-task map phase means the workspace is finished.
+///
+/// agent-skill-jj uses `merged` after `jj-task done`. `done` is accepted for
+/// older maps / tests that used that label.
+pub fn is_completed_phase(phase: Option<&str>) -> bool {
+    matches!(phase, Some("merged") | Some("done"))
+}
+
+/// Returns registrations that are not marked completed in the jj-task map.
 pub fn active_registrations(slug: &str, repo_paths: &[String]) -> Vec<RepoWorkspaceStatus> {
     repos_workspace_status(slug, repo_paths)
         .into_iter()
-        .filter(|status| status.registered && status.phase.as_deref() != Some("done"))
+        .filter(|status| status.registered && !is_completed_phase(status.phase.as_deref()))
         .collect()
 }
 
@@ -194,25 +202,40 @@ mod tests {
     }
 
     #[test]
-    fn active_registrations_excludes_done_phase() {
+    fn is_completed_phase_accepts_merged_and_done() {
+        assert!(is_completed_phase(Some("merged")));
+        assert!(is_completed_phase(Some("done")));
+        assert!(!is_completed_phase(Some("draft")));
+        assert!(!is_completed_phase(Some("in_review")));
+        assert!(!is_completed_phase(None));
+    }
+
+    #[test]
+    fn active_registrations_excludes_completed_phases() {
         let statuses = vec![
             RepoWorkspaceStatus {
                 repo_path: "/a".into(),
                 registered: true,
                 workspace_path: Some("/a/.worktrees/slug".into()),
+                phase: Some("merged".into()),
+            },
+            RepoWorkspaceStatus {
+                repo_path: "/c".into(),
+                registered: true,
+                workspace_path: Some("/c/.worktrees/slug".into()),
                 phase: Some("done".into()),
             },
             RepoWorkspaceStatus {
                 repo_path: "/b".into(),
                 registered: true,
                 workspace_path: Some("/b/.worktrees/slug".into()),
-                phase: Some("active".into()),
+                phase: Some("draft".into()),
             },
         ];
 
         let active: Vec<_> = statuses
             .into_iter()
-            .filter(|s| s.registered && s.phase.as_deref() != Some("done"))
+            .filter(|s| s.registered && !is_completed_phase(s.phase.as_deref()))
             .collect();
         assert_eq!(active.len(), 1);
         assert_eq!(active[0].repo_path, "/b");

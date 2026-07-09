@@ -477,13 +477,22 @@ pub fn build_next_action(
                 let had_workspace_todos = todos.iter().any(|t| t.requires_workspace);
                 let registered = jj_task::all_repos_registered(&slug, &paths);
                 let phase = jj_task::task_phase(&slug, &paths);
-                if had_workspace_todos && registered && phase.as_deref() != Some("done") {
+                if had_workspace_todos
+                    && registered
+                    && !jj_task::is_completed_phase(phase.as_deref())
+                {
                     NextAction {
                         kind: NextActionKind::UseJjSkill,
                         command: None,
                         reason: format!(
                             "All TODOs done — use $jj skill to push/merge PR, then `jj-task done {slug}` and `track archive`"
                         ),
+                    }
+                } else if jj_task::is_completed_phase(phase.as_deref()) {
+                    NextAction {
+                        kind: NextActionKind::RunCommand,
+                        command: Some("track archive".to_string()),
+                        reason: "jj-task workspace is merged — archive the track task".to_string(),
                     }
                 } else {
                     NextAction {

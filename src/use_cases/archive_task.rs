@@ -104,7 +104,7 @@ impl ArchivePrompt {
             }
             ArchivePromptKind::JjTaskNotCompleted { slug, workspaces } => {
                 let mut warning_lines = vec![
-                    format!("WARNING: jj-task workspace '{slug}' is not marked done."),
+                    format!("WARNING: jj-task workspace '{slug}' is not marked merged."),
                     format!("  Merge your PR with the $jj skill, then run: jj-task done {slug}"),
                 ];
                 warning_lines.extend(workspaces.iter().map(|path| format!("  {path}")));
@@ -380,7 +380,52 @@ mod tests {
     }
 
     #[test]
-    fn archive_allows_done_jj_task_phase() {
+    fn archive_allows_merged_jj_task_phase() {
+        let _guard = jj_task_map_lock();
+        let temp = tempfile::tempdir().unwrap();
+        let map_path = temp.path().join("task-workspaces.json");
+        let repo_path = temp.path().join("repo");
+        fs::create_dir_all(&repo_path).unwrap();
+        let repo_key = jj_task::repo_key(repo_path.to_str().unwrap());
+        fs::write(
+            &map_path,
+            format!(
+                r#"{{
+              "repos": {{
+                {repo_key:?}: {{
+                  "tasks": {{
+                    "task-1": {{
+                      "workspace": "/repo/.worktrees/task-1",
+                      "phase": "merged"
+                    }}
+                  }}
+                }}
+              }}
+            }}"#
+            ),
+        )
+        .unwrap();
+
+        let prev = std::env::var("JJ_TASK_MAP").ok();
+        unsafe { std::env::set_var("JJ_TASK_MAP", &map_path) };
+
+        let db = Database::new_in_memory().unwrap();
+        let task_service = TaskService::new(&db);
+        let task = task_service.create_task("Task", None, None, None).unwrap();
+        insert_repo(&db, task.id, repo_path.to_str().unwrap());
+
+        let result = ArchiveTaskUseCase::new(&db).execute(task.id, false);
+
+        match prev {
+            Some(value) => unsafe { std::env::set_var("JJ_TASK_MAP", value) },
+            None => unsafe { std::env::remove_var("JJ_TASK_MAP") },
+        }
+
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn archive_allows_legacy_done_jj_task_phase() {
         let _guard = jj_task_map_lock();
         let temp = tempfile::tempdir().unwrap();
         let map_path = temp.path().join("task-workspaces.json");
