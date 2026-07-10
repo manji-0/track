@@ -1,34 +1,28 @@
-{% if workflow %}
-<div class="card workflow-card" id="workflow-section">
-    <div class="card-header">
-        <h2 class="card-title"><span class="icon">🔀</span> Workflow</h2>
-        <span class="workflow-phase badge phase-{{ workflow.phase }}">{{ workflow.phase }}</span>
+<div class="workflow-footer" id="workflow-section">
+    {% if workflow %}
+    <div class="workflow-head">
+        <span class="phase-badge phase-{{ workflow.phase }}">{{ workflow.phase }}</span>
+        <span class="workflow-label">workflow</span>
     </div>
-    <div class="card-content">
-        {% if workflow.next_action %}
-        <div class="workflow-next">
-            <strong>Next:</strong>
-            {% if workflow.next_action.command %}
-            <code class="workflow-command">{{ workflow.next_action.command }}</code>
-            {% else %}
-            <span class="workflow-kind">{{ workflow.next_action.kind }}</span>
-            {% endif %}
-            <p class="workflow-reason">{{ workflow.next_action.reason }}</p>
-        </div>
-        {% endif %}
-        {% if workflow.checklist and workflow.checklist|length > 0 %}
-        <ul class="workflow-checklist">
-            {% for step in workflow.checklist %}
-            <li class="workflow-step {% if step.done %}done{% endif %}">
-                <span class="step-marker">{% if step.done %}✓{% else %}○{% endif %}</span>
-                <span class="step-label">{{ step.label }}</span>
-                {% if step.command and not step.done %}
-                <code class="step-command">{{ step.command }}</code>
-                {% endif %}
-            </li>
-            {% endfor %}
-        </ul>
-        {% endif %}
-    </div>
+    {% if workflow.next_action %}
+    {% if workflow.next_action.command %}
+    <code class="workflow-command">→ {{ workflow.next_action.command }}</code>
+    {% else %}
+    <code class="workflow-command">→ {{ workflow.next_action.kind }}</code>
+    {% endif %}
+    {% if workflow.next_action.reason %}
+    <p class="workflow-reason">{{ workflow.next_action.reason }}</p>
+    {% endif %}
+    {% endif %}
+    {% if workflow.checklist and workflow.checklist|length > 0 %}
+    <ul class="workflow-checklist">
+        {% for step in workflow.checklist %}
+        <li class="workflow-step {% if step.done %}done{% endif %}">
+            <span class="step-marker">{% if step.done %}✓{% else %}○{% endif %}</span>
+            <span class="step-label">{{ step.label }}</span>
+        </li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+    {% endif %}
 </div>
-{% endif %}

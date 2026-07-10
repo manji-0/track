@@ -1,73 +1,31 @@
-<div class="card scrollable-card" id="scraps-section">
-    <div class="card-header">
-        <h2 class="card-title"><span class="icon">📝</span> Scraps</h2>
-    </div>
-
-    <div class="card-content">
-        <!-- Add Scrap Form -->
-        <div class="input-form-container">
-            <form id="scrap-form" hx-post="/api/scrap" hx-swap="none" hx-on::after-request="this.reset()">
-                <div class="input-group">
-                    <textarea name="content" id="scrap-input"
-                        placeholder="Add a note or scrap... (Shift+Enter for newline)" required autocomplete="off"
-                        rows="1" style="resize: vertical; min-height: 2.5rem;"></textarea>
-                    <button type="submit">
-                        <span>📌</span> Add
-                    </button>
-                </div>
-            </form>
+<div class="stream" id="scraps-section">
+    {% if scraps and scraps|length > 0 %}
+    <div class="day-label">SCRAPS</div>
+    {% for scrap in scraps %}
+    <div class="stream-row" {% if scrap.active_todo_id %}data-active-todo-id="{{ scrap.active_todo_id }}"{% endif %}>
+        <span class="stream-time">{{ scrap.created_at }}</span>
+        <div class="stream-line">
+            <span class="stream-dot"></span>
+            {% if not loop.last %}<span class="stream-tail"></span>{% endif %}
         </div>
-        <script>
-            // Scrap input: Enter to submit, Shift+Enter for newline
-            (function () {
-                const scrapInput = document.getElementById('scrap-input');
-                const scrapForm = document.getElementById('scrap-form');
-                if (scrapInput && scrapForm) {
-                    scrapInput.addEventListener('keydown', function (e) {
-                        if (e.key === 'Enter' && !e.shiftKey) {
-                            e.preventDefault();
-                            if (scrapInput.value.trim()) {
-                                htmx.trigger(scrapForm, 'submit');
-                            }
-                        }
-                        // Shift+Enter allows default behavior (newline)
-                    });
-                }
-            })();
-        </script>
-
-        <!-- Scrap List -->
-        <div class="list-container">
-            {% if scraps and scraps|length > 0 %}
-            <div class="scrap-list" id="scrap-list-container">
-                {% for scrap in scraps %}
-                <div class="scrap-item" {% if scrap.active_todo_id %}data-active-todo-id="{{ scrap.active_todo_id }}" {%
-                    endif %}>
-                    <div class="scrap-time">{{ scrap.created_at }}</div>
-                    <div class="scrap-content scrap-markdown">{{ scrap.content_html | safe }}</div>
-                </div>
-                {% endfor %}
-            </div>
-
-            <script>
-                // Scroll scrap list to bottom after content loads
-                (function () {
-                    const scrapList = document.getElementById('scrap-list-container');
-                    if (scrapList) {
-                        // Find the parent list-container which is the actual scrollable container
-                        const listContainer = scrapList.closest('.list-container');
-                        if (listContainer) {
-                            listContainer.scrollTop = listContainer.scrollHeight;
-                        }
-                    }
-                })();
-            </script>
-            {% else %}
-            <div class="empty-state">
-                <div class="icon">📝</div>
-                <p>No scraps yet. Record your thoughts and progress!</p>
-            </div>
-            {% endif %}
+        <div class="scrap-card">
+            <div class="scrap-content scrap-markdown">{{ scrap.content_html | safe }}</div>
+            {% if scrap.active_todo_id %}<span class="todo-ref">todo #{{ scrap.active_todo_id }}</span>{% endif %}
         </div>
     </div>
+    {% endfor %}
+
+    <script>
+        // Keep the stream pinned to the latest scrap
+        (function () {
+            const stream = document.getElementById('scraps-section');
+            if (stream) stream.scrollTop = stream.scrollHeight;
+        })();
+    </script>
+    {% else %}
+    <div class="empty-state">
+        <div class="icon">📝</div>
+        <p>No scraps yet. Record your thoughts and progress below!</p>
+    </div>
+    {% endif %}
 </div>

@@ -4,259 +4,181 @@
 {% if task %}Task #{{ task.id }}: {{ task.name }}{% else %}Track WebUI{% endif %}
 {% endblock %}
 
-{% block toolbar_buttons %}
-{% if task %}
-<!-- View mode toggle button -->
-<button class="toolbar-btn" onclick="toggleViewMode()" id="mode-toggle-btn">
-    <span id="mode-icon">👁️</span> <span id="mode-label">Overview</span>
-</button>
-{% endif %}
-{{ super() }}
-{% endblock %}
-
 {% block content %}
 {% if task %}
-<!-- Task Header -->
-<header class="task-header">
-    <h1>{{ task.name }}{% if task.alias %} <span class="task-alias">({{ task.alias }})</span>{% endif %}</h1>
-    <div class="task-meta">
+<div class="app">
+
+    <!-- ===== Topbar ===== -->
+    <header class="topbar">
+        <span class="brand">tr</span>
+        <span class="task-title">{{ task.name }}</span>
+        {% if task.alias %}<span class="task-alias">{{ task.alias }}</span>{% endif %}
         {% if task.ticket_id %}
-        <span class="badge">{{ task.ticket_id }}</span>
+        <span class="ticket-badge">{{ task.ticket_id }}</span>
         {% else %}
-        <span class="task-id">Task #{{ task.id }}</span>
+        <span class="task-id">#{{ task.id }}</span>
+        {% endif %}
+        <button class="chip" id="drawer-chip" onclick="toggleDrawer()">Context <span class="chev">⌄</span></button>
+        <div class="spacer"></div>
+        <div id="connection-status" class="connection-status disconnected">
+            <span class="status-dot"></span>
+            <span class="status-text">Connecting…</span>
+        </div>
+        <button class="icon-btn" id="theme-toggle" aria-label="Toggle theme">
+            <span id="theme-icon">🌙</span>
+        </button>
+    </header>
+
+    <!-- ===== Context drawer (collapsed by default, toggled by the Context chip) ===== -->
+    <div class="drawer" id="context-drawer" hidden>
+        {% if task.is_today_task %}
+        <div style="grid-column: span 2;">
+            {% include "partials/calendar.html" %}
+        </div>
+        {% include "partials/links.html" %}
+        {% else %}
+        <div>
+            {% include "partials/description.html" %}
+            {% include "partials/ticket.html" %}
+        </div>
+        {% include "partials/repos.html" %}
+        {% include "partials/links.html" %}
         {% endif %}
     </div>
-</header>
 
+    <!-- ===== Body: TODO rail + Scrap stream ===== -->
+    <div class="body-grid">
 
-<!-- Overview Section (hidden in Focus Mode) -->
-<div id="overview-section">
-    {% if task.is_today_task %}
-    <!-- For today task: Show Calendar and Links in 2-pane layout -->
-    <div class="two-pane-layout">
-        <!-- Calendar Section (Left) -->
-        {% include "partials/calendar.html" %}
+        <aside class="todo-rail">
+            {% include "partials/todo_list.html" %}
+            {% include "partials/workflow.html" %}
+        </aside>
 
-        <!-- Links Section (Right) -->
-        {% include "partials/links.html" %}
+        <main class="stream-col">
+            {% include "partials/scrap_list.html" %}
+
+            <!-- Command bar: Enter = add scrap · "/todo …" = add todo · "/plan …" = add no-workspace todo -->
+            <div class="cmd-bar">
+                <form id="cmd-form" class="cmd-box">
+                    <span class="cmd-prompt">›</span>
+                    <textarea id="cmd-input" class="cmd-input" rows="1"
+                        placeholder="Write a scrap…  /todo adds a todo, /plan adds a no-workspace todo  (Shift+Enter for newline)"
+                        autocomplete="off"></textarea>
+                    <span class="kbd">⏎</span>
+                </form>
+            </div>
+        </main>
     </div>
-    {% else %}
-    <!-- For regular task: Show Description, Ticket, Repositories, and Links -->
-    <!-- 2-Pane Layout for Description and Ticket -->
-    <div class="two-pane-layout">
-        <!-- Description Section (Left) -->
-        {% include "partials/description.html" %}
-
-        <!-- Ticket Section (Right) -->
-        {% include "partials/ticket.html" %}
-    </div>
-
-    <!-- 2-Pane Layout for Repositories and Links -->
-    <div class="two-pane-layout">
-        <!-- Repositories Section (Left) -->
-        {% include "partials/repos.html" %}
-
-        <!-- Links Section (Right) -->
-        {% include "partials/links.html" %}
-    </div>
-    {% endif %}
 </div>
-
-
-<!-- Workflow guidance (agents + humans) -->
-{% include "partials/workflow.html" %}
-
-<!-- 2-Pane Layout for TODOs and Scraps -->
-<div class="two-pane-layout main-content">
-    <!-- TODOs Section (Left) -->
-    {% include "partials/todo_list.html" %}
-
-    <!-- Scraps Section (Right) -->
-    {% include "partials/scrap_list.html" %}
-</div>
-{% else %}
-<!-- No Task State -->
-<div class="no-task">
-    <div class="icon">📋</div>
-    <h2>No Active Task</h2>
-    <p>Create a new task or switch to an existing one to get started.</p>
-    <p style="margin-top: 1rem;">
-        Run <code>track new "Task name"</code> to create a new task.
-    </p>
-</div>
-{% endif %}
 
 <script>
-    // Scroll to the oldest pending task in the TODO list and highlight it
-    function scrollToOldestPendingTask() {
-        // Remove highlight from all todo items first
-        document.querySelectorAll('.todo-item').forEach(item => {
-            item.classList.remove('oldest-pending');
+    // Command bar: Enter submits, Shift+Enter = newline.
+    // "/todo <text>"  -> POST /api/todo
+    // "/plan <text>"  -> POST /api/todo (no_workspace=true)
+    // anything else   -> POST /api/scrap
+    (function () {
+        const input = document.getElementById('cmd-input');
+        const form = document.getElementById('cmd-form');
+        if (!input || !form) return;
+
+        function submit() {
+            const raw = input.value.trim();
+            if (!raw) return;
+
+            if (raw.startsWith('/todo ')) {
+                htmx.ajax('POST', '/api/todo', { values: { content: raw.slice(6).trim() }, swap: 'none' });
+            } else if (raw.startsWith('/plan ')) {
+                htmx.ajax('POST', '/api/todo', { values: { content: raw.slice(6).trim(), no_workspace: 'true' }, swap: 'none' });
+            } else {
+                htmx.ajax('POST', '/api/scrap', { values: { content: raw }, swap: 'none' });
+            }
+            input.value = '';
+            input.style.height = 'auto';
+        }
+
+        input.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                submit();
+            }
         });
 
-        // Find the first pending todo item
-        const firstPendingTodo = document.querySelector('.todo-item.pending');
+        // Autosize
+        input.addEventListener('input', function () {
+            input.style.height = 'auto';
+            input.style.height = Math.min(input.scrollHeight, 120) + 'px';
+        });
 
-        if (firstPendingTodo) {
-            // Add highlight class to the oldest pending task
-            firstPendingTodo.classList.add('oldest-pending');
+        form.addEventListener('submit', function (e) { e.preventDefault(); submit(); });
+    })();
 
-            // Get the list container
-            const listContainer = document.querySelector('#todos-section .list-container');
+    // Closed-todos collapse (persisted)
+    window.toggleClosedTodos = function () {
+        const list = document.getElementById('closed-todos');
+        const chev = document.getElementById('closed-chev');
+        if (!list) return;
+        const open = list.hidden;
+        list.hidden = !open;
+        if (chev) chev.textContent = open ? '⌃' : '⌄';
+        localStorage.setItem('closedTodosOpen', open ? '1' : '0');
+    };
 
-            if (listContainer) {
-                // Calculate the position of the todo item relative to the list container
-                const todoRect = firstPendingTodo.getBoundingClientRect();
-                const containerRect = listContainer.getBoundingClientRect();
-                const scrollOffset = todoRect.top - containerRect.top + listContainer.scrollTop;
-
-                // Scroll to the position with smooth behavior
-                listContainer.scrollTo({
-                    top: scrollOffset,
-                    behavior: 'smooth'
-                });
-            }
-        }
+    function restoreClosedTodos() {
+        const list = document.getElementById('closed-todos');
+        const chev = document.getElementById('closed-chev');
+        if (!list) return;
+        const open = localStorage.getItem('closedTodosOpen') === '1';
+        list.hidden = !open;
+        if (chev) chev.textContent = open ? '⌃' : '⌄';
     }
+    document.addEventListener('DOMContentLoaded', restoreClosedTodos);
+    document.body.addEventListener('htmx:afterSettle', restoreClosedTodos);
 
-    // Toggle between Focus Mode and Overview Mode
-    function toggleViewMode() {
-        const section = document.getElementById('overview-section');
-        const icon = document.getElementById('mode-icon');
-        const label = document.getElementById('mode-label');
-        const body = document.body;
-
-        if (section.style.display === 'none') {
-            // Switch to Overview Mode
-            section.style.display = 'block';
-            icon.textContent = '👁️';
-            label.textContent = 'Overview';
-            body.classList.remove('focus-mode');
-            localStorage.setItem('viewMode', 'overview');
-
-            // Remove highlight when leaving focus mode
-            document.querySelectorAll('.todo-item').forEach(item => {
-                item.classList.remove('oldest-pending');
-            });
-        } else {
-            // Switch to Focus Mode
-            section.style.display = 'none';
-            icon.textContent = '🎯';
-            label.textContent = 'Focus';
-            body.classList.add('focus-mode');
-            localStorage.setItem('viewMode', 'focus');
-
-            // Scroll to and highlight oldest pending task when entering focus mode
-            setTimeout(scrollToOldestPendingTask, 100);
-        }
-    }
-
-    // Restore view mode state from localStorage
-    function restoreViewMode() {
-        const viewMode = localStorage.getItem('viewMode') || 'overview';
-        const section = document.getElementById('overview-section');
-        const icon = document.getElementById('mode-icon');
-        const label = document.getElementById('mode-label');
-        const body = document.body;
-
-        if (viewMode === 'focus') {
-            if (section && icon && label) {
-                section.style.display = 'none';
-                icon.textContent = '🎯';
-                label.textContent = 'Focus';
-                body.classList.add('focus-mode');
-
-                // Scroll to and highlight oldest pending task when restoring focus mode
-                setTimeout(scrollToOldestPendingTask, 100);
-            }
-        } else {
-            if (section && icon && label) {
-                section.style.display = 'block';
-                icon.textContent = '👁️';
-                label.textContent = 'Overview';
-                body.classList.remove('focus-mode');
-
-                // Remove highlight in overview mode
-                document.querySelectorAll('.todo-item').forEach(item => {
-                    item.classList.remove('oldest-pending');
-                });
-            }
-        }
-    }
-
-    // Initialize view mode on page load
-    document.addEventListener('DOMContentLoaded', restoreViewMode);
-
-    // Restore view mode after HTMX content updates
-    document.body.addEventListener('htmx:afterSwap', restoreViewMode);
-    document.body.addEventListener('htmx:afterSettle', restoreViewMode);
-
-    // Scroll to scraps related to a specific todo
+    // Jump from a todo to its related scraps in the stream
     function scrollToRelatedScraps(event, todoId) {
-        event.stopPropagation(); // Prevent menu from opening
-
-        // Find all scrap items
-        const scrapItems = document.querySelectorAll('.scrap-item');
-
-        if (scrapItems.length === 0) {
-            console.log('No scraps found');
-            return;
-        }
-
-        // Remove existing highlights
-        scrapItems.forEach(item => item.classList.remove('scrap-highlighted'));
-
-        // Find scraps with matching active_todo_id
-        // We need to get this from the server-rendered data
-        // For now, we'll use a data attribute approach
-        let foundScraps = [];
-
+        event.stopPropagation();
+        const scrapItems = document.querySelectorAll('.stream-row[data-active-todo-id]');
+        let target = null;
         scrapItems.forEach(item => {
-            // The active_todo_id should be added as a data attribute in the template
-            const activeTodoId = item.getAttribute('data-active-todo-id');
-            if (activeTodoId && parseInt(activeTodoId) === todoId) {
-                foundScraps.push(item);
-            }
+            item.querySelector('.scrap-card')?.classList.remove('scrap-highlighted');
+            if (!target && parseInt(item.getAttribute('data-active-todo-id')) === todoId) target = item;
         });
+        if (!target) return;
 
-        if (foundScraps.length === 0) {
-            console.log(`No scraps found for todo #${todoId}`);
-            // Show a subtle notification
-            const statusText = document.querySelector('#connection-status .status-text');
-            if (statusText) {
-                const originalText = statusText.textContent;
-                statusText.textContent = `No scraps for todo #${todoId}`;
-                setTimeout(() => {
-                    statusText.textContent = originalText;
-                }, 2000);
-            }
-            return;
+        const card = target.querySelector('.scrap-card');
+        if (card) card.classList.add('scrap-highlighted');
+
+        const stream = document.getElementById('scraps-section');
+        if (stream) {
+            const rowRect = target.getBoundingClientRect();
+            const streamRect = stream.getBoundingClientRect();
+            stream.scrollTo({ top: rowRect.top - streamRect.top + stream.scrollTop - 20, behavior: 'smooth' });
         }
-
-        // Scroll to the first matching scrap
-        const targetScrap = foundScraps[0];
-        targetScrap.classList.add('scrap-highlighted');
-
-        const listContainer = document.querySelector('#scraps-section .list-container');
-        if (listContainer) {
-            const scrapRect = targetScrap.getBoundingClientRect();
-            const containerRect = listContainer.getBoundingClientRect();
-            const scrollOffset = scrapRect.top - containerRect.top + listContainer.scrollTop;
-
-            listContainer.scrollTo({
-                top: scrollOffset - 20, // Add some padding
-                behavior: 'smooth'
-            });
-        }
-
-        // Remove highlight after animation completes
-        setTimeout(() => {
-            targetScrap.classList.remove('scrap-highlighted');
-        }, 3500);
-
-        console.log(`Found ${foundScraps.length} scrap(s) for todo #${todoId}`);
+        setTimeout(() => { if (card) card.classList.remove('scrap-highlighted'); }, 3500);
     }
-
-
 </script>
+
+{% else %}
+<!-- No Task State -->
+<div class="app">
+    <header class="topbar">
+        <span class="brand">tr</span>
+        <span class="task-title">track</span>
+        <div class="spacer"></div>
+        <div id="connection-status" class="connection-status disconnected">
+            <span class="status-dot"></span>
+            <span class="status-text">Connecting…</span>
+        </div>
+        <button class="icon-btn" id="theme-toggle" aria-label="Toggle theme">
+            <span id="theme-icon">🌙</span>
+        </button>
+    </header>
+    <div class="no-task">
+        <div class="icon">📋</div>
+        <h2>No Active Task</h2>
+        <p>Create a new task or switch to an existing one to get started.</p>
+        <p>Run <code>track new "Task name"</code> to create a new task.</p>
+    </div>
+</div>
+{% endif %}
 {% endblock %}

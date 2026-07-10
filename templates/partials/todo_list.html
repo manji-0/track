@@ -1,96 +1,86 @@
-<div class="card scrollable-card" id="todos-section" hx-get="/partials/todos" hx-trigger="sse:todos, sse:worktrees"
-    hx-swap="outerHTML">
-    <div class="card-header">
-        <h2 class="card-title"><span class="icon">📋</span> TODOs</h2>
+<div id="todos-section" hx-get="/partials/todos" hx-trigger="sse:todos, sse:worktrees" hx-swap="outerHTML">
+    <div class="rail-header">
+        <span>📋</span>
+        <span class="rail-title">TODOs</span>
+        {% if todos %}
+        <span class="rail-count">{{ todos | selectattr("status", "eq", "pending") | list | length }} open</span>
+        {% endif %}
     </div>
 
-    <div class="card-content">
-        <!-- Add Todo Form -->
-        <div class="input-form-container">
-            <form hx-post="/api/todo" hx-swap="none" hx-on::after-request="this.reset()" class="input-group">
-                <input type="text" name="content" placeholder="Add a new todo..." required autocomplete="off">
-                <label class="checkbox-container" title="Research/planning — no jj-task workspace needed">
-                    <input type="checkbox" name="no_workspace" value="true">
-                    <span class="icon">📋</span>
-                </label>
-                <button type="submit">
-                    <span>✅</span> Add
-                </button>
-            </form>
-        </div>
+    <!-- Add Todo Form -->
+    <form class="todo-add" hx-post="/api/todo" hx-swap="none" hx-on::after-request="this.reset()">
+        <input type="text" name="content" placeholder="Add a todo…" required autocomplete="off">
+        <label class="checkbox-container" title="Research/planning — no jj-task workspace needed">
+            <input type="checkbox" name="no_workspace" value="true">
+            <span>📋</span>
+        </label>
+    </form>
 
-        <!-- Todo List -->
-        <div class="list-container">
-            {% if todos and todos|length > 0 %}
-            <ul class="todo-list">
-                {% for todo in todos %}
-                <li class="todo-item {{ todo.status }}" data-todo-id="{{ todo.todo_id }}">
-                    <div class="todo-main" onclick="toggleTodoMenu(event, '{{ todo.todo_id }}')">
-                        <span class="todo-index">{{ todo.todo_id }}</span>
-                        <span class="todo-content">{{ todo.content_html | safe }}</span>
-                        {% if todo.worktree_requested %}
-                        <span class="worktree-icon" title="Workspace requested">🌿</span>
-                        {% endif %}
-                        <span
-                            class="todo-status {% if todo.is_in_progress %}in-progress{% else %}{{ todo.status }}{% endif %}">{%
-                            if todo.is_in_progress %}in progress{% else %}{{ todo.status }}{% endif %}</span>
-                        {% if todo.has_scraps %}
-                        <button class="btn-scrap-link" onclick="scrollToRelatedScraps(event, {{ todo.todo_id }})"
-                            title="Jump to related scraps">
-                            📝
-                        </button>
-                        {% endif %}
-                        <span class="todo-menu-indicator">⋮</span>
-                    </div>
+    <div class="todo-scroll">
+        {% if todos and todos|length > 0 %}
+
+        <!-- Open todos (in progress + pending) -->
+        {% for todo in todos %}
+        {% if todo.status == 'pending' %}
+        <div class="todo-item {% if todo.is_in_progress %}in-progress{% endif %}" data-todo-id="{{ todo.todo_id }}">
+            <div class="todo-row">
+                <span class="todo-idx">#{{ todo.todo_id }}</span>
+                <div class="todo-body">
+                    <span class="todo-content">{{ todo.content_html | safe }}</span>
+                    {% if todo.worktree_requested %}<span title="Workspace requested">🌿</span>{% endif %}
                     {% if todo.worktree_paths and todo.worktree_paths|length > 0 %}
-                    <div class="todo-worktrees">
-                        {% for path in todo.worktree_paths %}
-                        <div class="worktree-path" title="{{ path }}">📂 {{ path }}</div>
-                        {% endfor %}
-                    </div>
+                    {% for path in todo.worktree_paths %}
+                    <div class="worktree-path" title="{{ path }}">🌿 {{ path }}</div>
+                    {% endfor %}
                     {% endif %}
-                </li>
-                {% endfor %}
-            </ul>
+                </div>
+                {% if todo.has_scraps %}
+                <button class="btn-scrap-link" onclick="scrollToRelatedScraps(event, {{ todo.todo_id }})"
+                    title="Jump to related scraps">📝</button>
+                {% endif %}
+                <div class="todo-actions">
+                    {% if not todo.is_in_progress %}
+                    <button class="act-btn" title="Make next" hx-patch="/api/todo/{{ todo.todo_id }}/next"
+                        hx-swap="none">▶</button>
+                    {% endif %}
+                    <button class="act-btn done" title="Mark as done" hx-patch="/api/todo/{{ todo.todo_id }}/done"
+                        hx-swap="none">✓</button>
+                    <button class="act-btn" title="Cancel" hx-patch="/api/todo/{{ todo.todo_id }}/cancelled"
+                        hx-swap="none">✕</button>
+                    <button class="act-btn delete" title="Delete" hx-delete="/api/todo/{{ todo.todo_id }}"
+                        hx-swap="none" hx-confirm="Delete this todo?">🗑</button>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+        {% endfor %}
 
-            <!-- Menus (outside of list items to avoid opacity inheritance) -->
-            {% for todo in todos %}
-            <div class="todo-menu" id="todo-menu-{{ todo.todo_id }}" style="display: none;">
-                {% if todo.status == 'pending' %}
-                <button class="menu-item btn-primary" hx-patch="/api/todo/{{ todo.todo_id }}/next"
-                    hx-target="#todos-section" hx-swap="none" onclick="event.stopPropagation()">
-                    <span class="menu-icon">⬆️</span>
-                    <span class="menu-label">Make Next</span>
-                </button>
-                {% endif %}
-                {% if todo.status != 'done' %}
-                <button class="menu-item btn-success" hx-patch="/api/todo/{{ todo.todo_id }}/done"
-                    hx-target="#todos-section" hx-swap="none" onclick="event.stopPropagation()">
-                    <span class="menu-icon">✓</span>
-                    <span class="menu-label">Mark as Done</span>
-                </button>
-                {% endif %}
-                {% if todo.status != 'cancelled' %}
-                <button class="menu-item btn-secondary" hx-patch="/api/todo/{{ todo.todo_id }}/cancelled" hx-swap="none"
-                    onclick="event.stopPropagation()">
-                    <span class="menu-icon">✕</span>
-                    <span class="menu-label">Cancel</span>
-                </button>
-                {% endif %}
-                <button class="menu-item btn-danger" hx-delete="/api/todo/{{ todo.todo_id }}" hx-target="#todos-section"
-                    hx-swap="none" hx-confirm="Delete this todo?" onclick="event.stopPropagation()">
-                    <span class="menu-icon">🗑️</span>
-                    <span class="menu-label">Delete</span>
-                </button>
+        <!-- Closed todos (done + cancelled), collapsed -->
+        {% set closed = todos | rejectattr("status", "eq", "pending") | list %}
+        {% if closed|length > 0 %}
+        <button class="closed-toggle" onclick="toggleClosedTodos()">
+            CLOSED · {{ closed|length }}
+            <span class="spacer"></span>
+            <span id="closed-chev">⌄</span>
+        </button>
+        <div id="closed-todos" hidden>
+            {% for todo in closed %}
+            <div class="todo-item closed" data-todo-id="{{ todo.todo_id }}">
+                <div class="todo-row">
+                    <span class="todo-idx">#{{ todo.todo_id }}</span>
+                    <div class="todo-body">{{ todo.content_html | safe }}</div>
+                    <span class="status-dot-sm {{ todo.status }}"></span>
+                </div>
             </div>
             {% endfor %}
-
-            {% else %}
-            <div class="empty-state">
-                <div class="icon">✨</div>
-                <p>No todos yet. Add one above!</p>
-            </div>
-            {% endif %}
         </div>
+        {% endif %}
+
+        {% else %}
+        <div class="empty-state">
+            <div class="icon">✨</div>
+            <p>No todos yet. Add one above!</p>
+        </div>
+        {% endif %}
     </div>
 </div>

@@ -8,1382 +8,379 @@
     <meta name="description" content="Track - Task and TODO Management">
     <link rel="icon" href="/static/favicon.ico" sizes="any">
 
-    <!-- Modern CSS -->
     <style>
         :root {
-            /* Dark mode colors (default) */
-            --bg-primary: #0f0f1a;
-            --bg-secondary: #1a1a2e;
-            --bg-card: rgba(30, 30, 50, 0.8);
-            --bg-input: rgba(40, 40, 60, 0.6);
-            --text-primary: #e0e0e0;
-            --text-secondary: #a0a0a0;
-            --text-muted: #6b6b8a;
-            --accent: #7c3aed;
-            --accent-hover: #8b5cf6;
-            --accent-light: rgba(124, 58, 237, 0.2);
-            --success: #10b981;
-            --success-light: rgba(16, 185, 129, 0.2);
-            --warning: #f59e0b;
-            --danger: #ef4444;
-            --danger-light: rgba(239, 68, 68, 0.2);
-            --border-color: rgba(255, 255, 255, 0.1);
-            --border-radius: 12px;
-            --border-radius-sm: 8px;
-            --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
-            --gradient-bg: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-            --transition: all 0.2s ease;
+            --accent: #6c7bd9;
+            --accent-2: #8b5cf6;
+            --bg: #101116;
+            --rail: #0c0d11;
+            --panel: #15161c;
+            --panel-2: #191a21;
+            --border: rgba(255, 255, 255, .07);
+            --border-2: rgba(255, 255, 255, .12);
+            --text: #e6e7eb;
+            --text-2: #c6c8d1;
+            --sub: #8a8d98;
+            --muted: #5d6069;
+            --green: #4cc38a;
+            --red: #e5646c;
+            --code-bg: rgba(255, 255, 255, .07);
+            --shadow: 0 8px 24px rgba(0, 0, 0, .4);
+            --mono: ui-monospace, 'SF Mono', Menlo, monospace;
         }
 
-        /* Light mode colors */
         [data-theme="light"] {
-            --bg-primary: #f8f9fa;
-            --bg-secondary: #ffffff;
-            --bg-card: rgba(255, 255, 255, 0.9);
-            --bg-input: rgba(255, 255, 255, 0.8);
-            --text-primary: #1a1a1a;
-            --text-secondary: #4a5568;
-            --text-muted: #718096;
-            --accent: #7c3aed;
-            --accent-hover: #6d28d9;
-            --accent-light: rgba(124, 58, 237, 0.15);
-            --accent-text: #ffffff;
-            --success: #059669;
-            --success-dark: #047857;
-            --success-light: rgba(5, 150, 105, 0.15);
-            --success-text: #ffffff;
-            --warning: #d97706;
-            --warning-dark: #b45309;
-            --warning-text: #ffffff;
-            --danger: #dc2626;
-            --danger-light: rgba(220, 38, 38, 0.1);
-            --border-color: rgba(0, 0, 0, 0.1);
-            --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-            --gradient-bg: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            --bg: #f7f7f8;
+            --rail: #f2f2f4;
+            --panel: #ffffff;
+            --panel-2: #ffffff;
+            --border: rgba(0, 0, 0, .08);
+            --border-2: rgba(0, 0, 0, .14);
+            --text: #1b1c20;
+            --text-2: #3c3d43;
+            --sub: #6e7076;
+            --muted: #9a9ca3;
+            --green: #2f9e63;
+            --red: #d64550;
+            --code-bg: rgba(0, 0, 0, .06);
+            --shadow: 0 8px 24px rgba(0, 0, 0, .12);
         }
 
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
 
-        html {
-            background: var(--gradient-bg);
-            background-attachment: fixed;
-            min-height: 100%;
-            overscroll-behavior: none;
-        }
+        html, body { height: 100%; overscroll-behavior: none; }
 
         body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: var(--gradient-bg);
-            background-attachment: fixed;
-            color: var(--text-primary);
-            min-height: 100vh;
-            line-height: 1.6;
-            overscroll-behavior: none;
+            font-family: -apple-system, 'SF Pro Text', BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            font-size: 13px;
+            line-height: 1.5;
+            background: var(--bg);
+            color: var(--text);
         }
 
-        /* Focus Mode: Fix height to viewport for concentrated work on TODO/Scraps */
-        body.focus-mode {
-            height: 100vh;
-            overflow: hidden;
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+
+        input, textarea, button { font: inherit; color: inherit; }
+
+        input[type="text"], textarea {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 7px 10px;
+            color: var(--text);
         }
 
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-            padding: 2rem 1rem;
-            display: flex;
-            flex-direction: column;
+        input:focus, textarea:focus { outline: 1.5px solid var(--accent); outline-offset: -1px; }
+
+        ::placeholder { color: var(--muted); }
+
+        code {
+            font-family: var(--mono);
+            font-size: .92em;
+            background: var(--code-bg);
+            padding: 1px 5px;
+            border-radius: 4px;
         }
 
-        /* Focus Mode: Fix container height */
-        body.focus-mode .container {
-            height: 100%;
-            overflow: hidden;
+        /* ===== App shell ===== */
+        .app { height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+        /* ===== Topbar ===== */
+        .topbar {
+            display: flex; align-items: center; gap: 12px;
+            height: 52px; padding: 0 20px;
+            border-bottom: 1px solid var(--border); flex: none;
         }
 
-        /* Card styles */
-        .card {
-            background: var(--bg-card);
-            backdrop-filter: blur(10px);
-            border-radius: var(--border-radius);
-            border: 1px solid var(--border-color);
-            padding: 1.5rem;
-            margin-bottom: 1.5rem;
-            box-shadow: var(--shadow);
-            transition: var(--transition);
+        .brand {
+            width: 20px; height: 20px; border-radius: 6px;
+            background: linear-gradient(135deg, var(--accent), var(--accent-2));
+            color: #fff; font-size: 10px; font-weight: 600;
+            display: flex; align-items: center; justify-content: center;
         }
 
-        .card:hover {
-            border-color: rgba(255, 255, 255, 0.15);
+        .task-title { font-weight: 600; font-size: 14px; }
+        .task-alias { color: var(--muted); font-size: 12px; }
+
+        .ticket-badge {
+            font-family: var(--mono); font-size: 11px; padding: 2px 8px; border-radius: 99px;
+            background: color-mix(in oklab, var(--accent) 14%, transparent);
+            color: var(--accent);
         }
 
-        /* Scrollable card for TODO/Scrap sections */
-        .card.scrollable-card {
-            display: flex;
-            flex-direction: column;
-            min-height: 300px;
-            height: 100%;
-            margin-bottom: 0;
+        .task-id { color: var(--muted); font-size: 12px; }
+
+        .chip {
+            cursor: pointer; font-size: 11.5px; padding: 3px 10px; border-radius: 99px;
+            border: 1px solid var(--border); background: transparent; color: var(--sub);
         }
 
-        .card.scrollable-card .card-header {
-            flex-shrink: 0;
+        .chip:hover { border-color: var(--border-2); color: var(--text-2); }
+
+        .chip.active {
+            border-color: color-mix(in oklab, var(--accent) 50%, transparent);
+            background: color-mix(in oklab, var(--accent) 12%, transparent);
+            color: var(--text);
         }
 
-        .card.scrollable-card .card-content {
-            flex: 1;
-            min-height: 0;
-            display: flex;
-            flex-direction: column;
+        .spacer { flex: 1; }
+
+        .connection-status { display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--sub); }
+        .status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--red); }
+        .connection-status.connected .status-dot { background: var(--green); }
+
+        .icon-btn {
+            cursor: pointer; width: 28px; height: 28px; border-radius: 6px;
+            border: 1px solid var(--border); background: transparent;
+            display: flex; align-items: center; justify-content: center; font-size: 13px;
         }
 
-        /* Input form stays fixed at top */
-        .card.scrollable-card .input-form-container {
-            flex-shrink: 0;
-            margin-bottom: 1rem;
+        .icon-btn:hover { border-color: var(--border-2); }
+
+        /* ===== Context drawer ===== */
+        .drawer {
+            display: grid; grid-template-columns: 1.3fr 1fr 1fr; gap: 24px;
+            padding: 16px 20px; background: var(--rail);
+            border-bottom: 1px solid var(--border); flex: none;
         }
 
-        /* List container is scrollable */
-        .card.scrollable-card .list-container {
-            flex: 1;
-            overflow-y: auto;
-            min-height: 0;
-            /* Hide scrollbar for webkit browsers (Chrome, Safari, Edge) */
+        .drawer[hidden] { display: none; }
+
+        .sec-head { display: flex; align-items: center; margin-bottom: 6px; }
+        .sec-label { font-size: 11px; font-weight: 600; letter-spacing: .06em; color: var(--muted); }
+        .sec-action {
+            margin-left: auto; font-size: 11px; color: var(--accent);
+            background: none; border: none; cursor: pointer; padding: 0;
+        }
+
+        .description { color: var(--sub); font-size: 12.5px; white-space: pre-wrap; }
+        .text-muted { color: var(--muted); }
+
+        .ticket-line { display: flex; align-items: center; gap: 8px; margin-top: 12px; }
+        .ticket-line .ticket-id { font-family: var(--mono); font-size: 11.5px; color: var(--accent); }
+        .ticket-line .ticket-url { font-size: 11px; color: var(--sub); }
+
+        .repo-item { display: flex; align-items: center; gap: 7px; font-size: 12px; padding: 2.5px 0; }
+        .repo-path { font-family: var(--mono); color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .branch-pill {
+            margin-left: auto; flex: none; font-size: 10.5px; padding: 1px 7px; border-radius: 99px;
+            background: var(--code-bg); color: var(--sub);
+        }
+
+        .link-item { display: flex; align-items: center; gap: 7px; font-size: 12px; padding: 2.5px 0; }
+        .link-item .btn-delete { margin-left: auto; }
+        .link-add { display: flex; gap: 6px; margin-top: 8px; }
+        .link-add input { flex: 1; font-size: 11.5px; padding: 5px 8px; border-radius: 6px; }
+
+        .btn-delete {
+            cursor: pointer; background: none; border: none; color: var(--muted);
+            font-size: 11px; padding: 0 2px;
+        }
+        .btn-delete:hover { color: var(--red); }
+
+        /* ===== Body grid ===== */
+        .body-grid { display: grid; grid-template-columns: 360px 1fr; flex: 1; min-height: 0; }
+
+        /* ===== TODO rail ===== */
+        .todo-rail {
+            border-right: 1px solid var(--border); background: var(--rail);
+            display: flex; flex-direction: column; min-height: 0;
+        }
+
+        #todos-section { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+
+        .rail-header { display: flex; align-items: center; gap: 8px; padding: 14px 16px 10px; flex: none; }
+        .rail-title { font-weight: 600; font-size: 12.5px; }
+        .rail-count { margin-left: auto; font-size: 11px; color: var(--muted); }
+
+        .todo-add { display: flex; gap: 6px; padding: 0 16px 10px; flex: none; }
+        .todo-add input[type="text"] { flex: 1; font-size: 12px; min-width: 0; }
+        .todo-add .checkbox-container {
+            display: flex; align-items: center; justify-content: center;
+            width: 32px; border: 1px solid var(--border); border-radius: 8px; cursor: pointer;
+        }
+        .todo-add .checkbox-container input { display: none; }
+        .todo-add .checkbox-container:has(input:checked) {
+            border-color: color-mix(in oklab, var(--accent) 50%, transparent);
+            background: color-mix(in oklab, var(--accent) 12%, transparent);
+        }
+
+        .todo-scroll {
+            flex: 1; overflow-y: auto; min-height: 0;
+            padding: 0 10px 12px; display: flex; flex-direction: column; gap: 2px;
             scrollbar-width: none;
-            /* Firefox */
-            -ms-overflow-style: none;
-            /* IE and Edge */
         }
+        .todo-scroll::-webkit-scrollbar { display: none; }
 
-        .card.scrollable-card .list-container::-webkit-scrollbar {
-            display: none;
-            /* Chrome, Safari, Opera */
-        }
-
-        .card-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-bottom: 1rem;
-        }
-
-        .card-title {
-            font-size: 1.25rem;
-            font-weight: 600;
-            color: var(--text-primary);
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        .card-title .icon {
-            font-size: 1.5rem;
-        }
-
-        .workflow-card .workflow-phase {
-            text-transform: uppercase;
-            font-size: 0.75rem;
-            letter-spacing: 0.04em;
-        }
-
-        .workflow-next {
-            margin-bottom: 1rem;
-        }
-
-        .workflow-command,
-        .step-command {
-            display: block;
-            margin: 0.5rem 0;
-            padding: 0.5rem 0.75rem;
-            background: var(--bg-secondary);
-            border-radius: 0.375rem;
-            font-size: 0.875rem;
-            word-break: break-all;
-        }
-
-        .workflow-reason {
-            color: var(--text-secondary);
-            font-size: 0.9rem;
-            margin: 0.25rem 0 0;
-        }
-
-        .workflow-checklist {
-            list-style: none;
-            padding: 0;
-            margin: 0;
-        }
-
-        .workflow-step {
-            display: flex;
-            flex-wrap: wrap;
-            align-items: center;
-            gap: 0.5rem;
-            padding: 0.35rem 0;
-            color: var(--text-secondary);
-        }
-
-        .workflow-step.done {
-            color: var(--text-primary);
-        }
-
-        .workflow-step .step-marker {
-            width: 1.25rem;
-            flex-shrink: 0;
-        }
-
-        /* Task header */
-        .task-header {
-            position: relative;
-            text-align: center;
-            margin-bottom: 2rem;
-        }
-
-        .task-header h1 {
-            font-size: 2rem;
-            font-weight: 700;
-            margin-bottom: 0.5rem;
-            background: linear-gradient(135deg, var(--accent) 0%, #a855f7 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-
-        .task-meta {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 0.75rem;
-            color: var(--text-muted);
-            font-size: 0.875rem;
-        }
-
-        .task-meta .badge {
-            display: inline-block;
-            background: var(--accent-light);
-            color: var(--accent);
-            padding: 0.25rem 0.75rem;
-            border-radius: 9999px;
-            font-size: 0.75rem;
-            font-weight: 500;
-        }
-
-        [data-theme="light"] .task-meta .badge {
-            background: var(--accent);
-            color: white;
-            font-weight: 600;
-        }
-
-        .task-meta .task-id {
-            color: var(--text-muted);
-            font-size: 0.875rem;
-        }
-
-        .task-alias {
-            color: var(--text-muted);
-            font-size: 0.9rem;
-            font-weight: 400;
-            font-style: italic;
-        }
-
-
-        /* Description */
-        .description {
-            color: var(--text-secondary);
-            white-space: pre-wrap;
-        }
-
-        .text-muted {
-            color: var(--text-muted);
-            font-style: italic;
-        }
-
-        /* Ticket Information */
-        .ticket-info {
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-            flex-wrap: wrap;
-        }
-
-        .ticket-id {
-            background: var(--accent-light);
-            color: var(--accent);
-            padding: 0.5rem 1rem;
-            border-radius: var(--border-radius-sm);
-            font-weight: 600;
-            font-size: 1rem;
-            font-family: 'JetBrains Mono', 'Fira Code', monospace;
-        }
-
-        [data-theme="light"] .ticket-id {
-            background: var(--accent);
-            color: white;
-        }
-
-        .ticket-url {
-            color: var(--accent);
-            text-decoration: none;
-            font-size: 0.875rem;
-            display: flex;
-            align-items: center;
-            gap: 0.25rem;
-            transition: var(--transition);
-        }
-
-        .ticket-url:hover {
-            color: var(--accent-hover);
-            text-decoration: underline;
-        }
-
-
-        /* Checkbox styles */
-        .checkbox-container {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: var(--bg-input);
-            border: 1px solid var(--border-color);
-            border-radius: var(--border-radius-sm);
-            padding: 0 0.75rem;
-            cursor: pointer;
-            transition: var(--transition);
-        }
-
-        .checkbox-container:hover {
-            border-color: var(--accent);
-            background: rgba(255, 255, 255, 0.05);
-        }
-
-        [data-theme="light"] .checkbox-container:hover {
-            background: rgba(0, 0, 0, 0.05);
-        }
-
-        .checkbox-container input[type="checkbox"] {
-            margin-right: 0.5rem;
-            accent-color: var(--accent);
-            cursor: pointer;
-            width: 1.25em;
-            height: 1.25em;
-        }
-
-        .checkbox-container .icon {
-            font-size: 1.25rem;
-        }
-
-        /* Form styles */
-        .input-group {
-            display: flex;
-            gap: 0.5rem;
-        }
-
-        .form-actions {
-            display: flex;
-            gap: 0.5rem;
-            margin-top: 0.75rem;
-        }
-
-        input[type="text"],
-        textarea {
-            flex: 1;
-            width: 100%;
-            background: var(--bg-input);
-            border: 1px solid var(--border-color);
-            border-radius: var(--border-radius-sm);
-            padding: 0.75rem 1rem;
-            color: var(--text-primary);
-            font-size: 0.875rem;
-            font-family: inherit;
-            transition: var(--transition);
-            resize: vertical;
-        }
-
-        input[type="text"]:focus,
-        textarea:focus {
-            outline: none;
-            border-color: var(--accent);
-            box-shadow: 0 0 0 3px var(--accent-light);
-        }
-
-        input[type="text"]::placeholder,
-        textarea::placeholder {
-            color: var(--text-muted);
-        }
-
-        button {
-            background: var(--accent);
-            color: white;
-            border: none;
-            border-radius: var(--border-radius-sm);
-            padding: 0.75rem 1.25rem;
-            font-size: 0.875rem;
-            font-weight: 500;
-            cursor: pointer;
-            transition: var(--transition);
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            white-space: nowrap;
-        }
-
-        button:hover {
-            background: var(--accent-hover);
-            transform: translateY(-1px);
-        }
-
-        /* Light mode button improvements */
-        [data-theme="light"] button {
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
-        }
-
-        [data-theme="light"] button:hover {
-            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
-        }
-
-        button:active {
-            transform: translateY(0);
-        }
-
-        button.btn-edit {
-            background: transparent;
-            color: var(--text-muted);
-            padding: 0.5rem 0.75rem;
-            font-size: 0.875rem;
-        }
-
-        button.btn-edit:hover {
-            background: rgba(255, 255, 255, 0.05);
-            color: var(--text-primary);
-        }
-
-        [data-theme="light"] button.btn-edit:hover {
-            background: rgba(0, 0, 0, 0.05);
-        }
-
-        button.btn-primary {
-            background: var(--accent);
-            color: white;
-        }
-
-        button.btn-secondary {
-            background: transparent;
-            color: var(--text-secondary);
-            border: 1px solid var(--border-color);
-        }
-
-        button.btn-secondary:hover {
-            background: rgba(255, 255, 255, 0.05);
-            border-color: rgba(255, 255, 255, 0.2);
-        }
-
-        [data-theme="light"] button.btn-secondary:hover {
-            background: rgba(0, 0, 0, 0.05);
-            border-color: rgba(0, 0, 0, 0.2);
-        }
-
-        button.btn-success {
-            background: transparent;
-            color: var(--success);
-            padding: 0.5rem;
-            font-size: 1rem;
-        }
-
-        button.btn-success:hover {
-            background: var(--success-light);
-        }
-
-        button.btn-warning {
-            background: transparent;
-            color: var(--warning);
-            padding: 0.5rem;
-            font-size: 1rem;
-        }
-
-        button.btn-warning:hover {
-            background: rgba(245, 158, 11, 0.2);
-        }
-
-        button.btn-danger {
-            background: transparent;
-            color: var(--danger);
-            padding: 0.5rem;
-        }
-
-        button.btn-danger:hover {
-            background: var(--danger-light);
-        }
-
-        .todo-actions {
-            display: flex;
-            gap: 0.25rem;
-            align-items: center;
-        }
-
-        /* Scrap link button */
-        .btn-scrap-link {
-            background: transparent;
-            color: var(--text-muted);
-            padding: 0.25rem 0.5rem;
-            font-size: 1rem;
-            border: none;
-            cursor: pointer;
-            transition: var(--transition);
-            margin-left: 0.5rem;
-        }
-
-        .btn-scrap-link:hover {
-            background: rgba(124, 58, 237, 0.2);
-            color: var(--accent);
-            transform: scale(1.15);
-        }
-
-        .btn-scrap-link:active {
-            transform: scale(1.05);
-        }
-
-        /* Scrap highlight animation */
-        .scrap-highlighted {
-            background: linear-gradient(135deg, rgba(124, 58, 237, 0.3) 0%, rgba(168, 85, 247, 0.2) 100%) !important;
-            border-left-color: var(--accent-hover) !important;
-            box-shadow: 0 0 20px rgba(124, 58, 237, 0.4);
-            animation: scrap-pulse 1s ease-in-out 3;
-        }
-
-        [data-theme="light"] .scrap-highlighted {
-            background: linear-gradient(135deg, rgba(124, 58, 237, 0.25) 0%, rgba(168, 85, 247, 0.15) 100%) !important;
-            box-shadow: 0 0 15px rgba(124, 58, 237, 0.35);
-        }
-
-        @keyframes scrap-pulse {
-
-            0%,
-            100% {
-                box-shadow: 0 0 20px rgba(124, 58, 237, 0.4);
-            }
-
-            50% {
-                box-shadow: 0 0 30px rgba(124, 58, 237, 0.6);
-            }
-        }
-
-        /* 2-Pane Layout */
-        .two-pane-layout {
-            display: grid;
-            grid-template-columns: 1fr;
-            gap: 1.5rem;
-        }
-
-        /* Make the main content pane (TODOs/Scraps) grow to fill available space */
-        .two-pane-layout.main-content {
-            flex: 1;
-            min-height: 0;
-            overflow: hidden;
-        }
-
-        @media (min-width: 1024px) {
-            .two-pane-layout {
-                grid-template-columns: 1fr 1fr;
-            }
-        }
-
-        /* Single-Pane Layout (full width) */
-        .single-pane-layout {
-            display: grid;
-            grid-template-columns: 1fr;
-            gap: 1.5rem;
-            margin-top: 1.5rem;
-        }
-
-        /* Calendar container */
-        .calendar-container {
-            width: 100%;
-            overflow: hidden;
-            border-radius: var(--border-radius-sm);
-            position: relative;
-        }
-
-        /* Dark mode calendar styling - grayscale with theme color overlay */
-        #calendar-wrapper {
-            filter: invert(0.9) grayscale(1) brightness(1.1) contrast(0.9);
-            background: #1a1a2e;
-            border-radius: var(--border-radius-sm);
-            overflow: hidden;
-            position: relative;
-        }
-
-        #calendar-wrapper::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: linear-gradient(135deg, rgba(124, 58, 237, 0.08) 0%, rgba(168, 85, 247, 0.05) 100%);
-            pointer-events: none;
-            z-index: 1;
-        }
-
-        #calendar-wrapper iframe {
-            display: block;
-            margin-bottom: -10px;
-            position: relative;
-            z-index: 0;
-        }
-
-        /* Light mode - override dark mode filters */
-        [data-theme="light"] #calendar-wrapper {
-            filter: none;
-            background: #ffffff;
-        }
-
-        [data-theme="light"] #calendar-wrapper::before {
-            display: none;
-        }
-
-        [data-theme="light"] #calendar-wrapper iframe {
-            filter: none;
-            margin-bottom: 0;
-        }
-
-
-
-
-        /* Todo list */
-        .todo-list {
-            list-style: none;
-        }
-
-        .todo-item {
-            position: relative;
-            border-radius: var(--border-radius-sm);
-            transition: var(--transition);
-            margin-bottom: 0.5rem;
-        }
-
-        .todo-item.menu-open {
-            z-index: 10;
-        }
-
-        .todo-main {
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-            padding: 0.75rem;
-            cursor: pointer;
-            border-radius: var(--border-radius-sm);
-            transition: var(--transition);
-        }
-
-        /* Highlight the oldest pending task */
-        .todo-item.oldest-pending .todo-main {
-            background: linear-gradient(135deg, rgba(124, 58, 237, 0.15) 0%, rgba(168, 85, 247, 0.1) 100%);
-            border: 2px solid var(--accent);
-            box-shadow: 0 0 20px rgba(124, 58, 237, 0.3);
-            animation: subtle-pulse 2s ease-in-out infinite;
-        }
-
-        [data-theme="light"] .todo-item.oldest-pending .todo-main {
-            background: linear-gradient(135deg, rgba(124, 58, 237, 0.12) 0%, rgba(168, 85, 247, 0.08) 100%);
-            box-shadow: 0 0 15px rgba(124, 58, 237, 0.25);
-        }
-
-        @keyframes subtle-pulse {
-
-            0%,
-            100% {
-                box-shadow: 0 0 20px rgba(124, 58, 237, 0.3);
-            }
-
-            50% {
-                box-shadow: 0 0 30px rgba(124, 58, 237, 0.5);
-            }
-        }
-
-        .todo-main:hover {
-            background: rgba(255, 255, 255, 0.05);
-        }
+        .todo-item { border-radius: 8px; padding: 9px 10px; border: 1px solid transparent; }
 
-        /* Keep the highlight even on hover for oldest pending */
-        .todo-item.oldest-pending .todo-main:hover {
-            background: linear-gradient(135deg, rgba(124, 58, 237, 0.2) 0%, rgba(168, 85, 247, 0.15) 100%);
+        .todo-item.in-progress {
+            background: color-mix(in oklab, var(--accent) 12%, transparent);
+            border-color: color-mix(in oklab, var(--accent) 35%, transparent);
         }
 
-        [data-theme="light"] .todo-main:hover {
-            background: rgba(0, 0, 0, 0.03);
-        }
-
-        [data-theme="light"] .todo-item.oldest-pending .todo-main:hover {
-            background: linear-gradient(135deg, rgba(124, 58, 237, 0.18) 0%, rgba(168, 85, 247, 0.12) 100%);
-        }
-
-        .todo-menu-indicator {
-            margin-left: auto;
-            color: var(--text-muted);
-            font-size: 1.25rem;
-            font-weight: bold;
-            transition: var(--transition);
-        }
-
-        .todo-main:hover .todo-menu-indicator {
-            color: var(--text-secondary);
-        }
-
-        .todo-menu {
-            position: fixed;
-            background: #1a1a2e !important;
-            border: 1px solid var(--border-color);
-            border-radius: var(--border-radius-sm);
-            box-shadow: var(--shadow);
-            min-width: 200px;
-            z-index: 9999;
-            overflow: hidden;
-        }
-
-        [data-theme="light"] .todo-menu {
-            background: #ffffff !important;
-        }
-
-        .menu-item {
-            width: 100%;
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-            padding: 0.75rem 1rem !important;
-            background: inherit;
-            border: none !important;
-            border-radius: 0;
-            text-align: left;
-            cursor: pointer;
-            transition: var(--transition);
-            font-size: 0.875rem;
-        }
-
-        .menu-item:hover {
-            background: rgba(255, 255, 255, 0.05);
-        }
-
-        [data-theme="light"] .menu-item:hover {
-            background: rgba(0, 0, 0, 0.05);
-        }
-
-        .menu-item.btn-success {
-            color: var(--success);
-        }
-
-        .menu-item.btn-success:hover {
-            background: var(--success-light);
-        }
-
-        .menu-item.btn-warning {
-            color: var(--warning);
-        }
-
-        .menu-item.btn-warning:hover {
-            background: rgba(245, 158, 11, 0.2);
-        }
-
-        .menu-item.btn-secondary {
-            color: var(--text-secondary);
-        }
-
-        .menu-item.btn-secondary:hover {
-            background: rgba(255, 255, 255, 0.05);
-        }
-
-        [data-theme="light"] .menu-item.btn-secondary:hover {
-            background: rgba(0, 0, 0, 0.05);
-        }
-
-        .menu-item.btn-danger {
-            color: var(--danger);
-        }
-
-        .menu-item.btn-danger:hover {
-            background: var(--danger-light);
-        }
-
-        .menu-icon {
-            font-size: 1rem;
-            width: 1.25rem;
-            text-align: center;
-        }
-
-        .menu-label {
-            flex: 1;
-        }
-
-        .todo-item.done {
-            opacity: 0.6;
-        }
-
-        .todo-item.done .todo-content {
-            text-decoration: line-through;
-        }
-
-        .todo-index {
-            background: var(--accent-light);
-            color: var(--accent);
-            font-size: 0.75rem;
-            font-weight: 600;
-            padding: 0.25rem 0.5rem;
-            border-radius: 4px;
-            min-width: 2rem;
-            text-align: center;
-        }
-
-        [data-theme="light"] .todo-index {
-            background: var(--accent);
-            color: white;
-        }
-
-        .todo-content {
-            flex: 1;
-        }
-
-        .todo-status {
-            font-size: 0.75rem;
-            padding: 0.25rem 0.5rem;
-            border-radius: 4px;
-        }
-
-        .todo-status.pending {
-            background: #f59e0b;
-            color: #000;
-            font-weight: 500;
-        }
-
-        .todo-status.in-progress {
-            background: #3b82f6;
-            color: #fff;
-            font-weight: 600;
-        }
-
-        .todo-worktrees {
-            padding: 0 0.75rem 0.5rem 3.5rem;
-            display: flex;
-            flex-direction: column;
-            gap: 0.25rem;
-        }
+        .todo-row { display: flex; gap: 8px; align-items: flex-start; }
+        .todo-idx { flex: none; font-family: var(--mono); font-size: 10.5px; color: var(--muted); padding-top: 2px; }
+        .todo-item.in-progress .todo-idx { color: var(--accent); }
+        .todo-body { flex: 1; min-width: 0; font-size: 12.5px; color: var(--text-2); }
+        .todo-item.in-progress .todo-body { font-weight: 500; color: var(--text); }
+        .todo-body a { pointer-events: auto; }
 
         .worktree-path {
-            font-family: 'JetBrains Mono', 'Fira Code', monospace;
-            font-size: 0.75rem;
-            color: var(--text-muted);
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
+            margin-top: 3px; font-family: var(--mono); font-size: 10.5px; color: var(--sub);
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
         }
 
-        /* Scrap list */
+        .todo-actions { display: flex; gap: 4px; flex: none; opacity: 0; transition: opacity .12s; }
+        .todo-item:hover .todo-actions { opacity: 1; }
 
-        .todo-status.done {
-            background: var(--success);
-            color: #000;
-            font-weight: 600;
+        .act-btn {
+            cursor: pointer; width: 22px; height: 22px; border-radius: 5px;
+            border: 1px solid var(--border); background: var(--bg); color: var(--sub);
+            font-size: 10px; display: flex; align-items: center; justify-content: center;
         }
+        .act-btn:hover { border-color: var(--border-2); color: var(--text); }
+        .act-btn.done { color: var(--green); }
+        .act-btn.delete:hover { color: var(--red); }
 
-        .todo-status.cancelled {
-            background: var(--text-muted);
-            color: #000;
-            font-weight: 600;
+        .btn-scrap-link {
+            cursor: pointer; background: none; border: none; font-size: 11px; padding: 0 2px; flex: none;
         }
 
-        [data-theme="light"] .todo-status.pending {
-            background: #f59e0b;
-            color: white;
+        .closed-toggle {
+            cursor: pointer; margin: 10px 6px 0; border: none; background: transparent;
+            border-top: 1px solid var(--border); padding: 10px 0 4px;
+            font-size: 11px; color: var(--muted); display: flex; align-items: center; gap: 6px;
+            text-align: left; width: calc(100% - 12px);
         }
 
-        [data-theme="light"] .todo-status.in-progress {
-            background: #3b82f6;
-            color: white;
-        }
-
-        [data-theme="light"] .todo-status.done {
-            background: var(--success);
-            color: white;
-        }
-
-        [data-theme="light"] .todo-status.cancelled {
-            background: var(--text-muted);
-            color: white;
-        }
-
-        .todo-item.cancelled {
-            opacity: 0.5;
-        }
-
-        .todo-item.cancelled .todo-content {
-            text-decoration: line-through;
-        }
-
-        /* Scrap list - scrolling is handled by .card.scrollable-card .card-content */
-
-        .scrap-item {
-            padding: 1rem;
-            border-left: 3px solid var(--accent);
-            background: rgba(255, 255, 255, 0.03);
-            border-radius: 0 var(--border-radius-sm) var(--border-radius-sm) 0;
-            margin-bottom: 0.75rem;
-        }
-
-        [data-theme="light"] .scrap-item {
-            background: rgba(0, 0, 0, 0.03);
-        }
-
-        .scrap-time {
-            color: var(--text-secondary);
-            font-size: 0.8125rem;
-            font-weight: 500;
-            font-family: 'JetBrains Mono', 'Fira Code', monospace;
-            margin-bottom: 0.5rem;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        .scrap-time::before {
-            content: '🕐';
-            font-size: 0.875rem;
-        }
-
-        .scrap-content {
-            white-space: pre-wrap;
-            word-break: break-word;
-        }
-
-        /* Markdown styling for scrap content */
-        .scrap-markdown {
-            line-height: 1.3;
-        }
-
-        .scrap-markdown h1,
-        .scrap-markdown h2,
-        .scrap-markdown h3,
-        .scrap-markdown h4,
-        .scrap-markdown h5,
-        .scrap-markdown h6 {
-            margin: 0.25rem 0 0 0;
-            font-weight: 600;
-            color: var(--text-primary);
-        }
-
-        .scrap-markdown h1 {
-            font-size: 1.5rem;
-            border-bottom: 2px solid var(--border-color);
-            padding-bottom: 0.25rem;
-            margin-bottom: 0.125rem;
-        }
-
-        .scrap-markdown h2 {
-            font-size: 1.25rem;
-            border-bottom: 1px solid var(--border-color);
-            padding-bottom: 0.25rem;
-            margin-bottom: 0.125rem;
-        }
-
-        .scrap-markdown h3 {
-            font-size: 1.125rem;
-        }
-
-        .scrap-markdown h4 {
-            font-size: 1rem;
-        }
-
-        .scrap-markdown h5,
-        .scrap-markdown h6 {
-            font-size: 0.875rem;
-        }
-
-        .scrap-markdown p {
-            margin: 0;
-        }
-
-        .scrap-markdown ul,
-        .scrap-markdown ol {
-            margin: 0;
-            padding-left: 1.5rem;
-            margin-block-start: 0;
-            margin-block-end: 0;
-        }
-
-        .scrap-markdown li {
-            margin: 0;
-            line-height: 1.3;
-        }
-
-        .scrap-markdown li p {
-            margin: 0;
-            display: inline;
-        }
-
-        .scrap-markdown code {
-            background: var(--bg-input);
-            padding: 0.125rem 0.375rem;
-            border-radius: 3px;
-            font-family: 'JetBrains Mono', 'Fira Code', monospace;
-            font-size: 0.875em;
-            color: var(--accent);
-        }
-
-        .scrap-markdown pre {
-            background: var(--bg-input);
-            border: 1px solid var(--border-color);
-            border-radius: var(--border-radius-sm);
-            padding: 0.75rem;
-            overflow-x: auto;
-            margin: 0.25rem 0;
-        }
-
-        .scrap-markdown pre code {
-            background: none;
-            padding: 0;
-            color: var(--text-primary);
-        }
-
-        .scrap-markdown a {
-            color: #5eead4;
-            text-decoration: none;
-            transition: var(--transition);
-        }
-
-        .scrap-markdown a:hover {
-            color: #2dd4bf;
-            text-decoration: underline;
-        }
-
-        [data-theme="light"] .scrap-markdown a {
-            color: #0ea5e9;
-        }
-
-        [data-theme="light"] .scrap-markdown a:hover {
-            color: #0284c7;
-        }
-
-        .todo-content a {
-            color: #5eead4;
-            text-decoration: none;
-            transition: var(--transition);
-        }
-
-        .todo-content a:hover {
-            color: #2dd4bf;
-            text-decoration: underline;
-        }
-
-        [data-theme="light"] .todo-content a {
-            color: #0ea5e9;
-        }
+        .todo-item.closed { opacity: .5; padding: 6px 10px; }
+        .todo-item.closed .todo-body { text-decoration: line-through; color: var(--sub); font-size: 12px; }
+        .status-dot-sm { flex: none; width: 8px; height: 8px; border-radius: 50%; margin-top: 5px; }
+        .status-dot-sm.done { background: var(--green); }
+        .status-dot-sm.cancelled { background: var(--red); }
 
-        [data-theme="light"] .todo-content a:hover {
-            color: #0284c7;
+        /* ===== Workflow footer ===== */
+        .workflow-footer { flex: none; padding: 14px 16px; border-top: 1px solid var(--border); }
+        .workflow-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+        .phase-badge {
+            font-size: 10px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase;
+            padding: 1px 7px; border-radius: 99px;
+            background: color-mix(in oklab, var(--green) 15%, transparent); color: var(--green);
         }
-
-        .scrap-markdown blockquote {
-            border-left: 3px solid var(--accent);
-            padding-left: 1rem;
-            margin: 0.25rem 0;
-            color: var(--text-secondary);
-            font-style: italic;
-        }
-
-        .scrap-markdown strong {
-            font-weight: 600;
-            color: var(--text-primary);
-        }
-
-        .scrap-markdown em {
-            font-style: italic;
-        }
-
-        .scrap-markdown hr {
-            border: none;
-            border-top: 1px solid var(--border-color);
-            margin: 0.25rem 0;
-        }
-
-        .scrap-markdown table {
-            border-collapse: collapse;
-            width: 100%;
-            margin: 0.25rem 0;
-        }
-
-        .scrap-markdown th,
-        .scrap-markdown td {
-            border: 1px solid var(--border-color);
-            padding: 0.5rem;
-            text-align: left;
-        }
-
-        .scrap-markdown th {
-            background: var(--bg-input);
-            font-weight: 600;
-        }
-
-        .scrap-markdown img {
-            max-width: 100%;
-            height: auto;
-            border-radius: var(--border-radius-sm);
-            margin: 0.25rem 0;
-        }
-
-
-        /* Repository list */
-        .repo-item {
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-            padding: 0.5rem 0;
-            border-bottom: 1px solid var(--border-color);
-        }
-
-        .repo-item:last-child {
-            border-bottom: none;
-        }
-
-        .repo-path {
-            font-family: 'JetBrains Mono', 'Fira Code', monospace;
-            font-size: 0.875rem;
-            color: var(--text-secondary);
-        }
-
-        /* Link list */
-        .link-list {
-            display: flex;
-            flex-direction: column;
-            gap: 0.5rem;
-        }
-
-        .link-item {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 0.5rem;
-            padding: 0.5rem 0;
-            border-bottom: 1px solid var(--border-color);
-        }
-
-        .link-item:last-child {
-            border-bottom: none;
-        }
-
-        .link-url {
-            color: var(--accent);
-            text-decoration: none;
-            font-size: 0.875rem;
-            transition: var(--transition);
-            display: inline-flex;
-            align-items: center;
-            gap: 0.25rem;
-        }
-
-        .link-url:hover {
-            color: var(--accent-hover);
-            text-decoration: underline;
-        }
-
-        .link-url::before {
-            content: '🔗';
-            font-size: 0.875rem;
-        }
-
-        /* Empty state */
-        .empty-state {
-            text-align: center;
-            padding: 2rem;
-            color: var(--text-muted);
-        }
-
-        .empty-state .icon {
-            font-size: 3rem;
-            margin-bottom: 1rem;
-            opacity: 0.5;
-        }
-
-        /* HTMX transitions */
-        .htmx-request {
-            opacity: 0.7;
-            pointer-events: none;
-        }
-
-        .htmx-swapping {
-            opacity: 0;
-            transition: opacity 0.15s ease-out;
-        }
-
-        .htmx-settling {
-            opacity: 1;
-            transition: opacity 0.15s ease-in;
-        }
-
-        /* No task state */
-        .no-task {
-            text-align: center;
-            padding: 4rem 2rem;
-        }
-
-        .no-task h2 {
-            font-size: 1.5rem;
-            margin-bottom: 1rem;
-            color: var(--text-secondary);
-        }
-
-        .no-task p {
-            color: var(--text-muted);
-        }
-
-        .no-task code {
-            background: var(--bg-input);
-            padding: 0.25rem 0.5rem;
-            border-radius: 4px;
-            font-family: 'JetBrains Mono', monospace;
-        }
-
-        /* Connection status (in toolbar) */
-        .connection-status {
-            background: var(--bg-card);
-            border: 1px solid var(--border-color);
-            border-radius: var(--border-radius-sm);
-            padding: 0.5rem 0.75rem;
-            font-size: 0.75rem;
-            display: flex;
-            align-items: center;
-            gap: 0.375rem;
-            box-shadow: var(--shadow);
-            height: 2.5rem;
-            white-space: nowrap;
-            transition: var(--transition);
-        }
-
-        .connection-status.connected {
-            border-color: var(--success);
-            color: var(--success);
-        }
-
-        .connection-status.disconnected {
-            border-color: var(--danger);
-            color: var(--danger);
-        }
-
-        .status-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            animation: pulse 2s infinite;
+        .workflow-label { font-size: 11px; color: var(--muted); }
+        .workflow-command {
+            display: block; font-family: var(--mono); font-size: 11.5px; color: var(--text-2);
+            background: var(--panel); border: 1px solid var(--border); border-radius: 6px;
+            padding: 6px 9px; word-break: break-all;
         }
+        .workflow-reason { color: var(--sub); font-size: 11.5px; margin-top: 5px; }
+        .workflow-checklist { list-style: none; margin-top: 8px; }
+        .workflow-step { display: flex; gap: 7px; font-size: 11.5px; color: var(--sub); padding: 2px 0; }
+        .workflow-step.done { color: var(--text-2); }
+        .workflow-step .step-marker { color: var(--muted); }
+        .workflow-step.done .step-marker { color: var(--green); }
 
-        .connected .status-dot {
-            background: var(--success);
-        }
+        /* ===== Stream (scraps) ===== */
+        .stream-col { display: flex; flex-direction: column; min-height: 0; }
 
-        .disconnected .status-dot {
-            background: var(--danger);
-            animation: none;
+        .stream {
+            flex: 1; overflow-y: auto; min-height: 0; padding: 20px 28px;
+            scrollbar-width: none;
         }
+        .stream::-webkit-scrollbar { display: none; }
 
-        @keyframes pulse {
+        .day-label { font-size: 11px; font-weight: 600; letter-spacing: .06em; color: var(--muted); margin-bottom: 14px; }
 
-            0%,
-            100% {
-                opacity: 1;
-            }
-
-            50% {
-                opacity: 0.5;
-            }
+        .stream-row { display: grid; grid-template-columns: 92px 20px 1fr; gap: 0 12px; padding-bottom: 18px; }
+        .stream-time {
+            font-family: var(--mono); font-size: 10.5px; color: var(--muted);
+            text-align: right; padding-top: 3px; white-space: nowrap;
         }
-
-        /* Fixed toolbar for view mode and theme toggle buttons */
-        .toolbar {
-            position: fixed;
-            top: 1rem;
-            right: 1rem;
-            display: flex;
-            gap: 0.5rem;
-            z-index: 1000;
+        .stream-line { display: flex; flex-direction: column; align-items: center; }
+        .stream-dot {
+            width: 8px; height: 8px; border-radius: 50%; margin-top: 6px; flex: none;
+            background: var(--panel-2); border: 1.5px solid var(--muted);
         }
+        .stream-tail { flex: 1; width: 1px; background: var(--border); margin-top: 4px; }
 
-        .toolbar-btn {
-            background: var(--bg-card);
-            color: var(--text-secondary);
-            border: 1px solid var(--border-color);
-            border-radius: var(--border-radius-sm);
-            padding: 0.5rem 0.75rem;
-            font-size: 0.875rem;
-            font-weight: 500;
-            cursor: pointer;
-            transition: var(--transition);
-            display: flex;
-            align-items: center;
-            gap: 0.375rem;
-            box-shadow: var(--shadow);
-            height: 2.5rem;
-            white-space: nowrap;
+        .scrap-card {
+            background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+            padding: 10px 14px; font-size: 12.5px; color: var(--text-2); min-width: 0;
         }
 
-        .toolbar-btn:hover {
-            background: var(--bg-input);
+        .scrap-highlighted {
             border-color: var(--accent);
-            transform: translateY(-1px);
+            background: color-mix(in oklab, var(--accent) 8%, transparent);
         }
 
-        .toolbar-btn:active {
-            transform: translateY(0);
+        .todo-ref {
+            display: inline-block; font-size: 10px; color: var(--accent);
+            background: color-mix(in oklab, var(--accent) 14%, transparent);
+            padding: 1px 6px; border-radius: 99px; margin-left: 6px;
         }
 
-        [data-theme="light"] .toolbar-btn {
-            background: var(--bg-card);
+        .scrap-markdown p { margin: 0 0 .4em; }
+        .scrap-markdown p:last-child { margin-bottom: 0; }
+        .scrap-markdown pre {
+            background: var(--code-bg); border-radius: 6px; padding: 8px 10px;
+            overflow-x: auto; margin: .4em 0;
+        }
+        .scrap-markdown pre code { background: none; padding: 0; }
+        .scrap-markdown ul, .scrap-markdown ol { padding-left: 1.2em; }
+
+        /* ===== Command bar ===== */
+        .cmd-bar { flex: none; padding: 16px 28px 20px; }
+        .cmd-box {
+            display: flex; align-items: center; gap: 10px;
+            background: var(--panel-2); border: 1px solid var(--border-2); border-radius: 12px;
+            padding: 6px 16px; box-shadow: var(--shadow);
+        }
+        .cmd-box:focus-within { border-color: color-mix(in oklab, var(--accent) 50%, transparent); }
+        .cmd-prompt { color: var(--accent); font-family: var(--mono); font-weight: 600; }
+        .cmd-input {
+            flex: 1; background: transparent; border: none; outline: none;
+            font-size: 13px; padding: 8px 0; color: var(--text); resize: none;
+            max-height: 120px;
+        }
+        .cmd-input:focus { outline: none; }
+        .kbd {
+            font-size: 10.5px; color: var(--muted); border: 1px solid var(--border-2);
+            border-radius: 4px; padding: 1px 6px; font-family: var(--mono);
         }
 
-        [data-theme="light"] .toolbar-btn:hover {
-            background: var(--bg-input);
+        /* ===== Forms / buttons ===== */
+        .form-actions { display: flex; gap: 6px; margin-top: 8px; }
+        .btn-primary, .btn-secondary {
+            cursor: pointer; font-size: 12px; font-weight: 600; border-radius: 6px; padding: 5px 12px;
         }
+        .btn-primary { background: var(--accent); color: #fff; border: 1px solid transparent; }
+        .btn-primary:hover { filter: brightness(1.1); }
+        .btn-secondary { background: transparent; color: var(--sub); border: 1px solid var(--border); }
+        .btn-secondary:hover { border-color: var(--border-2); color: var(--text); }
 
-        .toolbar-btn .icon {
-            font-size: 1.125rem;
+        #desc-edit-form textarea, #ticket-edit-form input { width: 100%; font-size: 12.5px; }
+        #ticket-edit-form input { margin-bottom: 6px; }
+
+        /* ===== Empty / no-task states ===== */
+        .empty-state { text-align: center; color: var(--muted); padding: 2rem 1rem; font-size: 12.5px; }
+        .empty-state .icon { font-size: 1.5rem; margin-bottom: .25rem; }
+
+        .no-task {
+            flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+            gap: .5rem; color: var(--sub); text-align: center; padding: 2rem;
         }
+        .no-task .icon { font-size: 2.5rem; }
+        .no-task h2 { color: var(--text); font-size: 1.1rem; }
 
-        /* Theme toggle specific styles */
-        .theme-toggle {
-            min-width: 2.5rem;
-            justify-content: center;
-            padding: 0.5rem;
-        }
+        /* ===== Calendar ===== */
+        .calendar-container iframe { border: 0; width: 100%; height: 420px; border-radius: 8px; }
 
-        .theme-icon {
-            font-size: 1.25rem;
-            transition: var(--transition);
-        }
-
-        /* Responsive */
-        @media (max-width: 640px) {
-            .container {
-                padding: 1rem;
-            }
-
-            .task-header h1 {
-                font-size: 1.5rem;
-            }
-
-            .input-group {
-                flex-direction: column;
-            }
-
-            button {
-                width: 100%;
-                justify-content: center;
-            }
-
-            .form-actions {
-                flex-direction: column;
-            }
-
-            .toolbar {
-                top: 0.5rem;
-                right: 0.5rem;
-            }
+        @media (max-width: 900px) {
+            .drawer { grid-template-columns: 1fr; gap: 16px; }
+            .body-grid { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+            .todo-rail { border-right: none; border-bottom: 1px solid var(--border); max-height: 45vh; }
         }
     </style>
 
@@ -1392,24 +389,7 @@
 </head>
 
 <body>
-    <!-- Toolbar with View Mode, Connection Status, and Theme Toggle Buttons -->
-    <div class="toolbar">
-        {% block toolbar_buttons %}
-        <!-- Connection status (always visible) -->
-        <div id="connection-status" class="connection-status disconnected">
-            <span class="status-dot"></span>
-            <span class="status-text">Connecting...</span>
-        </div>
-        <!-- Theme toggle button (always visible) -->
-        <button class="toolbar-btn theme-toggle" id="theme-toggle" aria-label="Toggle theme">
-            <span class="theme-icon" id="theme-icon">🌙</span>
-        </button>
-        {% endblock %}
-    </div>
-
-    <div class="container">
-        {% block content %}{% endblock %}
-    </div>
+    {% block content %}{% endblock %}
 
     <script>
         // Theme management
@@ -1417,58 +397,77 @@
             const html = document.documentElement;
             const themeToggle = document.getElementById('theme-toggle');
             const themeIcon = document.getElementById('theme-icon');
-
-            // Get saved theme or default to dark
             const savedTheme = localStorage.getItem('theme') || 'dark';
 
-            // Apply theme
             function applyTheme(theme) {
                 if (theme === 'light') {
                     html.setAttribute('data-theme', 'light');
-                    themeIcon.textContent = '☀️';
+                    if (themeIcon) themeIcon.textContent = '☀️';
                 } else {
                     html.removeAttribute('data-theme');
-                    themeIcon.textContent = '🌙';
+                    if (themeIcon) themeIcon.textContent = '🌙';
                 }
                 localStorage.setItem('theme', theme);
             }
 
-            // Initialize theme
             applyTheme(savedTheme);
 
-            // Toggle theme
-            themeToggle.addEventListener('click', function () {
-                const currentTheme = html.getAttribute('data-theme');
-                const newTheme = currentTheme === 'light' ? 'dark' : 'light';
-                applyTheme(newTheme);
-            });
+            if (themeToggle) {
+                themeToggle.addEventListener('click', function () {
+                    const currentTheme = html.getAttribute('data-theme');
+                    applyTheme(currentTheme === 'light' ? 'dark' : 'light');
+                });
+            }
+        })();
+    </script>
+
+    <script>
+        // Context drawer toggle (persisted)
+        window.toggleDrawer = function () {
+            const drawer = document.getElementById('context-drawer');
+            const chip = document.getElementById('drawer-chip');
+            if (!drawer) return;
+            const open = drawer.hidden;
+            drawer.hidden = !open;
+            if (chip) {
+                chip.classList.toggle('active', open);
+                const chev = chip.querySelector('.chev');
+                if (chev) chev.textContent = open ? '⌃' : '⌄';
+            }
+            localStorage.setItem('drawerOpen', open ? '1' : '0');
+        };
+
+        (function () {
+            const drawer = document.getElementById('context-drawer');
+            const chip = document.getElementById('drawer-chip');
+            if (!drawer) return;
+            const open = localStorage.getItem('drawerOpen') === '1';
+            drawer.hidden = !open;
+            if (chip) {
+                chip.classList.toggle('active', open);
+                const chev = chip.querySelector('.chev');
+                if (chev) chev.textContent = open ? '⌃' : '⌄';
+            }
         })();
     </script>
 
     <script>
         // SSE connection for real-time updates
-        // Use global flag to prevent duplicate connections
         if (!window.sseInitialized) {
-            console.log('Initializing SSE connection...');
             window.sseInitialized = true;
-
             window.eventSource = null;
             window.reconnectAttempts = 0;
             const maxReconnectAttempts = 5;
 
             window.connectSSE = function () {
-                // Close existing connection if any
                 if (window.eventSource) {
-                    console.log('Closing existing SSE connection');
                     window.eventSource.close();
                     window.eventSource = null;
                 }
 
-                console.log('Creating new SSE connection');
                 window.eventSource = new EventSource('/api/sse');
 
                 window.eventSource.onopen = function () {
-                    console.log('SSE connection opened');
                     window.reconnectAttempts = 0;
                     const status = document.getElementById('connection-status');
                     if (status) {
@@ -1480,134 +479,64 @@
 
                 window.eventSource.addEventListener('update', function (e) {
                     const event = JSON.parse(e.data);
-                    console.log('SSE event:', event);
-
-                    // Handle card-specific events
                     switch (event.type) {
                         case 'header':
-                            console.log('Updating task header');
-                            // Reload the entire page to update header
                             window.location.reload();
                             break;
-
                         case 'description':
-                            console.log('Updating description section');
-                            htmx.ajax('GET', '/api/card/description', {
-                                target: '#description-section',
-                                swap: 'outerHTML'
-                            });
+                            htmx.ajax('GET', '/api/card/description', { target: '#description-section', swap: 'outerHTML' });
                             break;
-
                         case 'ticket':
-                            console.log('Updating ticket section');
-                            htmx.ajax('GET', '/api/card/ticket', {
-                                target: '#ticket-section',
-                                swap: 'outerHTML'
-                            });
+                            htmx.ajax('GET', '/api/card/ticket', { target: '#ticket-section', swap: 'outerHTML' });
                             break;
-
                         case 'links':
-                            console.log('Updating links section');
-                            htmx.ajax('GET', '/api/card/links', {
-                                target: '#links-section',
-                                swap: 'outerHTML'
-                            });
+                            htmx.ajax('GET', '/api/card/links', { target: '#links-section', swap: 'outerHTML' });
                             break;
-
                         case 'todos':
-                            console.log('Updating todos section');
-                            htmx.ajax('GET', '/api/card/todos', {
-                                target: '#todos-section',
-                                swap: 'outerHTML'
-                            }).then(() => {
-                                // After todos update, scroll to oldest pending task if in focus mode
-                                if (document.body.classList.contains('focus-mode')) {
-                                    setTimeout(() => {
-                                        if (typeof scrollToOldestPendingTask === 'function') {
-                                            scrollToOldestPendingTask();
-                                        }
-                                    }, 100);
-                                }
-                            });
+                            htmx.ajax('GET', '/api/card/todos', { target: '#todos-section', swap: 'outerHTML' });
                             break;
-
                         case 'scraps':
-                            console.log('Updating scraps section');
-                            htmx.ajax('GET', '/api/card/scraps', {
-                                target: '#scraps-section',
-                                swap: 'outerHTML'
-                            });
+                            htmx.ajax('GET', '/api/card/scraps', { target: '#scraps-section', swap: 'outerHTML' });
                             break;
-
                         case 'repos':
-                            console.log('Updating repos section');
-                            htmx.ajax('GET', '/partials/repos', {
-                                target: '#repos-section',
-                                swap: 'outerHTML'
-                            });
+                            htmx.ajax('GET', '/partials/repos', { target: '#repos-section', swap: 'outerHTML' });
                             break;
-
                         default:
                             console.warn('Unknown SSE event type:', event.type);
                     }
                 });
 
                 window.eventSource.onerror = function () {
-                    console.log('SSE connection error');
                     const status = document.getElementById('connection-status');
                     if (status) {
                         status.className = 'connection-status disconnected';
                         const textEl = status.querySelector('.status-text');
-                        if (textEl) textEl.textContent = 'Disconnected';
+                        if (textEl) textEl.textContent = 'Offline';
                     }
-
                     if (window.eventSource) {
                         window.eventSource.close();
                         window.eventSource = null;
                     }
-
                     if (window.reconnectAttempts < maxReconnectAttempts) {
                         window.reconnectAttempts++;
-                        const delay = 2000 * window.reconnectAttempts;
-                        console.log(`Reconnecting in ${delay}ms (attempt ${window.reconnectAttempts}/${maxReconnectAttempts})`);
-                        setTimeout(window.connectSSE, delay);
+                        setTimeout(window.connectSSE, 2000 * window.reconnectAttempts);
                     }
                 };
             };
 
-            // Start connection
             window.connectSSE();
 
-            // Reconnect on visibility change
             document.addEventListener('visibilitychange', function () {
                 if (!document.hidden && (!window.eventSource || window.eventSource.readyState === EventSource.CLOSED)) {
-                    console.log('Page visible, reconnecting SSE');
                     window.reconnectAttempts = 0;
                     window.connectSSE();
                 }
             });
-
-            // Clean up any duplicate connection-status elements
-            setTimeout(() => {
-                const statusElements = document.querySelectorAll('.connection-status');
-                console.log(`Found ${statusElements.length} connection-status elements`);
-                if (statusElements.length > 1) {
-                    console.warn('Removing duplicate connection-status elements');
-                    // Keep only the one with id="connection-status"
-                    statusElements.forEach(el => {
-                        if (el.id !== 'connection-status') {
-                            el.remove();
-                        }
-                    });
-                }
-            }, 100);
-        } else {
-            console.log('SSE already initialized, skipping');
         }
     </script>
 
     <script>
-        // Global edit toggle functions
+        // Inline edit toggles (description / ticket in the context drawer)
         window.toggleDescEdit = function () {
             const display = document.getElementById('desc-display');
             const form = document.getElementById('desc-edit-form');
@@ -1635,84 +564,6 @@
                 form.style.display = 'none';
             }
         };
-    </script>
-
-    <script>
-        // Global TODO menu handler
-        window.toggleTodoMenu = function (event, todoId) {
-            event.stopPropagation();
-
-            const currentItem = document.querySelector(`[data-todo-id="${todoId}"]`);
-            const currentMenu = document.getElementById(`todo-menu-${todoId}`);
-
-            // Close all other menus and remove menu-open class
-            document.querySelectorAll('.todo-item').forEach(item => {
-                if (item.getAttribute('data-todo-id') !== todoId) {
-                    const menuId = `todo-menu-${item.getAttribute('data-todo-id')}`;
-                    const menu = document.getElementById(menuId);
-                    if (menu) {
-                        menu.style.display = 'none';
-                    }
-                    item.classList.remove('menu-open');
-                }
-            });
-
-            // Toggle current menu
-            if (currentMenu) {
-                const isOpen = currentMenu.style.display === 'block';
-
-                if (isOpen) {
-                    currentMenu.style.display = 'none';
-                    currentItem.classList.remove('menu-open');
-                } else {
-                    // Move menu to body to avoid parent container offsets
-                    if (currentMenu.parentElement !== document.body) {
-                        document.body.appendChild(currentMenu);
-                    }
-
-                    // Position menu at cursor location
-                    currentMenu.style.left = `${event.clientX}px`;
-                    currentMenu.style.top = `${event.clientY}px`;
-                    currentMenu.style.display = 'block';
-
-                    currentItem.classList.add('menu-open');
-                }
-            } else {
-                console.error('Menu not found:', `todo-menu-${todoId}`);
-            }
-        };
-
-        // Close menus when clicking outside (use event delegation)
-        document.addEventListener('click', function (event) {
-            if (!event.target.closest('.todo-item') && !event.target.closest('.todo-menu')) {
-                document.querySelectorAll('.todo-menu').forEach(menu => {
-                    menu.style.display = 'none';
-                });
-                document.querySelectorAll('.todo-item').forEach(item => {
-                    item.classList.remove('menu-open');
-                });
-            }
-        });
-
-        // Close menus when HTMX request starts
-        document.body.addEventListener('htmx:beforeRequest', function () {
-            document.querySelectorAll('.todo-menu').forEach(menu => {
-                menu.style.display = 'none';
-            });
-            document.querySelectorAll('.todo-item').forEach(item => {
-                item.classList.remove('menu-open');
-            });
-        });
-
-        // Prevent link clicks in TODO/Scrap content from triggering menu toggle
-        document.addEventListener('click', function (event) {
-            // Check if the clicked element is a link within todo-content or scrap-content
-            const link = event.target.closest('a');
-            if (link && (link.closest('.todo-content') || link.closest('.scrap-content'))) {
-                // Stop propagation to prevent triggering toggleTodoMenu
-                event.stopPropagation();
-            }
-        }, true); // Use capture phase to catch the event early
     </script>
 </body>
 

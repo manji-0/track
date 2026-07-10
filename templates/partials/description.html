@@ -1,24 +1,22 @@
-<div class="card" id="description-section">
-    <div class="card-header">
-        <h2 class="card-title"><span class="icon">📝</span> Description</h2>
-        <button class="btn-edit" onclick="toggleDescEdit()">✏️ Edit</button>
+<div id="description-section">
+    <div class="sec-head">
+        <span class="sec-label">DESCRIPTION</span>
+        <button class="sec-action" onclick="toggleDescEdit()">✏️ Edit</button>
     </div>
     {% if task.description %}
     <div class="description" id="desc-display">{{ task.description }}</div>
     {% else %}
     <div class="description text-muted" id="desc-display">No description set.</div>
     {% endif %}
-    <form id="desc-edit-form" style="display: none;" hx-post="/api/description" hx-target="#description-section"
-        hx-swap="none">
+    <form id="desc-edit-form" style="display: none;" hx-post="/api/description" hx-swap="none">
         <textarea name="description" id="desc-textarea" rows="4"
-            placeholder="Enter task description... (Ctrl+Enter to save)">{{ task.description or '' }}</textarea>
+            placeholder="Enter task description… (Ctrl+Enter to save)">{{ task.description or '' }}</textarea>
         <div class="form-actions">
-            <button type="submit" class="btn-primary">💾 Save</button>
-            <button type="button" class="btn-secondary" onclick="toggleDescEdit()">✖ Cancel</button>
+            <button type="submit" class="btn-primary">Save</button>
+            <button type="button" class="btn-secondary" onclick="toggleDescEdit()">Cancel</button>
         </div>
     </form>
     <script>
-        // Description textarea: Ctrl+Enter to submit
         (function () {
             const descTextarea = document.getElementById('desc-textarea');
             const descForm = document.getElementById('desc-edit-form');
