@@ -5,16 +5,11 @@
         {% if todos %}
         <span class="rail-count">{{ todos | selectattr("status", "eq", "pending") | list | length }} open</span>
         {% endif %}
+        <div class="rail-actions">
+            <button type="button" class="sec-action" onclick="focusCmdTodo()" title="Add todo via command bar (/todo)">+ Add</button>
+            <button type="button" class="sec-action" onclick="focusCmdTodo(true)" title="Add plan todo — no workspace (/plan)">+ Plan</button>
+        </div>
     </div>
-
-    <!-- Add Todo Form -->
-    <form class="todo-add" hx-post="/api/todo" hx-swap="none" hx-on::after-request="this.reset()">
-        <input type="text" name="content" placeholder="Add a todo…" required autocomplete="off">
-        <label class="checkbox-container" title="Research/planning — no jj-task workspace needed">
-            <input type="checkbox" name="no_workspace" value="true">
-            <span>📋</span>
-        </label>
-    </form>
 
     <div class="todo-scroll">
         {% if todos and todos|length > 0 %}
@@ -58,7 +53,8 @@
         <!-- Closed todos (done + cancelled), collapsed -->
         {% set closed = todos | rejectattr("status", "eq", "pending") | list %}
         {% if closed|length > 0 %}
-        <button class="closed-toggle" onclick="toggleClosedTodos()">
+        <button class="closed-toggle" type="button" id="closed-toggle" onclick="toggleClosedTodos()"
+            aria-expanded="false" aria-controls="closed-todos">
             CLOSED · {{ closed|length }}
             <span class="spacer"></span>
             <span id="closed-chev">⌄</span>
@@ -70,6 +66,10 @@
                     <span class="todo-idx">#{{ todo.todo_id }}</span>
                     <div class="todo-body">{{ todo.content_html | safe }}</div>
                     <span class="status-dot-sm {{ todo.status }}"></span>
+                    <div class="todo-actions">
+                        <button class="act-btn delete" title="Delete" hx-delete="/api/todo/{{ todo.todo_id }}"
+                            hx-swap="none" hx-confirm="Delete this todo?">🗑</button>
+                    </div>
                 </div>
             </div>
             {% endfor %}
@@ -79,7 +79,7 @@
         {% else %}
         <div class="empty-state">
             <div class="icon">✨</div>
-            <p>No todos yet. Add one above!</p>
+            <p>No todos yet. Use <code>/todo</code> or <code>/plan</code> in the command bar.</p>
         </div>
         {% endif %}
     </div>

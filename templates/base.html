@@ -10,8 +10,7 @@
 
     <style>
         :root {
-            --accent: #6c7bd9;
-            --accent-2: #8b5cf6;
+            --accent: #4f7cff;
             --bg: #101116;
             --rail: #0c0d11;
             --panel: #15161c;
@@ -95,7 +94,7 @@
 
         .brand {
             width: 20px; height: 20px; border-radius: 6px;
-            background: linear-gradient(135deg, var(--accent), var(--accent-2));
+            background: var(--accent);
             color: #fff; font-size: 10px; font-weight: 600;
             display: flex; align-items: center; justify-content: center;
         }
@@ -193,25 +192,15 @@
         .rail-header { display: flex; align-items: center; gap: 8px; padding: 14px 16px 10px; flex: none; }
         .rail-title { font-weight: 600; font-size: 12.5px; }
         .rail-count { margin-left: auto; font-size: 11px; color: var(--muted); }
-
-        .todo-add { display: flex; gap: 6px; padding: 0 16px 10px; flex: none; }
-        .todo-add input[type="text"] { flex: 1; font-size: 12px; min-width: 0; }
-        .todo-add .checkbox-container {
-            display: flex; align-items: center; justify-content: center;
-            width: 32px; border: 1px solid var(--border); border-radius: 8px; cursor: pointer;
-        }
-        .todo-add .checkbox-container input { display: none; }
-        .todo-add .checkbox-container:has(input:checked) {
-            border-color: color-mix(in oklab, var(--accent) 50%, transparent);
-            background: color-mix(in oklab, var(--accent) 12%, transparent);
-        }
+        .rail-actions { display: flex; align-items: center; gap: 10px; flex: none; }
+        .rail-header:not(:has(.rail-count)) .rail-actions { margin-left: auto; }
+        .rail-header .sec-action { margin-left: 0; }
 
         .todo-scroll {
             flex: 1; overflow-y: auto; min-height: 0;
             padding: 0 10px 12px; display: flex; flex-direction: column; gap: 2px;
-            scrollbar-width: none;
+            scrollbar-width: thin;
         }
-        .todo-scroll::-webkit-scrollbar { display: none; }
 
         .todo-item { border-radius: 8px; padding: 9px 10px; border: 1px solid transparent; }
 
@@ -233,7 +222,12 @@
         }
 
         .todo-actions { display: flex; gap: 4px; flex: none; opacity: 0; transition: opacity .12s; }
-        .todo-item:hover .todo-actions { opacity: 1; }
+        .todo-item:hover .todo-actions,
+        .todo-item:focus-within .todo-actions { opacity: 1; }
+
+        @media (hover: none) {
+            .todo-actions { opacity: 1; }
+        }
 
         .act-btn {
             cursor: pointer; width: 22px; height: 22px; border-radius: 5px;
@@ -277,19 +271,22 @@
         }
         .workflow-reason { color: var(--sub); font-size: 11.5px; margin-top: 5px; }
         .workflow-checklist { list-style: none; margin-top: 8px; }
-        .workflow-step { display: flex; gap: 7px; font-size: 11.5px; color: var(--sub); padding: 2px 0; }
+        .workflow-step { display: flex; flex-wrap: wrap; gap: 7px; font-size: 11.5px; color: var(--sub); padding: 2px 0; }
         .workflow-step.done { color: var(--text-2); }
         .workflow-step .step-marker { color: var(--muted); }
         .workflow-step.done .step-marker { color: var(--green); }
+        .step-command {
+            flex: 1 1 100%; margin-left: 15px; font-family: var(--mono); font-size: 10.5px;
+            color: var(--muted); word-break: break-all;
+        }
 
         /* ===== Stream (scraps) ===== */
         .stream-col { display: flex; flex-direction: column; min-height: 0; }
 
         .stream {
             flex: 1; overflow-y: auto; min-height: 0; padding: 20px 28px;
-            scrollbar-width: none;
+            scrollbar-width: thin;
         }
-        .stream::-webkit-scrollbar { display: none; }
 
         .day-label { font-size: 11px; font-weight: 600; letter-spacing: .06em; color: var(--muted); margin-bottom: 14px; }
 
@@ -431,6 +428,7 @@
             drawer.hidden = !open;
             if (chip) {
                 chip.classList.toggle('active', open);
+                chip.setAttribute('aria-expanded', open ? 'true' : 'false');
                 const chev = chip.querySelector('.chev');
                 if (chev) chev.textContent = open ? '⌃' : '⌄';
             }
@@ -445,6 +443,7 @@
             drawer.hidden = !open;
             if (chip) {
                 chip.classList.toggle('active', open);
+                chip.setAttribute('aria-expanded', open ? 'true' : 'false');
                 const chev = chip.querySelector('.chev');
                 if (chev) chev.textContent = open ? '⌃' : '⌄';
             }

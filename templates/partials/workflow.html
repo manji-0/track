@@ -20,6 +20,9 @@
         <li class="workflow-step {% if step.done %}done{% endif %}">
             <span class="step-marker">{% if step.done %}✓{% else %}○{% endif %}</span>
             <span class="step-label">{{ step.label }}</span>
+            {% if step.command and not step.done %}
+            <code class="step-command">{{ step.command }}</code>
+            {% endif %}
         </li>
         {% endfor %}
     </ul>

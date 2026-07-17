@@ -18,7 +18,10 @@
         {% else %}
         <span class="task-id">#{{ task.id }}</span>
         {% endif %}
-        <button class="chip" id="drawer-chip" onclick="toggleDrawer()">Context <span class="chev">⌄</span></button>
+        <button class="chip" id="drawer-chip" type="button" onclick="toggleDrawer()"
+            aria-expanded="false" aria-controls="context-drawer">
+            Context <span class="chev">⌄</span>
+        </button>
         <div class="spacer"></div>
         <div id="connection-status" class="connection-status disconnected">
             <span class="status-dot"></span>
@@ -62,7 +65,7 @@
                 <form id="cmd-form" class="cmd-box">
                     <span class="cmd-prompt">›</span>
                     <textarea id="cmd-input" class="cmd-input" rows="1"
-                        placeholder="Write a scrap…  /todo adds a todo, /plan adds a no-workspace todo  (Shift+Enter for newline)"
+                        placeholder="Scrap…  /todo …  /plan …  (Shift+Enter for newline)"
                         autocomplete="off"></textarea>
                     <span class="kbd">⏎</span>
                 </form>
@@ -81,16 +84,36 @@
         const form = document.getElementById('cmd-form');
         if (!input || !form) return;
 
+        function parseCommand(raw) {
+            const todoMatch = raw.match(/^\/todo(?:\s+([\s\S]*))?$/);
+            if (todoMatch) {
+                return { kind: 'todo', content: (todoMatch[1] || '').trim(), noWorkspace: false };
+            }
+            const planMatch = raw.match(/^\/plan(?:\s+([\s\S]*))?$/);
+            if (planMatch) {
+                return { kind: 'todo', content: (planMatch[1] || '').trim(), noWorkspace: true };
+            }
+            return { kind: 'scrap', content: raw };
+        }
+
         function submit() {
             const raw = input.value.trim();
             if (!raw) return;
 
-            if (raw.startsWith('/todo ')) {
-                htmx.ajax('POST', '/api/todo', { values: { content: raw.slice(6).trim() }, swap: 'none' });
-            } else if (raw.startsWith('/plan ')) {
-                htmx.ajax('POST', '/api/todo', { values: { content: raw.slice(6).trim(), no_workspace: 'true' }, swap: 'none' });
+            const cmd = parseCommand(raw);
+            if (cmd.kind === 'todo') {
+                if (!cmd.content) {
+                    input.setCustomValidity('Add a description after /todo or /plan');
+                    input.reportValidity();
+                    return;
+                }
+                input.setCustomValidity('');
+                const values = { content: cmd.content };
+                if (cmd.noWorkspace) values.no_workspace = 'true';
+                htmx.ajax('POST', '/api/todo', { values: values, swap: 'none' });
             } else {
-                htmx.ajax('POST', '/api/scrap', { values: { content: raw }, swap: 'none' });
+                input.setCustomValidity('');
+                htmx.ajax('POST', '/api/scrap', { values: { content: cmd.content }, swap: 'none' });
             }
             input.value = '';
             input.style.height = 'auto';
@@ -105,6 +128,7 @@
 
         // Autosize
         input.addEventListener('input', function () {
+            input.setCustomValidity('');
             input.style.height = 'auto';
             input.style.height = Math.min(input.scrollHeight, 120) + 'px';
         });
@@ -112,24 +136,48 @@
         form.addEventListener('submit', function (e) { e.preventDefault(); submit(); });
     })();
 
+    // Prefill command bar for todo creation (single input surface)
+    window.focusCmdTodo = function (plan) {
+        const input = document.getElementById('cmd-input');
+        if (!input) return;
+        const prefix = plan ? '/plan ' : '/todo ';
+        const isCmd = /^\/(todo|plan)(\s|$)/.test(input.value);
+        // Only replace empty/whitespace input — never clobber a scrap draft or a typed command.
+        if (!input.value.trim()) {
+            input.value = prefix;
+        } else if (isCmd) {
+            // Switch /todo ↔ /plan when requesting the other mode with only a bare command.
+            const bare = /^\/(todo|plan)\s*$/.test(input.value);
+            if (bare) input.value = prefix;
+        }
+        input.focus();
+        input.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        const len = input.value.length;
+        input.setSelectionRange(len, len);
+    };
+
     // Closed-todos collapse (persisted)
     window.toggleClosedTodos = function () {
         const list = document.getElementById('closed-todos');
         const chev = document.getElementById('closed-chev');
+        const toggle = document.getElementById('closed-toggle');
         if (!list) return;
         const open = list.hidden;
         list.hidden = !open;
         if (chev) chev.textContent = open ? '⌃' : '⌄';
+        if (toggle) toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
         localStorage.setItem('closedTodosOpen', open ? '1' : '0');
     };
 
     function restoreClosedTodos() {
         const list = document.getElementById('closed-todos');
         const chev = document.getElementById('closed-chev');
+        const toggle = document.getElementById('closed-toggle');
         if (!list) return;
         const open = localStorage.getItem('closedTodosOpen') === '1';
         list.hidden = !open;
         if (chev) chev.textContent = open ? '⌃' : '⌄';
+        if (toggle) toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
     }
     document.addEventListener('DOMContentLoaded', restoreClosedTodos);
     document.body.addEventListener('htmx:afterSettle', restoreClosedTodos);
