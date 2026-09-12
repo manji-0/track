@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-09-13
+
 ### Changed
 - Destructive CLI prompts (`todo delete`, `archive`) fail on non-TTY stdin instead of blocking; agents must pass `--force` to delete, and must not hang on archive confirmation
 - Mutating commands (`new`, `switch`, `archive`, `todo add/done/update/next/delete`, `scrap add`, `repo add`) accept `--json` and return the status snapshot plus `mutation`; `track list --json` lists tasks

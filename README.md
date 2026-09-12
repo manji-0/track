@@ -17,10 +17,10 @@ A personal work-context manager for humans and coding agents: one implicit curre
 ## Installation
 
 ```bash
-# Build
-cargo build --release
+# From crates.io (CLI binary is `track`)
+cargo install task-track
 
-# Install (optional)
+# From a checkout
 cargo install --path .
 ```
 
