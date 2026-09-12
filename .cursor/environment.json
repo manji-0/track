@@ -1,0 +1,12 @@
+{
+  "name": "Track (Rust CLI + Web UI)",
+  "user": "ubuntu",
+  "install": "bash .cursor/install.sh",
+  "terminals": [
+    {
+      "name": "webui",
+      "command": "cargo run -- webui --port 3000"
+    }
+  ],
+  "ports": [{ "name": "webui", "port": 3000 }]
+}
