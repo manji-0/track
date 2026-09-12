@@ -45,9 +45,10 @@ mod tests {
         .unwrap_err();
 
         assert!(matches!(err, TrackError::ConfirmationRequired { .. }));
-        assert!(err
-            .to_string()
-            .contains("Confirmation required (stdin is not a TTY)"));
+        assert!(
+            err.to_string()
+                .contains("Confirmation required (stdin is not a TTY)")
+        );
         assert!(err.to_string().contains("re-run with `--force`"));
     }
 

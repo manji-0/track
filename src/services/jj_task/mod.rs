@@ -2,7 +2,7 @@
 
 mod map;
 
-use crate::models::{jj_map_phase_is_complete, RepoWorkspaceStatus};
+use crate::models::{RepoWorkspaceStatus, jj_map_phase_is_complete};
 use map::load_map;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -13,12 +13,12 @@ pub fn repo_key(repo_path: &str) -> String {
         .args(["-C", repo_path, "remote", "get-url", "origin"])
         .output();
 
-    if let Ok(output) = output {
-        if output.status.success() {
-            let url = String::from_utf8_lossy(&output.stdout).trim().to_string();
-            if let Some(key) = normalize_remote_url(&url) {
-                return key;
-            }
+    if let Ok(output) = output
+        && output.status.success()
+    {
+        let url = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        if let Some(key) = normalize_remote_url(&url) {
+            return key;
         }
     }
 

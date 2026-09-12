@@ -4,7 +4,7 @@ use crate::db::{Database, SectionRevs};
 use crate::utils::Result;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::{broadcast, Mutex};
+use tokio::sync::{Mutex, broadcast};
 
 /// Event types broadcast via SSE
 #[derive(Clone, Debug, serde::Serialize)]
@@ -123,10 +123,10 @@ impl AppState {
         // Initialize with current state
         {
             let mut last = self.last_state.lock().await;
-            if last.is_none() {
-                if let Ok(initial_state) = self.get_change_state().await {
-                    *last = Some(initial_state);
-                }
+            if last.is_none()
+                && let Ok(initial_state) = self.get_change_state().await
+            {
+                *last = Some(initial_state);
             }
         }
 

@@ -1,9 +1,9 @@
-use crate::cli::handlers::json_out::{emit_mutation, MutationKind};
-use crate::cli::handlers::CommandCtx;
 use crate::cli::RepoCommands;
+use crate::cli::handlers::CommandCtx;
+use crate::cli::handlers::json_out::{MutationKind, emit_mutation};
 use crate::services::RepoService;
 use crate::utils::{Result, TrackError};
-use prettytable::{format, Cell, Row, Table};
+use prettytable::{Cell, Row, Table, format};
 
 pub fn handle_repo(ctx: &CommandCtx, command: RepoCommands) -> Result<()> {
     let current_task_id = ctx

@@ -20,8 +20,7 @@ pub fn is_git_repository(repo_path: &str) -> bool {
     Command::new("git")
         .args(["-C", repo_path, "rev-parse", "--git-dir"])
         .output()
-        .map(|output| output.status.success())
-        .unwrap_or(false)
+        .is_ok_and(|output| output.status.success())
 }
 
 pub fn git_worktree_exists(path: &str) -> bool {

@@ -6,8 +6,8 @@ use crate::webui::sse::sse_handler;
 use crate::webui::state::AppState;
 use crate::webui::templates::Templates;
 use axum::{
-    routing::{delete, get, patch, post},
     Router,
+    routing::{delete, get, patch, post},
 };
 use std::net::SocketAddr;
 use std::sync::Arc;

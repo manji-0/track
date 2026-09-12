@@ -1,7 +1,7 @@
 //! MiniJinja template engine setup.
 
 use crate::utils::{Result, TrackError};
-use minijinja::{path_loader, AutoEscape, Environment};
+use minijinja::{AutoEscape, Environment, path_loader};
 use std::path::PathBuf;
 use std::sync::Arc;
 

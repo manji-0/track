@@ -1,9 +1,9 @@
-use crate::db::row_mapping::parse_datetime;
 use crate::db::Database;
+use crate::db::row_mapping::parse_datetime;
 use crate::models::{HttpUrl, Link, LinkId, Scrap, ScrapId, TodoIndex, TodoStatus};
 use crate::utils::{Result, TrackError};
 use chrono::Utc;
-use rusqlite::{params, OptionalExtension};
+use rusqlite::{OptionalExtension, params};
 
 pub struct LinkService<'a> {
     db: &'a Database,

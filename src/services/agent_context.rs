@@ -1,10 +1,10 @@
 use crate::models::{
-    build_workflow_context, jj_map_phase_is_complete, jj_slug, oldest_pending_todo,
-    workspace_lifecycle, AgentGuardrails, GitAgentContext, JjAgentContext, RepoRegistration, Task,
-    TaskRepo, Todo, TodoAgentAction, TodoAgentView, TodoStatus, VcsMode, WorkflowContext,
-    WorkspaceAgentView, WorkspaceFacts, Worktree,
+    AgentGuardrails, GitAgentContext, JjAgentContext, RepoRegistration, Task, TaskRepo, Todo,
+    TodoAgentAction, TodoAgentView, TodoStatus, VcsMode, WorkflowContext, WorkspaceAgentView,
+    WorkspaceFacts, Worktree, build_workflow_context, jj_map_phase_is_complete, jj_slug,
+    oldest_pending_todo, workspace_lifecycle,
 };
-use crate::services::{git_worktree, jj_task, WorktreeService};
+use crate::services::{WorktreeService, git_worktree, jj_task};
 use serde::Serialize;
 
 /// Agent-oriented fields shared by `track status --json` and `/api/status`.

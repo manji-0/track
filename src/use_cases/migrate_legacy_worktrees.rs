@@ -1,5 +1,5 @@
 use crate::db::Database;
-use crate::models::{jj_slug, Task, TaskStatus};
+use crate::models::{Task, TaskStatus, jj_slug};
 use crate::services::{LegacyWorktreeCleanupOutcome, TaskService, TodoService, WorktreeService};
 use crate::utils::Result;
 

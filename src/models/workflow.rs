@@ -1,4 +1,4 @@
-use crate::models::jj::{jj_slug, JjSlug};
+use crate::models::jj::{JjSlug, jj_slug};
 use crate::models::{
     Task, TaskRepo, TaskStatus, Todo, TodoAgentAction, TodoStatus, VcsMode, Worktree,
 };
@@ -399,8 +399,7 @@ pub fn build_next_action(
                     let reason = if missing > 1 {
                         format!(
                             "Start jj-task workspace in each repo ({}/{} ready). Run jj-task repo init once from each main workspace if needed.",
-                            facts.registered_repo_count,
-                            facts.total_repo_count
+                            facts.registered_repo_count, facts.total_repo_count
                         )
                     } else {
                         format!(
@@ -472,17 +471,17 @@ pub fn build_next_action(
                     }
                     VcsMode::Git => {
                         if todo.requires_workspace {
-                            if facts.coding_workspace_ready {
-                                if let Some(worktree_path) = facts.workspace_path.as_deref() {
-                                    return NextAction {
-                                        kind: NextActionKind::RunCommand,
-                                        command: Some(format!("cd \"{worktree_path}\"")),
-                                        reason: format!(
-                                            "Work on TODO #{} in git worktree. Commit and push with standard git commands.",
-                                            todo.task_index
-                                        ),
-                                    };
-                                }
+                            if facts.coding_workspace_ready
+                                && let Some(worktree_path) = facts.workspace_path.as_deref()
+                            {
+                                return NextAction {
+                                    kind: NextActionKind::RunCommand,
+                                    command: Some(format!("cd \"{worktree_path}\"")),
+                                    reason: format!(
+                                        "Work on TODO #{} in git worktree. Commit and push with standard git commands.",
+                                        todo.task_index
+                                    ),
+                                };
                             }
                             return NextAction {
                                 kind: NextActionKind::RunCommand,
@@ -493,17 +492,17 @@ pub fn build_next_action(
                                 ),
                             };
                         }
-                        if let Some(worktree_path) = facts.workspace_path.as_deref() {
-                            if facts.coding_workspace_ready {
-                                return NextAction {
-                                    kind: NextActionKind::RunCommand,
-                                    command: Some(format!("cd \"{worktree_path}\"")),
-                                    reason: format!(
-                                        "Work on TODO #{} in git worktree. Commit and push with standard git commands.",
-                                        todo.task_index
-                                    ),
-                                };
-                            }
+                        if let Some(worktree_path) = facts.workspace_path.as_deref()
+                            && facts.coding_workspace_ready
+                        {
+                            return NextAction {
+                                kind: NextActionKind::RunCommand,
+                                command: Some(format!("cd \"{worktree_path}\"")),
+                                reason: format!(
+                                    "Work on TODO #{} in git worktree. Commit and push with standard git commands.",
+                                    todo.task_index
+                                ),
+                            };
                         }
                     }
                 }

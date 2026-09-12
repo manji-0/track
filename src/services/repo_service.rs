@@ -2,7 +2,7 @@ use crate::db::Database;
 use crate::models::{RepoIndex, TaskId, TaskRepo, TaskRepoId};
 use crate::utils::{Result, TrackError};
 use chrono::Utc;
-use rusqlite::{params, OptionalExtension};
+use rusqlite::{OptionalExtension, params};
 use std::path::{Path, PathBuf};
 
 pub struct RepoService<'a> {
@@ -192,10 +192,12 @@ mod tests {
         // Try to add the repository
         let result = repo_service.add_repo(task.id, temp_dir.to_str().unwrap(), None, None);
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("not a JJ repository"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("not a JJ repository")
+        );
 
         // Cleanup
         std::fs::remove_dir_all(&temp_dir).ok();
@@ -222,10 +224,12 @@ mod tests {
         let result = repo_service.add_repo(task.id, temp_dir.to_str().unwrap(), None, None);
 
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("already registered"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("already registered")
+        );
 
         // Cleanup
         std::fs::remove_dir_all(&temp_dir).ok();

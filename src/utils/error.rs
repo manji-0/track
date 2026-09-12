@@ -32,7 +32,9 @@ pub enum TrackError {
     )]
     SyncUseJjTask { slug: String },
 
-    #[error("--worktree was removed. Use one jj-task workspace per task (`jj-task start <slug>`). See `track llm-help`.")]
+    #[error(
+        "--worktree was removed. Use one jj-task workspace per task (`jj-task start <slug>`). See `track llm-help`."
+    )]
     WorktreeFlagRemoved,
 
     #[error("TODO content cannot be empty")]

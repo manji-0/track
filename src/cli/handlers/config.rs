@@ -1,5 +1,5 @@
-use crate::cli::handlers::CommandCtx;
 use crate::cli::ConfigCommands;
+use crate::cli::handlers::CommandCtx;
 use crate::models::VcsMode;
 use crate::utils::{Result, TrackError};
 
@@ -16,7 +16,9 @@ pub fn handle_config(ctx: &CommandCtx, command: ConfigCommands) -> Result<()> {
                         VcsMode::Jj => {
                             println!("\nJJ mode uses agent-skill-jj (jj-task + $jj skill).");
                             println!("Run `jj-task start <slug>` to begin work.");
-                            println!("(`track sync` is legacy-only — see `track migrate legacy-worktrees`)");
+                            println!(
+                                "(`track sync` is legacy-only — see `track migrate legacy-worktrees`)"
+                            );
                         }
                         VcsMode::Git => {
                             println!("\nGit mode uses plain git worktrees and branches.");

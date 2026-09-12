@@ -2,7 +2,7 @@
 
 use crate::models::{Task, TaskStatus, Todo, TodoStatus};
 use chrono::{DateTime, Utc};
-use rusqlite::{types::Type, Row};
+use rusqlite::{Row, types::Type};
 use std::str::FromStr;
 
 /// Parses an RFC3339 timestamp stored as TEXT.

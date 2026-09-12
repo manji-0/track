@@ -7,11 +7,11 @@ use crate::utils::TrackError;
 use crate::webui::error::WebError;
 use crate::webui::state::{AppState, SseEvent};
 use crate::webui::templates::SharedTemplates;
-use crate::webui::view::{self, format_scraps, format_todos, StatusResponse};
+use crate::webui::view::{self, StatusResponse, format_scraps, format_todos};
 use axum::{
+    Form, Json,
     extract::{Path, State},
     response::Html,
-    Form, Json,
 };
 use serde::Deserialize;
 use std::str::FromStr;

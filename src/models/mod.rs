@@ -23,17 +23,17 @@ pub use ids::{
     LinkId, LinkIndex, RepoIndex, RepoLinkId, ScrapId, ScrapIndex, TaskId, TaskRepoId, TodoId,
     TodoIndex, WorktreeId,
 };
-pub use jj::{jj_slug, sanitize_jj_slug, JjSlug};
+pub use jj::{JjSlug, jj_slug, sanitize_jj_slug};
 pub use status::{TaskStatus, TodoStatus};
 pub use ticket::TicketId;
 pub use todo_action::{TodoAction, TodoAgentAction};
 pub use todo_add_options::TodoAddOptions;
 pub use vcs_mode::VcsMode;
 pub use workflow::{
-    build_next_action, build_workflow_checklist, build_workflow_context, compute_workflow_phase,
+    AgentGuardrails, GitAgentContext, JjAgentContext, NextAction, NextActionKind, RepoRegistration,
+    RepoWorkspaceStatus, TodoAgentView, WorkflowContext, WorkflowPhase, WorkflowStep,
+    WorkspaceAgentView, WorkspaceFacts, WorkspaceLifecycle, build_next_action,
+    build_workflow_checklist, build_workflow_context, compute_workflow_phase,
     jj_map_phase_is_complete, legacy_worktree_pending, legacy_worktree_sync_needed,
-    oldest_pending_todo, workspace_lifecycle, AgentGuardrails, GitAgentContext, JjAgentContext,
-    NextAction, NextActionKind, RepoRegistration, RepoWorkspaceStatus, TodoAgentView,
-    WorkflowContext, WorkflowPhase, WorkflowStep, WorkspaceAgentView, WorkspaceFacts,
-    WorkspaceLifecycle,
+    oldest_pending_todo, workspace_lifecycle,
 };

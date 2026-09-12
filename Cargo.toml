@@ -1,7 +1,8 @@
 [package]
 name = "task-track"
 version = "0.7.0"
-edition = "2021"
+edition = "2024"
+rust-version = "1.88"
 authors = ["manji0"]
 description = "Personal work-context manager for humans and coding agents (CLI + Web UI, XDG SQLite)"
 license = "MIT"

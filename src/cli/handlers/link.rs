@@ -1,8 +1,8 @@
-use crate::cli::handlers::CommandCtx;
 use crate::cli::LinkCommands;
+use crate::cli::handlers::CommandCtx;
 use crate::services::LinkService;
 use crate::utils::{Result, TrackError};
-use prettytable::{format, Cell, Row, Table};
+use prettytable::{Cell, Row, Table, format};
 
 pub fn handle_link(ctx: &CommandCtx, command: LinkCommands) -> Result<()> {
     let current_task_id = ctx

@@ -1,12 +1,12 @@
 mod jj;
 mod naming;
 
-use crate::db::row_mapping::parse_datetime;
 use crate::db::Database;
+use crate::db::row_mapping::parse_datetime;
 use crate::models::{RepoLink, Worktree, WorktreeId};
 use crate::utils::{Result, TrackError};
 use chrono::Utc;
-use rusqlite::{params, OptionalExtension};
+use rusqlite::{OptionalExtension, params};
 use std::path::Path;
 
 /// Result of removing legacy track-managed JJ workspaces for a task.
@@ -208,12 +208,11 @@ impl<'a> WorktreeService<'a> {
     pub fn remove_worktree(&self, worktree_id: WorktreeId, keep_files: bool) -> Result<()> {
         let worktree = self.get_worktree(worktree_id)?;
 
-        if !keep_files {
-            if let Some(base_repo) = &worktree.base_repo {
-                if Path::new(&worktree.path).exists() {
-                    jj::remove_workspace(base_repo, &worktree.path)?;
-                }
-            }
+        if !keep_files
+            && let Some(base_repo) = &worktree.base_repo
+            && Path::new(&worktree.path).exists()
+        {
+            jj::remove_workspace(base_repo, &worktree.path)?;
         }
 
         let conn = self.db.get_connection();
@@ -236,7 +235,8 @@ impl<'a> WorktreeService<'a> {
             .collect();
 
         for worktree in worktrees {
-            match self.try_remove_legacy_worktree(&worktree, force) {
+            let result = self.try_remove_legacy_worktree(&worktree, force);
+            match result {
                 Ok(()) => outcome.removed.push((worktree.id, worktree.path)),
                 Err(TrackError::WorkspaceHasUncommittedChanges { path }) => {
                     outcome.skipped_dirty.push(path);
@@ -652,10 +652,12 @@ mod tests {
     fn test_get_worktree_by_todo_not_found() {
         let db = setup_db();
         let service = WorktreeService::new(&db);
-        assert!(service
-            .get_worktree_by_todo(crate::models::TodoId::from_i64(999))
-            .unwrap()
-            .is_none());
+        assert!(
+            service
+                .get_worktree_by_todo(crate::models::TodoId::from_i64(999))
+                .unwrap()
+                .is_none()
+        );
     }
 
     #[test]

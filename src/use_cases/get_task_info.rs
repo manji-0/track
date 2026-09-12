@@ -182,11 +182,11 @@ impl<'a> GetTaskInfoUseCase<'a> {
         );
         let agent_val = serde_json::to_value(&agent)
             .map_err(|e| TrackError::SerializationFailed(e.to_string()))?;
-        if let Some(obj) = output.as_object_mut() {
-            if let Some(agent_obj) = agent_val.as_object() {
-                for (key, value) in agent_obj {
-                    obj.insert(key.clone(), value.clone());
-                }
+        if let Some(obj) = output.as_object_mut()
+            && let Some(agent_obj) = agent_val.as_object()
+        {
+            for (key, value) in agent_obj {
+                obj.insert(key.clone(), value.clone());
             }
         }
 

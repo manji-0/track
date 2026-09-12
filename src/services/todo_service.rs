@@ -1,5 +1,5 @@
-use crate::db::row_mapping::row_to_todo;
 use crate::db::Database;
+use crate::db::row_mapping::row_to_todo;
 use crate::models::{TaskId, Todo, TodoAddOptions, TodoId, TodoIndex, TodoStatus};
 use crate::utils::{Result, TrackError};
 use chrono::Utc;

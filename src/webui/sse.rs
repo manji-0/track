@@ -5,8 +5,8 @@ use axum::response::sse::{Event, KeepAlive, Sse};
 use futures::stream::Stream;
 use std::convert::Infallible;
 use std::time::Duration;
-use tokio_stream::wrappers::BroadcastStream;
 use tokio_stream::StreamExt;
+use tokio_stream::wrappers::BroadcastStream;
 
 /// SSE endpoint handler
 pub async fn sse_handler(

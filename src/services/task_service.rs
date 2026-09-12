@@ -1,9 +1,9 @@
-use crate::db::row_mapping::row_to_task;
 use crate::db::Database;
+use crate::db::row_mapping::row_to_task;
 use crate::models::{Task, TaskAlias, TaskId, TaskStatus, TicketId};
 use crate::utils::{Result, TrackError};
 use chrono::Utc;
-use rusqlite::{params, OptionalExtension};
+use rusqlite::{OptionalExtension, params};
 
 /// Service for managing development tasks.
 ///
@@ -50,13 +50,13 @@ impl<'a> TaskService<'a> {
         }
 
         let ticket = ticket_id.map(TicketId::parse).transpose()?;
-        if let Some(ticket) = ticket.as_ref() {
-            if let Some(existing_id) = self.find_task_by_ticket(ticket)? {
-                return Err(TrackError::DuplicateTicket(
-                    ticket.to_string(),
-                    existing_id.as_i64(),
-                ));
-            }
+        if let Some(ticket) = ticket.as_ref()
+            && let Some(existing_id) = self.find_task_by_ticket(ticket)?
+        {
+            return Err(TrackError::DuplicateTicket(
+                ticket.to_string(),
+                existing_id.as_i64(),
+            ));
         }
 
         let now = Utc::now().to_rfc3339();
@@ -166,10 +166,10 @@ impl<'a> TaskService<'a> {
         )?;
 
         // Clear current task if it's the archived one
-        if let Some(current_id) = self.db.get_current_task_id()? {
-            if current_id == task_id {
-                self.db.clear_current_task_id()?;
-            }
+        if let Some(current_id) = self.db.get_current_task_id()?
+            && current_id == task_id
+        {
+            self.db.clear_current_task_id()?;
         }
 
         self.db.increment_rev("task")?;
@@ -197,13 +197,13 @@ impl<'a> TaskService<'a> {
     ) -> Result<()> {
         let ticket = TicketId::parse(ticket_id)?;
 
-        if let Some(existing_id) = self.find_task_by_ticket(&ticket)? {
-            if existing_id != task_id {
-                return Err(TrackError::DuplicateTicket(
-                    ticket.to_string(),
-                    existing_id.as_i64(),
-                ));
-            }
+        if let Some(existing_id) = self.find_task_by_ticket(&ticket)?
+            && existing_id != task_id
+        {
+            return Err(TrackError::DuplicateTicket(
+                ticket.to_string(),
+                existing_id.as_i64(),
+            ));
         }
 
         let conn = self.db.get_connection();
@@ -272,10 +272,10 @@ impl<'a> TaskService<'a> {
             return Ok(TaskId::from_i64(task_id));
         }
 
-        if let Ok(alias) = TaskAlias::parse(reference) {
-            if let Some(task_id) = self.get_task_by_alias(&alias)? {
-                return Ok(task_id);
-            }
+        if let Ok(alias) = TaskAlias::parse(reference)
+            && let Some(task_id) = self.get_task_by_alias(&alias)?
+        {
+            return Ok(task_id);
         }
 
         Err(TrackError::TaskReferenceNotFound(reference.to_string()))
@@ -304,21 +304,20 @@ impl<'a> TaskService<'a> {
         let alias = TaskAlias::parse(alias)?;
 
         // Check if alias is already in use
-        if let Some(existing_id) = self.get_task_by_alias(&alias)? {
-            if existing_id != task_id {
-                if force {
-                    // Remove the alias from the existing task
-                    let conn = self.db.get_connection();
-                    conn.execute(
-                        "UPDATE tasks SET alias = NULL WHERE id = ?1",
-                        params![existing_id],
-                    )?;
-                } else {
-                    return Err(TrackError::AliasInUse {
-                        alias: alias.to_string(),
-                        task_id: existing_id.as_i64(),
-                    });
-                }
+        if let Some(existing_id) = self.get_task_by_alias(&alias)?
+            && existing_id != task_id
+        {
+            if force {
+                let conn = self.db.get_connection();
+                conn.execute(
+                    "UPDATE tasks SET alias = NULL WHERE id = ?1",
+                    params![existing_id],
+                )?;
+            } else {
+                return Err(TrackError::AliasInUse {
+                    alias: alias.to_string(),
+                    task_id: existing_id.as_i64(),
+                });
             }
         }
 

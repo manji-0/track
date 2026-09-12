@@ -1,6 +1,6 @@
 use crate::db::Database;
-use crate::models::{jj_slug, Task, VcsMode, WorktreeId};
-use crate::services::{jj_task, RepoService, TaskService, WorktreeService};
+use crate::models::{Task, VcsMode, WorktreeId, jj_slug};
+use crate::services::{RepoService, TaskService, WorktreeService, jj_task};
 use crate::utils::{Result, TrackError};
 
 /// A workspace with uncommitted JJ changes blocking archive.
@@ -284,7 +284,8 @@ impl<'a> ArchiveTaskUseCase<'a> {
         let mut workspace_errors = Vec::new();
 
         for worktree in worktrees {
-            match worktree_service.remove_worktree(worktree.id, force) {
+            let result = worktree_service.remove_worktree(worktree.id, force);
+            match result {
                 Ok(()) => removed_workspaces.push((worktree.id, worktree.path)),
                 Err(err) => workspace_errors.push(format!("#{}: {}", worktree.id, err)),
             }

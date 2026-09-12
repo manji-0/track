@@ -5,7 +5,7 @@ use crate::services::task_service::TaskService;
 use crate::services::todo_service::TodoService;
 use crate::utils::Result;
 use chrono::{Local, Utc};
-use rusqlite::{params, OptionalExtension};
+use rusqlite::{OptionalExtension, params};
 
 /// Creates or reuses the daily "today" task with atomic todo/scrap inheritance.
 pub struct CreateTodayTaskUseCase<'a> {

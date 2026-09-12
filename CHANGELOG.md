@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Workflow phase / next_action stay pure (`WorkspaceFacts`); jj-task and git I/O live in `agent_context`. TODO/task status changes go through typed transitions; slugs are `JjSlug`
 - Task/TODO/ticket identifiers are domain newtypes (`TaskId`, `TodoId`, `TodoIndex`, `TicketId`); SQLite conversions live in `db/sql_types`. CLI clap args and WebUI `Path<i64>` wrap at the boundary; JSON wire numbers/strings are unchanged. WebUI stays in the same binary.
 - Remaining user-facing indexes and row IDs (`LinkIndex`, `ScrapIndex`, `RepoIndex`, `WorktreeId`, …) plus `TaskAlias` and `HttpUrl` are domain types; ticket/alias/URL parse at write boundaries
+- Rust edition 2024 (`rust-version` 1.88, toolchain 1.98.1); let-chains, `LazyLock` markdown sanitizer tables, and `eq_ignore_ascii_case` alias checks
 - WebUI HTMX 1.9 → 2.0.10 with `htmx-ext-sse`; named SSE events drive `hx-trigger`, and mutations swap the returned HTML
 - GitHub Actions: `actions/checkout@v7`, `softprops/action-gh-release@v3`
 

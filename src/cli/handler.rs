@@ -1,7 +1,7 @@
 //! Command handler dispatch for the track CLI.
 
-use crate::cli::handlers::CommandCtx;
 use crate::cli::Commands;
+use crate::cli::handlers::CommandCtx;
 use crate::db::Database;
 use crate::utils::Result;
 use clap_complete::Shell;

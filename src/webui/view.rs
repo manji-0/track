@@ -6,8 +6,8 @@ use crate::models::{
     AgentGuardrails, GitAgentContext, JjAgentContext, Scrap, Todo, TodoAgentView, VcsMode,
     WorkflowContext, Worktree,
 };
-use crate::services::agent_context::{build_agent_extensions, AgentStatusExtensions};
 use crate::services::WorktreeService;
+use crate::services::agent_context::{AgentStatusExtensions, build_agent_extensions};
 use crate::use_cases::{GetTaskInfoUseCase, TaskInfoSnapshot};
 use crate::utils::{Result, TrackError};
 use serde::Serialize;

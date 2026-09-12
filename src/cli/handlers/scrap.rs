@@ -1,6 +1,6 @@
-use crate::cli::handlers::json_out::{emit_mutation, MutationKind};
-use crate::cli::handlers::CommandCtx;
 use crate::cli::ScrapCommands;
+use crate::cli::handlers::CommandCtx;
+use crate::cli::handlers::json_out::{MutationKind, emit_mutation};
 use crate::services::ScrapService;
 use crate::utils::{Result, TrackError};
 use chrono::Local;

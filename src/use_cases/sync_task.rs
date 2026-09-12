@@ -1,6 +1,6 @@
 use crate::db::Database;
-use crate::models::{jj_slug, Task, TodoStatus, VcsMode};
-use crate::services::{git_worktree, RepoService, TaskService, TodoService, WorktreeService};
+use crate::models::{Task, TodoStatus, VcsMode, jj_slug};
+use crate::services::{RepoService, TaskService, TodoService, WorktreeService, git_worktree};
 use crate::utils::{Result, TrackError};
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -135,14 +135,15 @@ impl<'a> SyncTaskUseCase<'a> {
                     }
 
                     for repo in &repos {
-                        match worktree_service.add_worktree(
+                        let result = worktree_service.add_worktree(
                             task_id,
                             &repo.repo_path,
                             None,
                             task.ticket_id.as_deref(),
                             Some(todo.id),
                             false,
-                        ) {
+                        );
+                        match result {
                             Ok(wt) => workspaces_created.push(WorkspaceCreated {
                                 todo_index: todo.task_index,
                                 todo_content: todo.content.clone(),

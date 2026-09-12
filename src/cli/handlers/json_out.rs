@@ -7,7 +7,7 @@ use crate::services::TaskService;
 use crate::use_cases::GetTaskInfoUseCase;
 use crate::utils::{Result, TrackError};
 use serde::Serialize;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 /// Kind of CLI mutation encoded in `--json` responses.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]

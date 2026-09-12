@@ -1,7 +1,7 @@
-use crate::cli::handlers::confirm::confirm_from_tty;
-use crate::cli::handlers::json_out::{emit_mutation, MutationKind};
-use crate::cli::handlers::CommandCtx;
 use crate::cli::TodoCommands;
+use crate::cli::handlers::CommandCtx;
+use crate::cli::handlers::confirm::confirm_from_tty;
+use crate::cli::handlers::json_out::{MutationKind, emit_mutation};
 use crate::models::{TodoAction, TodoAddOptions, TodoIndex};
 use crate::services::TodoService;
 use crate::use_cases::{
@@ -9,7 +9,7 @@ use crate::use_cases::{
     TodoWorkspaceRequest, TodoWorkspaceUseCase,
 };
 use crate::utils::{Result, TrackError};
-use prettytable::{format, Cell, Row, Table};
+use prettytable::{Cell, Row, Table, format};
 
 pub fn handle_todo(ctx: &CommandCtx, command: TodoCommands) -> Result<()> {
     let current_task_id = ctx

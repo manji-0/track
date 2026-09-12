@@ -152,10 +152,12 @@ mod tests {
             DeleteTodoStep::NeedsConfirmation(_) => panic!("expected immediate delete"),
         }
 
-        assert!(TodoService::new(&db)
-            .list_todos(task.id)
-            .unwrap()
-            .is_empty());
+        assert!(
+            TodoService::new(&db)
+                .list_todos(task.id)
+                .unwrap()
+                .is_empty()
+        );
     }
 
     #[test]
@@ -194,9 +196,11 @@ mod tests {
             .confirm_and_run(task.id, crate::models::TodoIndex::from_i64(1))
             .unwrap();
         assert_eq!(outcome.completion_view().summary, "Deleted TODO #1");
-        assert!(TodoService::new(&db)
-            .list_todos(task.id)
-            .unwrap()
-            .is_empty());
+        assert!(
+            TodoService::new(&db)
+                .list_todos(task.id)
+                .unwrap()
+                .is_empty()
+        );
     }
 }

@@ -1,5 +1,5 @@
-use crate::cli::handlers::CommandCtx;
 use crate::cli::CompletionType;
+use crate::cli::handlers::CommandCtx;
 use crate::models::TodoStatus;
 use crate::services::{LinkService, RepoService, TaskService, TodoService};
 use crate::utils::Result;

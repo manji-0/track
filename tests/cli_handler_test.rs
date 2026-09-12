@@ -310,10 +310,12 @@ fn test_todo_workspace_requires_current_repo() {
     std::env::set_current_dir(original_dir).unwrap();
 
     assert!(result.is_err());
-    assert!(result
-        .unwrap_err()
-        .to_string()
-        .contains("Current directory is not a registered repo"));
+    assert!(
+        result
+            .unwrap_err()
+            .to_string()
+            .contains("Current directory is not a registered repo")
+    );
 }
 
 #[test]
@@ -489,12 +491,12 @@ fn test_handle_sync() {
     let worktree_service = WorktreeService::new(db);
     let worktrees = worktree_service.list_worktrees(task.id).unwrap();
     assert_eq!(worktrees.len(), 1); // Only the TODO worktree, specifically?
-                                    // Wait, sync creates base branch (task/SYNC-123) but does it create base WORKTREE?
-                                    // "Cycles through repos... creates task branch... checks out task branch."
-                                    // It creates branch, checks it out (which updates HEAD of repo_path).
-                                    // Then "for todo in todos... create worktree".
-                                    // It does NOT auto-create a worktree for the task base unless requested?
-                                    // Looking at sync code: `worktree_service.add_worktree` is only called inside todo loop.
+    // Wait, sync creates base branch (task/SYNC-123) but does it create base WORKTREE?
+    // "Cycles through repos... creates task branch... checks out task branch."
+    // It creates branch, checks it out (which updates HEAD of repo_path).
+    // Then "for todo in todos... create worktree".
+    // It does NOT auto-create a worktree for the task base unless requested?
+    // Looking at sync code: `worktree_service.add_worktree` is only called inside todo loop.
 
     // So 1 worktree expected (from todo).
     assert_eq!(worktrees.len(), 1);

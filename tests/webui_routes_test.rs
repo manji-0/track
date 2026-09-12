@@ -5,7 +5,7 @@ use tower::ServiceExt;
 use track::db::Database;
 use track::models::TodoStatus;
 use track::services::{TaskService, TodoService};
-use track::webui::{build_router, AppState, Templates, WebState};
+use track::webui::{AppState, Templates, WebState, build_router};
 
 fn test_router(db: Database) -> axum::Router {
     let app_state = AppState::from_database(db);

@@ -64,9 +64,11 @@ fn test_complete_worktree_for_todo_full_workflow() {
     assert_eq!(worktrees.len(), 1);
     assert!(worktrees[0].is_base);
 
-    assert!(std::path::Path::new(&base_wt.path)
-        .join("feature.txt")
-        .exists());
+    assert!(
+        std::path::Path::new(&base_wt.path)
+            .join("feature.txt")
+            .exists()
+    );
 }
 
 /// Test complete_worktree_for_todo with uncommitted changes

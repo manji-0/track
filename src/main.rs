@@ -1,6 +1,6 @@
 use clap::Parser;
 use std::process;
-use track::cli::{handler::CommandHandler, Cli, Commands};
+use track::cli::{Cli, Commands, handler::CommandHandler};
 use track::webui;
 
 /// Application entry point
@@ -25,7 +25,8 @@ fn main() {
         }
     };
 
-    if let Err(e) = handler.handle(cli.command) {
+    let result = handler.handle(cli.command);
+    if let Err(e) = result {
         eprintln!("Error: {}", e);
         process::exit(1);
     }

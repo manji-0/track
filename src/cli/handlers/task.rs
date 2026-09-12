@@ -1,6 +1,6 @@
-use crate::cli::handlers::confirm::confirm_from_tty;
-use crate::cli::handlers::json_out::{emit_mutation, list_json, print_json, MutationKind};
 use crate::cli::handlers::CommandCtx;
+use crate::cli::handlers::confirm::confirm_from_tty;
+use crate::cli::handlers::json_out::{MutationKind, emit_mutation, list_json, print_json};
 use crate::models::TodoAddOptions;
 use crate::services::{TaskService, TodoService, WorktreeService};
 use crate::use_cases::{
@@ -8,7 +8,7 @@ use crate::use_cases::{
 };
 use crate::utils::{Result, TrackError};
 use chrono::Local;
-use prettytable::{format, Cell, Row, Table};
+use prettytable::{Cell, Row, Table, format};
 
 pub fn handle_new(
     ctx: &CommandCtx,

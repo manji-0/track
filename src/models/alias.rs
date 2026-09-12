@@ -33,7 +33,10 @@ impl TaskAlias {
             ));
         }
 
-        if RESERVED_ALIASES.contains(&raw.to_ascii_lowercase().as_str()) {
+        if RESERVED_ALIASES
+            .iter()
+            .any(|word| raw.eq_ignore_ascii_case(word))
+        {
             return Err(TrackError::InvalidAlias(format!(
                 "Alias '{raw}' is a reserved word"
             )));

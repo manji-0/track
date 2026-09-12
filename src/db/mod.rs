@@ -7,7 +7,7 @@
 use crate::models::{TaskId, TaskStatus, TodoStatus, VcsMode};
 use crate::utils::Result;
 use directories::ProjectDirs;
-use rusqlite::{params, Connection, OptionalExtension};
+use rusqlite::{Connection, OptionalExtension, params};
 use std::path::PathBuf;
 use std::time::Duration;
 
