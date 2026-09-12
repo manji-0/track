@@ -636,9 +636,9 @@ mod tests {
 
     fn sample_repo() -> TaskRepo {
         TaskRepo {
-            id: 1,
+            id: crate::models::TaskRepoId::from_i64(1),
             task_id: crate::models::TaskId::from_i64(1),
-            task_index: 1,
+            task_index: crate::models::RepoIndex::from_i64(1),
             repo_path: "/repo".to_string(),
             base_branch: None,
             base_commit_hash: None,

@@ -1,6 +1,6 @@
 use crate::db::row_mapping::parse_datetime;
 use crate::db::Database;
-use crate::models::{Link, Scrap, TodoStatus};
+use crate::models::{HttpUrl, Link, LinkId, Scrap, ScrapId, TodoIndex, TodoStatus};
 use crate::utils::{Result, TrackError};
 use chrono::Utc;
 use rusqlite::{params, OptionalExtension};
@@ -20,10 +20,8 @@ impl<'a> LinkService<'a> {
         url: &str,
         title: Option<&str>,
     ) -> Result<Link> {
-        self.validate_url(url)?;
-
-        let title = title.unwrap_or(url).to_string();
-        let url = url.to_string();
+        let url = HttpUrl::parse(url)?;
+        let title = title.unwrap_or(url.as_str()).to_string();
         let now = Utc::now().to_rfc3339();
 
         // Use transaction to make SELECT MAX + INSERT atomic
@@ -42,13 +40,13 @@ impl<'a> LinkService<'a> {
                 params![task_id, next_index, url, title, now],
             )?;
 
-            let link_id = conn.last_insert_rowid();
+            let link_id = LinkId::from_i64(conn.last_insert_rowid());
             self.db.increment_rev("links")?;
             self.get_link(link_id)
         })
     }
 
-    pub fn get_link(&self, link_id: i64) -> Result<Link> {
+    pub fn get_link(&self, link_id: LinkId) -> Result<Link> {
         let conn = self.db.get_connection();
         let mut stmt = conn.prepare(
             "SELECT id, task_id, task_index, url, title, created_at FROM links WHERE id = ?1",
@@ -90,21 +88,13 @@ impl<'a> LinkService<'a> {
         Ok(links)
     }
 
-    fn validate_url(&self, url: &str) -> Result<()> {
-        if url.starts_with("http://") || url.starts_with("https://") {
-            Ok(())
-        } else {
-            Err(TrackError::InvalidUrl(url.to_string()))
-        }
-    }
-
     /// Delete a link by its ID
-    pub fn delete_link(&self, link_id: i64) -> Result<()> {
+    pub fn delete_link(&self, link_id: LinkId) -> Result<()> {
         let conn = self.db.get_connection();
         let affected = conn.execute("DELETE FROM links WHERE id = ?1", params![link_id])?;
 
         if affected == 0 {
-            return Err(TrackError::LinkNotFound(link_id));
+            return Err(TrackError::LinkNotFound(link_id.as_i64()));
         }
 
         self.db.increment_rev("links")?;
@@ -145,7 +135,7 @@ impl<'a> ScrapService<'a> {
                 "SELECT task_index FROM todos WHERE task_id = ?1 AND status = '{}' ORDER BY task_index ASC LIMIT 1",
                 TodoStatus::PENDING
             );
-            let active_todo_id: Option<crate::models::TodoId> = conn
+            let active_todo_id: Option<TodoIndex> = conn
                 .query_row(&active_query, params![task_id], |row| row.get(0))
                 .optional()?;
 
@@ -154,13 +144,13 @@ impl<'a> ScrapService<'a> {
                 params![task_id, next_index, content, now, active_todo_id],
             )?;
 
-            let scrap_id = conn.last_insert_rowid();
+            let scrap_id = ScrapId::from_i64(conn.last_insert_rowid());
             self.db.increment_rev("scraps")?;
             self.get_scrap(scrap_id)
         })
     }
 
-    pub fn get_scrap(&self, scrap_id: i64) -> Result<Scrap> {
+    pub fn get_scrap(&self, scrap_id: ScrapId) -> Result<Scrap> {
         let conn = self.db.get_connection();
         let mut stmt = conn.prepare(
             "SELECT id, task_id, task_index, content, created_at, active_todo_id FROM scraps WHERE id = ?1",
@@ -213,7 +203,7 @@ impl<'a> ScrapService<'a> {
         &self,
         from_task_id: crate::models::TaskId,
         to_task_id: crate::models::TaskId,
-        todo_mapping: &std::collections::HashMap<i64, i64>,
+        todo_mapping: &std::collections::HashMap<TodoIndex, TodoIndex>,
     ) -> Result<()> {
         if todo_mapping.is_empty() {
             return Ok(());
@@ -229,7 +219,7 @@ impl<'a> ScrapService<'a> {
         &self,
         from_task_id: crate::models::TaskId,
         to_task_id: crate::models::TaskId,
-        todo_mapping: &std::collections::HashMap<i64, i64>,
+        todo_mapping: &std::collections::HashMap<TodoIndex, TodoIndex>,
     ) -> Result<()> {
         let conn = self.db.get_connection();
 
@@ -237,7 +227,7 @@ impl<'a> ScrapService<'a> {
             "SELECT content, active_todo_id FROM scraps WHERE task_id = ?1 AND active_todo_id IS NOT NULL ORDER BY created_at ASC"
         )?;
 
-        let linked_scraps: Vec<(String, i64)> = stmt
+        let linked_scraps: Vec<(String, TodoIndex)> = stmt
             .query_map(params![from_task_id], |row| Ok((row.get(0)?, row.get(1)?)))?
             .collect::<std::result::Result<Vec<_>, _>>()?;
 
@@ -341,27 +331,18 @@ mod tests {
 
     #[test]
     fn test_validate_url_http() {
-        let db = setup_db();
-        let service = LinkService::new(&db);
-
-        assert!(service.validate_url("http://example.com").is_ok());
+        assert!(HttpUrl::parse("http://example.com").is_ok());
     }
 
     #[test]
     fn test_validate_url_https() {
-        let db = setup_db();
-        let service = LinkService::new(&db);
-
-        assert!(service.validate_url("https://example.com").is_ok());
+        assert!(HttpUrl::parse("https://example.com").is_ok());
     }
 
     #[test]
     fn test_validate_url_invalid() {
-        let db = setup_db();
-        let service = LinkService::new(&db);
-
         assert!(matches!(
-            service.validate_url("ftp://example.com"),
+            HttpUrl::parse("ftp://example.com"),
             Err(TrackError::InvalidUrl(_))
         ));
     }
@@ -390,7 +371,7 @@ mod tests {
         let service = LinkService::new(&db);
 
         // Try to delete non-existent link
-        let result = service.delete_link(999);
+        let result = service.delete_link(LinkId::from_i64(999));
         assert!(result.is_err());
     }
 
@@ -459,7 +440,7 @@ mod tests {
         scrap_service.add_scrap(from_task, "Linked scrap").unwrap();
 
         let mut mapping = HashMap::new();
-        mapping.insert(todo.task_index.as_i64(), 1);
+        mapping.insert(todo.task_index, crate::models::TodoIndex::from_i64(1));
 
         scrap_service
             .copy_linked_scraps(from_task, to_task, &mapping)

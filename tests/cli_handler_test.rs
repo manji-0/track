@@ -212,7 +212,9 @@ fn test_handle_repo_add_remove() {
     assert_eq!(repos.len(), 1);
     assert_eq!(repos[0].repo_path, repo_path);
 
-    let cmd = Commands::Repo(RepoCommands::Remove { id: repos[0].id });
+    let cmd = Commands::Repo(RepoCommands::Remove {
+        id: repos[0].task_index.as_i64(),
+    });
     handler.handle(cmd).unwrap();
 
     let repos = repo_service.list_repos(task.id).unwrap();
@@ -380,7 +382,7 @@ fn test_list_repo_links_manual() {
         "INSERT INTO worktrees (task_id, path, branch, status, created_at) VALUES (?1, 'p', 'b', 'active', 'now')",
         params![task_id]
     ).unwrap();
-    let worktree_id = conn.last_insert_rowid();
+    let worktree_id = track::models::WorktreeId::from_i64(conn.last_insert_rowid());
 
     // Manually insert repo_link
     conn.execute(

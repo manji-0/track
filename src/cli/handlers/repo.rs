@@ -99,7 +99,7 @@ pub fn handle_repo(ctx: &CommandCtx, command: RepoCommands) -> Result<()> {
                 ctx,
                 json,
                 MutationKind::RepoAdd,
-                Some(repo.task_index),
+                Some(repo.task_index.as_i64()),
                 Some(current_task_id),
                 || {
                     println!("Registered repository: {}", repo.repo_path);

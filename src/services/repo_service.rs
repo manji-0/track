@@ -1,5 +1,5 @@
 use crate::db::Database;
-use crate::models::TaskRepo;
+use crate::models::{RepoIndex, TaskId, TaskRepo, TaskRepoId};
 use crate::utils::{Result, TrackError};
 use chrono::Utc;
 use rusqlite::{params, OptionalExtension};
@@ -17,7 +17,7 @@ impl<'a> RepoService<'a> {
     /// Register a repository to a task
     pub fn add_repo(
         &self,
-        task_id: crate::models::TaskId,
+        task_id: TaskId,
         repo_path: &str,
         base_branch: Option<String>,
         base_commit_hash: Option<String>,
@@ -36,7 +36,7 @@ impl<'a> RepoService<'a> {
         // Use transaction to make duplicate check + SELECT MAX + INSERT atomic
         self.db.with_transaction(|| {
             // Check if already registered
-            let existing: Option<i64> = self
+            let existing: Option<TaskRepoId> = self
                 .db
                 .get_connection()
                 .query_row(
@@ -51,7 +51,7 @@ impl<'a> RepoService<'a> {
             }
 
             // Get the next task_index for this task
-            let next_index: i64 = self.db.get_connection().query_row(
+            let next_index: RepoIndex = self.db.get_connection().query_row(
                 "SELECT COALESCE(MAX(task_index), 0) + 1 FROM task_repos WHERE task_id = ?1",
                 params![task_id],
                 |row| row.get(0),
@@ -62,7 +62,7 @@ impl<'a> RepoService<'a> {
                 params![task_id, next_index, path_str, base_branch, base_commit_hash, created_at],
             )?;
 
-            let id = self.db.get_connection().last_insert_rowid();
+            let id = TaskRepoId::from_i64(self.db.get_connection().last_insert_rowid());
 
             self.db.increment_rev("repos")?;
             Ok(TaskRepo {
@@ -78,7 +78,7 @@ impl<'a> RepoService<'a> {
     }
 
     /// List all repositories for a task
-    pub fn list_repos(&self, task_id: crate::models::TaskId) -> Result<Vec<TaskRepo>> {
+    pub fn list_repos(&self, task_id: TaskId) -> Result<Vec<TaskRepo>> {
         let mut stmt = self.db.get_connection().prepare(
             "SELECT id, task_id, task_index, repo_path, base_branch, base_commit_hash, created_at FROM task_repos WHERE task_id = ?1 ORDER BY task_index"
         )?;
@@ -104,14 +104,14 @@ impl<'a> RepoService<'a> {
     }
 
     /// Remove a repository registration
-    pub fn remove_repo(&self, repo_id: i64) -> Result<()> {
+    pub fn remove_repo(&self, repo_id: TaskRepoId) -> Result<()> {
         let rows_affected = self
             .db
             .get_connection()
             .execute("DELETE FROM task_repos WHERE id = ?1", params![repo_id])?;
 
         if rows_affected == 0 {
-            return Err(TrackError::TaskRepoNotFound(repo_id));
+            return Err(TrackError::TaskRepoNotFound(repo_id.as_i64()));
         }
 
         self.db.increment_rev("repos")?;

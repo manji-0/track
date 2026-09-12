@@ -107,7 +107,7 @@ mod tests {
             status: TaskStatus::Active,
             ticket_id: ticket.map(|t| TicketId::from_stored(t.to_string())),
             ticket_url: None,
-            alias: alias.map(str::to_string),
+            alias: alias.map(|a| crate::models::TaskAlias::from_stored(a.to_string())),
             is_today_task: false,
             created_at: Utc::now(),
         }

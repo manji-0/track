@@ -21,8 +21,10 @@ track/
 │   │   ├── row_mapping.rs   # Shared row → domain parsing
 │   │   └── sql_types.rs     # rusqlite ToSql/FromSql for domain IDs
 │   ├── models/              # Domain types (IDs, Task, Todo, status, workflow)
-│   │   ├── ids.rs           # TaskId, TodoId, TodoIndex
+│   │   ├── ids.rs           # TaskId, TodoId, TodoIndex, LinkIndex, WorktreeId, …
 │   │   ├── ticket.rs        # TicketId (Jira / GitHub)
+│   │   ├── alias.rs         # TaskAlias
+│   │   ├── http_url.rs      # HttpUrl
 │   │   ├── entities.rs      # Task, Todo, Link, Scrap, Worktree
 │   │   ├── status.rs        # TaskStatus, TodoStatus + transitions
 │   │   ├── todo_action.rs   # Intent-based TODO operations
@@ -85,7 +87,7 @@ Install with [Skills CLI](https://github.com/vercel-labs/skills): `npx skills ad
 
 ### Key patterns
 
-- **Typed IDs**: `TaskId` / `TodoId` (row IDs) vs `TodoIndex` (user-facing `#n` per task); `TicketId` parsed at write boundaries; rusqlite conversions in `db/sql_types.rs`
+- **Typed IDs**: `TaskId` / `TodoId` / `WorktreeId` (row IDs) vs `TodoIndex` / `LinkIndex` / `RepoIndex` (user-facing `#n` per task); `TicketId`, `TaskAlias`, and `HttpUrl` parsed at write boundaries; rusqlite conversions in `db/sql_types.rs`
 - **Transactions**: `Database::with_transaction` + `BEGIN IMMEDIATE` for index allocation and today-task creation
 - **Status types**: `TaskStatus`, `TodoStatus` enums with explicit transition rules
 - **Real-time WebUI**: section revision counters + SSE polling for CLI-originated changes

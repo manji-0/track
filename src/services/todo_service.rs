@@ -265,7 +265,7 @@ impl<'a> TodoService<'a> {
         &self,
         from_task_id: TaskId,
         to_task_id: TaskId,
-    ) -> Result<std::collections::HashMap<i64, i64>> {
+    ) -> Result<std::collections::HashMap<TodoIndex, TodoIndex>> {
         self.db
             .with_transaction(|| self.copy_incomplete_todos_in_tx(from_task_id, to_task_id))
     }
@@ -275,7 +275,7 @@ impl<'a> TodoService<'a> {
         &self,
         from_task_id: TaskId,
         to_task_id: TaskId,
-    ) -> Result<std::collections::HashMap<i64, i64>> {
+    ) -> Result<std::collections::HashMap<TodoIndex, TodoIndex>> {
         use std::collections::HashMap;
 
         let mut mapping = HashMap::new();
@@ -287,12 +287,12 @@ impl<'a> TodoService<'a> {
         );
         let mut stmt = conn.prepare(&pending_query)?;
 
-        let pending_todos: Vec<(i64, String)> = stmt
+        let pending_todos: Vec<(TodoIndex, String)> = stmt
             .query_map(params![from_task_id], |row| Ok((row.get(0)?, row.get(1)?)))?
             .collect::<std::result::Result<Vec<_>, _>>()?;
 
         for (old_index, content) in pending_todos {
-            let next_index: i64 = conn.query_row(
+            let next_index: TodoIndex = conn.query_row(
                 "SELECT COALESCE(MAX(task_index), 0) + 1 FROM todos WHERE task_id = ?1",
                 params![to_task_id],
                 |row| row.get(0),

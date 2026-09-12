@@ -1,12 +1,12 @@
 use crate::db::Database;
-use crate::models::{jj_slug, Task, VcsMode};
+use crate::models::{jj_slug, Task, VcsMode, WorktreeId};
 use crate::services::{jj_task, RepoService, TaskService, WorktreeService};
 use crate::utils::{Result, TrackError};
 
 /// A workspace with uncommitted JJ changes blocking archive.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DirtyWorkspace {
-    pub id: i64,
+    pub id: WorktreeId,
     pub path: String,
 }
 
@@ -22,7 +22,7 @@ pub struct ArchiveBlockers {
 #[derive(Debug, Clone)]
 pub struct ArchiveTaskOutcome {
     pub task: Task,
-    pub removed_workspaces: Vec<(i64, String)>,
+    pub removed_workspaces: Vec<(WorktreeId, String)>,
     pub workspace_errors: Vec<String>,
 }
 
@@ -180,9 +180,10 @@ impl<'a> ArchiveTaskUseCase<'a> {
                 && worktree_service.has_uncommitted_changes(&path)?
                 && !blockers.dirty_workspaces.iter().any(|ws| ws.path == path)
             {
-                blockers
-                    .dirty_workspaces
-                    .push(DirtyWorkspace { id: 0, path });
+                blockers.dirty_workspaces.push(DirtyWorkspace {
+                    id: WorktreeId::from_i64(0),
+                    path,
+                });
             }
         }
 
@@ -267,7 +268,7 @@ impl<'a> ArchiveTaskUseCase<'a> {
                         .dirty_workspaces
                         .iter()
                         .map(|ws| {
-                            if ws.id > 0 {
+                            if ws.id.as_i64() > 0 {
                                 format!("#{} {}", ws.id, ws.path)
                             } else {
                                 format!("jj-task {}", ws.path)
@@ -565,7 +566,7 @@ mod tests {
             .unwrap();
         let outcome = ArchiveTaskOutcome {
             task: task.clone(),
-            removed_workspaces: vec![(7, "/tmp/wt".to_string())],
+            removed_workspaces: vec![(WorktreeId::from_i64(7), "/tmp/wt".to_string())],
             workspace_errors: vec!["#8: failed".to_string()],
         };
 

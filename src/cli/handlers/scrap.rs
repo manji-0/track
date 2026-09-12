@@ -19,7 +19,7 @@ pub fn handle_scrap(ctx: &CommandCtx, command: ScrapCommands) -> Result<()> {
                 ctx,
                 json,
                 MutationKind::ScrapAdd,
-                Some(scrap.scrap_id),
+                Some(scrap.scrap_id.as_i64()),
                 Some(current_task_id),
                 || {
                     let timestamp = scrap

@@ -1,6 +1,6 @@
 use crate::db::row_mapping::row_to_task;
 use crate::db::Database;
-use crate::models::{Task, TaskId, TaskStatus, TicketId};
+use crate::models::{Task, TaskAlias, TaskId, TaskStatus, TicketId};
 use crate::utils::{Result, TrackError};
 use chrono::Utc;
 use rusqlite::{params, OptionalExtension};
@@ -51,7 +51,7 @@ impl<'a> TaskService<'a> {
 
         let ticket = ticket_id.map(TicketId::parse).transpose()?;
         if let Some(ticket) = ticket.as_ref() {
-            if let Some(existing_id) = self.find_task_by_ticket(ticket.as_str())? {
+            if let Some(existing_id) = self.find_task_by_ticket(ticket)? {
                 return Err(TrackError::DuplicateTicket(
                     ticket.to_string(),
                     existing_id.as_i64(),
@@ -197,7 +197,7 @@ impl<'a> TaskService<'a> {
     ) -> Result<()> {
         let ticket = TicketId::parse(ticket_id)?;
 
-        if let Some(existing_id) = self.find_task_by_ticket(ticket.as_str())? {
+        if let Some(existing_id) = self.find_task_by_ticket(&ticket)? {
             if existing_id != task_id {
                 return Err(TrackError::DuplicateTicket(
                     ticket.to_string(),
@@ -262,8 +262,9 @@ impl<'a> TaskService<'a> {
     /// Returns an error if the reference is invalid or no matching task is found.
     pub fn resolve_task_id(&self, reference: &str) -> Result<TaskId> {
         if let Some(ticket_id) = reference.strip_prefix("t:") {
+            let ticket = TicketId::parse(ticket_id)?;
             return self
-                .find_task_by_ticket(ticket_id)?
+                .find_task_by_ticket(&ticket)?
                 .ok_or_else(|| TrackError::TaskReferenceNotFound(format!("t:{ticket_id}")));
         }
 
@@ -271,8 +272,10 @@ impl<'a> TaskService<'a> {
             return Ok(TaskId::from_i64(task_id));
         }
 
-        if let Some(task_id) = self.get_task_by_alias(reference)? {
-            return Ok(task_id);
+        if let Ok(alias) = TaskAlias::parse(reference) {
+            if let Some(task_id) = self.get_task_by_alias(&alias)? {
+                return Ok(task_id);
+            }
         }
 
         Err(TrackError::TaskReferenceNotFound(reference.to_string()))
@@ -298,10 +301,10 @@ impl<'a> TaskService<'a> {
         alias: &str,
         force: bool,
     ) -> Result<()> {
-        self.validate_alias(alias)?;
+        let alias = TaskAlias::parse(alias)?;
 
         // Check if alias is already in use
-        if let Some(existing_id) = self.get_task_by_alias(alias)? {
+        if let Some(existing_id) = self.get_task_by_alias(&alias)? {
             if existing_id != task_id {
                 if force {
                     // Remove the alias from the existing task
@@ -352,7 +355,7 @@ impl<'a> TaskService<'a> {
     /// # Returns
     ///
     /// `Some(task_id)` if a task with the alias exists, `None` otherwise.
-    fn get_task_by_alias(&self, alias: &str) -> Result<Option<TaskId>> {
+    fn get_task_by_alias(&self, alias: &TaskAlias) -> Result<Option<TaskId>> {
         let conn = self.db.get_connection();
         let mut stmt = conn.prepare("SELECT id FROM tasks WHERE alias = ?1")?;
         let result = stmt
@@ -361,52 +364,7 @@ impl<'a> TaskService<'a> {
         Ok(result)
     }
 
-    /// Validates an alias format.
-    ///
-    /// # Arguments
-    ///
-    /// * `alias` - The alias to validate
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if:
-    /// - The alias is empty or too long (max 50 characters)
-    /// - The alias contains invalid characters (only alphanumeric, hyphens, and underscores allowed)
-    /// - The alias is a reserved word
-    fn validate_alias(&self, alias: &str) -> Result<()> {
-        // Check length
-        if alias.is_empty() || alias.len() > 50 {
-            return Err(TrackError::InvalidAlias(
-                "Alias must be between 1 and 50 characters".to_string(),
-            ));
-        }
-
-        // Check format: only alphanumeric, hyphens, and underscores
-        if !alias
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
-        {
-            return Err(TrackError::InvalidAlias(
-                "Alias can only contain alphanumeric characters, hyphens, and underscores"
-                    .to_string(),
-            ));
-        }
-
-        // Check for reserved words
-        let reserved = vec![
-            "new", "list", "current", "status", "switch", "archive", "sync", "todo", "scrap",
-            "link", "repo", "desc", "ticket", "alias", "help", "webui",
-        ];
-        if reserved.contains(&alias.to_lowercase().as_str()) {
-            return Err(TrackError::InvalidAlias(format!(
-                "Alias '{alias}' is a reserved word"
-            )));
-        }
-
-        Ok(())
-    }
-
-    fn find_task_by_ticket(&self, ticket_id: &str) -> Result<Option<TaskId>> {
+    fn find_task_by_ticket(&self, ticket_id: &TicketId) -> Result<Option<TaskId>> {
         let conn = self.db.get_connection();
         let mut stmt = conn.prepare("SELECT id FROM tasks WHERE ticket_id = ?1")?;
         let result = stmt
@@ -725,7 +683,7 @@ mod tests {
         service.set_alias(task.id, "my-alias", false).unwrap();
 
         let updated = service.get_task(task.id).unwrap();
-        assert_eq!(updated.alias, Some("my-alias".to_string()));
+        assert_eq!(updated.alias.as_deref(), Some("my-alias"));
     }
 
     #[test]
@@ -756,7 +714,7 @@ mod tests {
         service.set_alias(task.id, "my-alias", false).unwrap();
 
         let updated = service.get_task(task.id).unwrap();
-        assert_eq!(updated.alias, Some("my-alias".to_string()));
+        assert_eq!(updated.alias.as_deref(), Some("my-alias"));
     }
 
     #[test]
@@ -825,47 +783,6 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_alias_valid() {
-        let db = setup_db();
-        let service = TaskService::new(&db);
-
-        assert!(service.validate_alias("valid-alias").is_ok());
-        assert!(service.validate_alias("valid_alias").is_ok());
-        assert!(service.validate_alias("ValidAlias123").is_ok());
-    }
-
-    #[test]
-    fn test_validate_alias_invalid_chars() {
-        let db = setup_db();
-        let service = TaskService::new(&db);
-
-        assert!(service.validate_alias("invalid alias").is_err()); // space
-        assert!(service.validate_alias("invalid@alias").is_err()); // special char
-        assert!(service.validate_alias("invalid.alias").is_err()); // dot
-    }
-
-    #[test]
-    fn test_validate_alias_length() {
-        let db = setup_db();
-        let service = TaskService::new(&db);
-
-        assert!(service.validate_alias("").is_err()); // empty
-        assert!(service.validate_alias(&"a".repeat(51)).is_err()); // too long
-        assert!(service.validate_alias(&"a".repeat(50)).is_ok()); // max length
-    }
-
-    #[test]
-    fn test_validate_alias_reserved_words() {
-        let db = setup_db();
-        let service = TaskService::new(&db);
-
-        assert!(service.validate_alias("new").is_err());
-        assert!(service.validate_alias("list").is_err());
-        assert!(service.validate_alias("status").is_err());
-        assert!(service.validate_alias("NEW").is_err()); // case insensitive
-    }
-
-    #[test]
     fn test_set_alias_force_overwrite() {
         let db = setup_db();
         let service = TaskService::new(&db);
@@ -878,14 +795,14 @@ mod tests {
 
         // Verify task1 has the alias
         let updated1 = service.get_task(task1.id).unwrap();
-        assert_eq!(updated1.alias, Some("my-alias".to_string()));
+        assert_eq!(updated1.alias.as_deref(), Some("my-alias"));
 
         // Try to set the same alias on task2 with force=true
         service.set_alias(task2.id, "my-alias", true).unwrap();
 
         // Verify task2 now has the alias
         let updated2 = service.get_task(task2.id).unwrap();
-        assert_eq!(updated2.alias, Some("my-alias".to_string()));
+        assert_eq!(updated2.alias.as_deref(), Some("my-alias"));
 
         // Verify task1 no longer has the alias
         let updated1_after = service.get_task(task1.id).unwrap();

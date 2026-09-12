@@ -3,7 +3,9 @@
 //! This module defines the core data structures used throughout the application,
 //! including tasks, TODOs, links, scraps, and JJ-related items.
 
+mod alias;
 mod entities;
+mod http_url;
 mod ids;
 mod jj;
 mod markdown;
@@ -14,8 +16,13 @@ mod todo_add_options;
 mod vcs_mode;
 mod workflow;
 
+pub use alias::TaskAlias;
 pub use entities::{Link, RepoLink, Scrap, Task, TaskRepo, Todo, Worktree};
-pub use ids::{TaskId, TodoId, TodoIndex};
+pub use http_url::HttpUrl;
+pub use ids::{
+    LinkId, LinkIndex, RepoIndex, RepoLinkId, ScrapId, ScrapIndex, TaskId, TaskRepoId, TodoId,
+    TodoIndex, WorktreeId,
+};
 pub use jj::{jj_slug, sanitize_jj_slug, JjSlug};
 pub use status::{TaskStatus, TodoStatus};
 pub use ticket::TicketId;

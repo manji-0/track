@@ -51,6 +51,38 @@ entity_id!(
     /// Task-scoped sequential TODO number (`track todo done 3`).
     TodoIndex
 );
+entity_id!(
+    /// Stable row ID of a link.
+    LinkId
+);
+entity_id!(
+    /// Task-scoped sequential link number (`track link delete 2`).
+    LinkIndex
+);
+entity_id!(
+    /// Stable row ID of a scrap.
+    ScrapId
+);
+entity_id!(
+    /// Task-scoped sequential scrap number.
+    ScrapIndex
+);
+entity_id!(
+    /// Stable row ID of a worktree record.
+    WorktreeId
+);
+entity_id!(
+    /// Stable row ID of a remote repo link on a worktree.
+    RepoLinkId
+);
+entity_id!(
+    /// Stable row ID of a task repository registration.
+    TaskRepoId
+);
+entity_id!(
+    /// Task-scoped sequential repository number (`track repo remove 1`).
+    RepoIndex
+);
 
 #[cfg(test)]
 mod tests {

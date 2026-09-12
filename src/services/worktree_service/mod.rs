@@ -3,7 +3,7 @@ mod naming;
 
 use crate::db::row_mapping::parse_datetime;
 use crate::db::Database;
-use crate::models::{RepoLink, Worktree};
+use crate::models::{RepoLink, Worktree, WorktreeId};
 use crate::utils::{Result, TrackError};
 use chrono::Utc;
 use rusqlite::{params, OptionalExtension};
@@ -12,7 +12,7 @@ use std::path::Path;
 /// Result of removing legacy track-managed JJ workspaces for a task.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct LegacyWorktreeCleanupOutcome {
-    pub removed: Vec<(i64, String)>,
+    pub removed: Vec<(WorktreeId, String)>,
     pub skipped_dirty: Vec<String>,
     pub errors: Vec<String>,
 }
@@ -100,7 +100,7 @@ impl<'a> WorktreeService<'a> {
             params![task_id, worktree_path, branch_name, repo_path, "active", now, todo_id, is_base as i32],
         )?;
 
-        let worktree_id = conn.last_insert_rowid();
+        let worktree_id = WorktreeId::from_i64(conn.last_insert_rowid());
         self.db.increment_rev("worktrees")?;
         self.get_worktree(worktree_id)
     }
@@ -161,14 +161,14 @@ impl<'a> WorktreeService<'a> {
         )
     }
 
-    pub fn get_worktree(&self, worktree_id: i64) -> Result<Worktree> {
+    pub fn get_worktree(&self, worktree_id: WorktreeId) -> Result<Worktree> {
         let conn = self.db.get_connection();
         let mut stmt = conn.prepare(
             "SELECT id, task_id, path, branch, base_repo, status, created_at, todo_id, is_base FROM worktrees WHERE id = ?1"
         )?;
 
         stmt.query_row(params![worktree_id], map_worktree_row)
-            .map_err(|_| TrackError::WorktreeNotFound(worktree_id))
+            .map_err(|_| TrackError::WorktreeNotFound(worktree_id.as_i64()))
     }
 
     pub fn list_worktrees(&self, task_id: crate::models::TaskId) -> Result<Vec<Worktree>> {
@@ -184,7 +184,7 @@ impl<'a> WorktreeService<'a> {
         Ok(worktrees)
     }
 
-    pub fn list_repo_links(&self, worktree_id: i64) -> Result<Vec<RepoLink>> {
+    pub fn list_repo_links(&self, worktree_id: WorktreeId) -> Result<Vec<RepoLink>> {
         let conn = self.db.get_connection();
         let mut stmt = conn.prepare(
             "SELECT id, worktree_id, url, kind, created_at FROM repo_links WHERE worktree_id = ?1 ORDER BY created_at ASC"
@@ -205,7 +205,7 @@ impl<'a> WorktreeService<'a> {
         Ok(repo_links)
     }
 
-    pub fn remove_worktree(&self, worktree_id: i64, keep_files: bool) -> Result<()> {
+    pub fn remove_worktree(&self, worktree_id: WorktreeId, keep_files: bool) -> Result<()> {
         let worktree = self.get_worktree(worktree_id)?;
 
         if !keep_files {

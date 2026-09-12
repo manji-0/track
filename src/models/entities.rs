@@ -1,4 +1,9 @@
-use super::ids::{TaskId, TodoId, TodoIndex};
+use super::alias::TaskAlias;
+use super::http_url::HttpUrl;
+use super::ids::{
+    LinkId, LinkIndex, RepoIndex, RepoLinkId, ScrapId, ScrapIndex, TaskId, TaskRepoId, TodoId,
+    TodoIndex, WorktreeId,
+};
 use super::markdown::render_markdown_with_links;
 use super::status::{TaskStatus, TodoStatus};
 use super::ticket::TicketId;
@@ -17,7 +22,7 @@ pub struct Task {
     pub status: TaskStatus,
     pub ticket_id: Option<TicketId>,
     pub ticket_url: Option<String>,
-    pub alias: Option<String>,
+    pub alias: Option<TaskAlias>,
     pub is_today_task: bool,
     pub created_at: DateTime<Utc>,
 }
@@ -61,14 +66,14 @@ impl Todo {
 pub struct Link {
     #[serde(skip)]
     #[allow(dead_code)]
-    pub id: i64,
+    pub id: LinkId,
     #[serde(skip)]
     #[allow(dead_code)]
     pub task_id: TaskId,
     /// Task-scoped sequential ID for this link
     #[serde(rename = "link_id")]
-    pub task_index: i64,
-    pub url: String,
+    pub task_index: LinkIndex,
+    pub url: HttpUrl,
     pub title: String,
     #[serde(skip)]
     #[allow(dead_code)]
@@ -80,12 +85,12 @@ pub struct Link {
 pub struct Scrap {
     #[serde(skip)]
     #[allow(dead_code)]
-    pub id: i64,
+    pub id: ScrapId,
     #[serde(skip)]
     #[allow(dead_code)]
     pub task_id: TaskId,
     /// Task-scoped sequential ID for this scrap
-    pub scrap_id: i64,
+    pub scrap_id: ScrapIndex,
     pub content: String,
     pub created_at: DateTime<Utc>,
     /// The task-scoped index of the active (oldest pending) TODO when this scrap was created
@@ -102,7 +107,7 @@ impl Scrap {
 /// Represents a JJ workspace associated with a task or TODO.
 #[derive(Debug, Clone, Serialize)]
 pub struct Worktree {
-    pub id: i64,
+    pub id: WorktreeId,
     pub task_id: TaskId,
     pub path: String,
     pub branch: String,
@@ -121,9 +126,9 @@ pub struct Worktree {
 #[derive(Debug, Clone, Serialize)]
 pub struct RepoLink {
     #[allow(dead_code)]
-    pub id: i64,
+    pub id: RepoLinkId,
     #[allow(dead_code)]
-    pub worktree_id: i64,
+    pub worktree_id: WorktreeId,
     pub url: String,
     pub kind: String,
     #[allow(dead_code)]
@@ -134,13 +139,13 @@ pub struct RepoLink {
 #[derive(Debug, Clone, Serialize)]
 pub struct TaskRepo {
     #[serde(skip)]
-    pub id: i64,
+    pub id: TaskRepoId,
     #[serde(skip)]
     #[allow(dead_code)]
     pub task_id: TaskId,
     /// Task-scoped sequential ID for this repository
     #[serde(rename = "repo_id")]
-    pub task_index: i64,
+    pub task_index: RepoIndex,
     pub repo_path: String,
     pub base_branch: Option<String>,
     pub base_commit_hash: Option<String>,
@@ -155,9 +160,9 @@ mod tests {
 
     fn sample_scrap(content: &str) -> Scrap {
         Scrap {
-            id: 1,
+            id: ScrapId::from_i64(1),
             task_id: TaskId::from_i64(1),
-            scrap_id: 1,
+            scrap_id: ScrapIndex::from_i64(1),
             content: content.to_string(),
             created_at: Utc::now(),
             active_todo_id: None,
