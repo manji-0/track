@@ -1,4 +1,5 @@
-<div id="description-section">
+<div id="description-section" hx-get="/api/card/description" hx-trigger="sse:description"
+    hx-target="#description-section" hx-swap="outerHTML" hx-sync="this:replace" hx-disinherit="hx-trigger">
     <div class="sec-head">
         <span class="sec-label">DESCRIPTION</span>
         <button class="sec-action" onclick="toggleDescEdit()">✏️ Edit</button>
@@ -8,7 +9,9 @@
     {% else %}
     <div class="description text-muted" id="desc-display">No description set.</div>
     {% endif %}
-    <form id="desc-edit-form" style="display: none;" hx-post="/api/description" hx-swap="none">
+    <form id="desc-edit-form" style="display: none;" hx-post="/api/description"
+        hx-trigger="submit, keydown[ctrlKey&&key=='Enter'] from:textarea"
+        hx-disabled-elt="find button[type='submit']">
         <textarea name="description" id="desc-textarea" rows="4"
             placeholder="Enter task description… (Ctrl+Enter to save)">{{ task.description or '' }}</textarea>
         <div class="form-actions">
@@ -16,18 +19,4 @@
             <button type="button" class="btn-secondary" onclick="toggleDescEdit()">Cancel</button>
         </div>
     </form>
-    <script>
-        (function () {
-            const descTextarea = document.getElementById('desc-textarea');
-            const descForm = document.getElementById('desc-edit-form');
-            if (descTextarea && descForm) {
-                descTextarea.addEventListener('keydown', function (e) {
-                    if (e.key === 'Enter' && e.ctrlKey) {
-                        e.preventDefault();
-                        htmx.trigger(descForm, 'submit');
-                    }
-                });
-            }
-        })();
-    </script>
 </div>

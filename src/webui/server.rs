@@ -28,17 +28,18 @@ pub fn build_router(web_state: WebState) -> Router {
         // Partial endpoints for HTMX
         .route("/partials/todos", get(routes::get_todos))
         .route("/partials/repos", get(routes::get_repos))
+        .route("/partials/workflow", get(routes::get_workflow))
         // API endpoints
         .route("/api/status", get(routes::api_status))
         .route("/api/todo", post(routes::add_todo))
-        .route("/api/todo/:id", delete(routes::delete_todo))
-        .route("/api/todo/:id/next", patch(routes::move_todo_to_next))
-        .route("/api/todo/:id/:status", patch(routes::update_todo_status))
+        .route("/api/todo/{id}", delete(routes::delete_todo))
+        .route("/api/todo/{id}/next", patch(routes::move_todo_to_next))
+        .route("/api/todo/{id}/{status}", patch(routes::update_todo_status))
         .route("/api/scrap", post(routes::add_scrap))
         .route("/api/description", post(routes::update_description))
         .route("/api/ticket", post(routes::update_ticket))
         .route("/api/link", post(routes::add_link))
-        .route("/api/link/:id", delete(routes::delete_link))
+        .route("/api/link/{id}", delete(routes::delete_link))
         // SSE endpoint
         .route("/api/sse", get(sse_handler))
         // Static files (CSS, JS)

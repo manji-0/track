@@ -1,4 +1,5 @@
-<div id="todos-section" hx-get="/partials/todos" hx-trigger="sse:todos, sse:worktrees" hx-swap="outerHTML">
+<div id="todos-section" hx-get="/partials/todos" hx-trigger="sse:todos, sse:worktrees"
+    hx-target="#todos-section" hx-swap="outerHTML" hx-sync="this:replace" hx-disinherit="hx-trigger">
     <div class="rail-header">
         <span>📋</span>
         <span class="rail-title">TODOs</span>
@@ -36,14 +37,14 @@
                 <div class="todo-actions">
                     {% if not todo.is_in_progress %}
                     <button class="act-btn" title="Make next" hx-patch="/api/todo/{{ todo.todo_id }}/next"
-                        hx-swap="none">▶</button>
+                        hx-disabled-elt="this">▶</button>
                     {% endif %}
                     <button class="act-btn done" title="Mark as done" hx-patch="/api/todo/{{ todo.todo_id }}/done"
-                        hx-swap="none">✓</button>
+                        hx-disabled-elt="this">✓</button>
                     <button class="act-btn" title="Cancel" hx-patch="/api/todo/{{ todo.todo_id }}/cancelled"
-                        hx-swap="none">✕</button>
+                        hx-disabled-elt="this">✕</button>
                     <button class="act-btn delete" title="Delete" hx-delete="/api/todo/{{ todo.todo_id }}"
-                        hx-swap="none" hx-confirm="Delete this todo?">🗑</button>
+                        hx-disabled-elt="this" hx-confirm="Delete this todo?">🗑</button>
                 </div>
             </div>
         </div>
@@ -68,7 +69,7 @@
                     <span class="status-dot-sm {{ todo.status }}"></span>
                     <div class="todo-actions">
                         <button class="act-btn delete" title="Delete" hx-delete="/api/todo/{{ todo.todo_id }}"
-                            hx-swap="none" hx-confirm="Delete this todo?">🗑</button>
+                            hx-disabled-elt="this" hx-confirm="Delete this todo?">🗑</button>
                     </div>
                 </div>
             </div>

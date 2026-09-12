@@ -213,7 +213,7 @@ Complies with the XDG Base Directory specification.
 ## Technology Stack
 
 - **Language**: Rust (Edition 2021)
-- **CLI**: clap v4.4+
+- **CLI**: clap v4.6+
 - **Database**: SQLite (rusqlite with bundled feature)
 - **Error handling**: anyhow, thiserror
 - **Date/time**: chrono

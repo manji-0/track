@@ -226,4 +226,96 @@ async fn index_renders_without_active_task() {
         .to_bytes();
     let html = String::from_utf8(body.to_vec()).unwrap();
     assert!(html.contains("<html") || html.contains("track"));
+    assert!(html.contains("htmx.org@2.0.10"));
+    assert!(html.contains("htmx-ext-sse@2.2.4"));
+    assert!(html.contains("sse-connect=\"/api/sse\""));
+    assert!(html.contains("hx-ext=\"sse\""));
+}
+
+#[tokio::test]
+async fn index_with_task_uses_named_sse_triggers() {
+    let db = Database::new_in_memory().unwrap();
+    let task_service = TaskService::new(&db);
+    let task = task_service
+        .create_task("Web task", None, None, None)
+        .unwrap();
+    db.set_current_task_id(task.id).unwrap();
+
+    let app = test_router(db);
+    let response = app
+        .oneshot(Request::builder().uri("/").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = http_body_util::BodyExt::collect(response.into_body())
+        .await
+        .unwrap()
+        .to_bytes();
+    let html = String::from_utf8(body.to_vec()).unwrap();
+    assert!(html.contains("hx-trigger=\"sse:todos, sse:worktrees\""));
+    assert!(html.contains("hx-trigger=\"sse:scraps\""));
+    assert!(html.contains("hx-target=\"#todos-section\""));
+    assert!(html.contains("hx-disinherit=\"hx-trigger\""));
+}
+
+#[tokio::test]
+async fn add_todo_returns_todo_list_partial() {
+    let db = Database::new_in_memory().unwrap();
+    let task_service = TaskService::new(&db);
+    let task = task_service
+        .create_task("Web task", None, None, None)
+        .unwrap();
+    db.set_current_task_id(task.id).unwrap();
+
+    let app = test_router(db);
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/todo")
+                .header("content-type", "application/x-www-form-urlencoded")
+                .body(Body::from("content=From+htmx"))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = http_body_util::BodyExt::collect(response.into_body())
+        .await
+        .unwrap()
+        .to_bytes();
+    let html = String::from_utf8(body.to_vec()).unwrap();
+    assert!(html.contains("id=\"todos-section\""));
+    assert!(html.contains("From htmx"));
+}
+
+#[tokio::test]
+async fn workflow_partial_renders_for_active_task() {
+    let db = Database::new_in_memory().unwrap();
+    let task_service = TaskService::new(&db);
+    let task = task_service
+        .create_task("Web task", None, None, None)
+        .unwrap();
+    db.set_current_task_id(task.id).unwrap();
+
+    let app = test_router(db);
+    let response = app
+        .oneshot(
+            Request::builder()
+                .uri("/partials/workflow")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = http_body_util::BodyExt::collect(response.into_body())
+        .await
+        .unwrap()
+        .to_bytes();
+    let html = String::from_utf8(body.to_vec()).unwrap();
+    assert!(html.contains("id=\"workflow-section\""));
 }

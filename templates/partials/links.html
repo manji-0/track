@@ -1,4 +1,5 @@
-<div id="links-section">
+<div id="links-section" hx-get="/api/card/links" hx-trigger="sse:links"
+    hx-target="#links-section" hx-swap="outerHTML" hx-sync="this:replace" hx-disinherit="hx-trigger">
     <div class="sec-head">
         <span class="sec-label">LINKS</span>
     </div>
@@ -9,8 +10,8 @@
         <div class="link-item">
             <span>🔗</span>
             <a href="{{ link.url }}" target="_blank" class="link-url">{{ link.title or link.url }}</a>
-            <button class="btn-delete" hx-delete="/api/link/{{ link.link_id }}" hx-swap="none"
-                hx-confirm="Delete this link?" title="Delete link">✕</button>
+            <button class="btn-delete" hx-delete="/api/link/{{ link.link_id }}"
+                hx-disabled-elt="this" hx-confirm="Delete this link?" title="Delete link">✕</button>
         </div>
         {% endfor %}
     </div>
@@ -19,7 +20,7 @@
     {% endif %}
 
     <!-- Add Link Form -->
-    <form class="link-add" hx-post="/api/link" hx-swap="none" hx-on::after-request="this.reset()">
+    <form class="link-add" hx-post="/api/link" hx-disabled-elt="find button[type='submit']">
         <input type="text" name="url" placeholder="URL" required autocomplete="off" style="flex: 1.5;">
         <input type="text" name="title" placeholder="Title (optional)" autocomplete="off">
         <button type="submit" class="btn-secondary">+ Add</button>

@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Bump crate dependencies: clap 4.6, rusqlite 0.40, axum 0.8, pulldown-cmark 0.13, minijinja 2.24, tower-http 0.7
+- WebUI HTMX 1.9 → 2.0.10 with `htmx-ext-sse`; named SSE events drive `hx-trigger`, and mutations swap the returned HTML
+- GitHub Actions: `actions/checkout@v7`, `softprops/action-gh-release@v3`
+
 ### Fixed
 - Treat jj-task map phase `merged` (from `jj-task done`) as completed; keep legacy `done` for compatibility
 

@@ -110,10 +110,10 @@
                 input.setCustomValidity('');
                 const values = { content: cmd.content };
                 if (cmd.noWorkspace) values.no_workspace = 'true';
-                htmx.ajax('POST', '/api/todo', { values: values, swap: 'none' });
+                htmx.ajax('POST', '/api/todo', { values: values, target: '#todos-section', swap: 'outerHTML' });
             } else {
                 input.setCustomValidity('');
-                htmx.ajax('POST', '/api/scrap', { values: { content: cmd.content }, swap: 'none' });
+                htmx.ajax('POST', '/api/scrap', { values: { content: cmd.content }, target: '#scraps-section', swap: 'outerHTML' });
             }
             input.value = '';
             input.style.height = 'auto';

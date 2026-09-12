@@ -13,7 +13,7 @@ jobs:
     name: Release
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
       - name: Build
@@ -22,6 +22,6 @@ jobs:
         run: |
           tar -czf track-linux-amd64.tar.gz -C target/release track
       - name: Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v3
         with:
           files: track-linux-amd64.tar.gz

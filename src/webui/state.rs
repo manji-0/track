@@ -28,6 +28,22 @@ pub enum SseEvent {
     Repos,
 }
 
+impl SseEvent {
+    /// SSE `event:` name consumed by `hx-trigger="sse:..."`.
+    pub fn event_name(&self) -> &'static str {
+        match self {
+            Self::Header => "header",
+            Self::Description => "description",
+            Self::Ticket => "ticket",
+            Self::Links => "links",
+            Self::Todos => "todos",
+            Self::Scraps => "scraps",
+            Self::Worktrees => "worktrees",
+            Self::Repos => "repos",
+        }
+    }
+}
+
 /// State snapshot for change detection using revision numbers
 #[derive(Clone, Debug, PartialEq)]
 struct ChangeState {
@@ -167,5 +183,22 @@ impl AppState {
             // Update last state
             *last = Some(current);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::SseEvent;
+
+    #[test]
+    fn sse_event_names_match_htmx_triggers() {
+        assert_eq!(SseEvent::Header.event_name(), "header");
+        assert_eq!(SseEvent::Description.event_name(), "description");
+        assert_eq!(SseEvent::Ticket.event_name(), "ticket");
+        assert_eq!(SseEvent::Links.event_name(), "links");
+        assert_eq!(SseEvent::Todos.event_name(), "todos");
+        assert_eq!(SseEvent::Scraps.event_name(), "scraps");
+        assert_eq!(SseEvent::Worktrees.event_name(), "worktrees");
+        assert_eq!(SseEvent::Repos.event_name(), "repos");
     }
 }

@@ -197,6 +197,15 @@ pub async fn get_todos(State(state): State<WebState>) -> Result<Html<String>, Ap
     Ok(Html(html))
 }
 
+/// Get workflow footer HTML
+pub async fn get_workflow(State(state): State<WebState>) -> Result<Html<String>, AppError> {
+    let db = state.app.db.lock().await;
+    let current_task_id = db.get_current_task_id()?.ok_or(TrackError::NoActiveTask)?;
+    let context = view::build_template_context(&db, current_task_id)?;
+    let html = state.templates.render("partials/workflow.html", context)?;
+    Ok(Html(html))
+}
+
 /// Get scraps card HTML
 pub async fn get_scraps(State(state): State<WebState>) -> Result<Html<String>, AppError> {
     let db = state.app.db.lock().await;

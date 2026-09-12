@@ -381,11 +381,12 @@
         }
     </style>
 
-    <!-- HTMX -->
-    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <!-- HTMX + SSE extension -->
+    <script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.10/dist/htmx.min.js" integrity="sha384-H5SrcfygHmAuTDZphMHqBJLc3FhssKjG7w/CeCpFReSfwBWDTKpkzPP8c+cLsK+V" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/htmx-ext-sse@2.2.4" integrity="sha384-A986SAtodyH8eg8x8irJnYUk7i9inVQqYigD6qZ9evobksGNIXfeFvDwLSHcp31N" crossorigin="anonymous"></script>
 </head>
 
-<body>
+<body hx-ext="sse" sse-connect="/api/sse">
     {% block content %}{% endblock %}
 
     <script>
@@ -451,87 +452,28 @@
     </script>
 
     <script>
-        // SSE connection for real-time updates
-        if (!window.sseInitialized) {
-            window.sseInitialized = true;
-            window.eventSource = null;
-            window.reconnectAttempts = 0;
-            const maxReconnectAttempts = 5;
+        // SSE connection status (htmx-ext-sse)
+        (function () {
+            function setConnectionStatus(connected) {
+                const status = document.getElementById('connection-status');
+                if (!status) return;
+                status.className = 'connection-status ' + (connected ? 'connected' : 'disconnected');
+                const textEl = status.querySelector('.status-text');
+                if (textEl) textEl.textContent = connected ? 'Live' : 'Offline';
+            }
 
-            window.connectSSE = function () {
-                if (window.eventSource) {
-                    window.eventSource.close();
-                    window.eventSource = null;
-                }
-
-                window.eventSource = new EventSource('/api/sse');
-
-                window.eventSource.onopen = function () {
-                    window.reconnectAttempts = 0;
-                    const status = document.getElementById('connection-status');
-                    if (status) {
-                        status.className = 'connection-status connected';
-                        const textEl = status.querySelector('.status-text');
-                        if (textEl) textEl.textContent = 'Live';
-                    }
-                };
-
-                window.eventSource.addEventListener('update', function (e) {
-                    const event = JSON.parse(e.data);
-                    switch (event.type) {
-                        case 'header':
-                            window.location.reload();
-                            break;
-                        case 'description':
-                            htmx.ajax('GET', '/api/card/description', { target: '#description-section', swap: 'outerHTML' });
-                            break;
-                        case 'ticket':
-                            htmx.ajax('GET', '/api/card/ticket', { target: '#ticket-section', swap: 'outerHTML' });
-                            break;
-                        case 'links':
-                            htmx.ajax('GET', '/api/card/links', { target: '#links-section', swap: 'outerHTML' });
-                            break;
-                        case 'todos':
-                            htmx.ajax('GET', '/api/card/todos', { target: '#todos-section', swap: 'outerHTML' });
-                            break;
-                        case 'scraps':
-                            htmx.ajax('GET', '/api/card/scraps', { target: '#scraps-section', swap: 'outerHTML' });
-                            break;
-                        case 'repos':
-                            htmx.ajax('GET', '/partials/repos', { target: '#repos-section', swap: 'outerHTML' });
-                            break;
-                        default:
-                            console.warn('Unknown SSE event type:', event.type);
-                    }
-                });
-
-                window.eventSource.onerror = function () {
-                    const status = document.getElementById('connection-status');
-                    if (status) {
-                        status.className = 'connection-status disconnected';
-                        const textEl = status.querySelector('.status-text');
-                        if (textEl) textEl.textContent = 'Offline';
-                    }
-                    if (window.eventSource) {
-                        window.eventSource.close();
-                        window.eventSource = null;
-                    }
-                    if (window.reconnectAttempts < maxReconnectAttempts) {
-                        window.reconnectAttempts++;
-                        setTimeout(window.connectSSE, 2000 * window.reconnectAttempts);
-                    }
-                };
-            };
-
-            window.connectSSE();
-
-            document.addEventListener('visibilitychange', function () {
-                if (!document.hidden && (!window.eventSource || window.eventSource.readyState === EventSource.CLOSED)) {
-                    window.reconnectAttempts = 0;
-                    window.connectSSE();
+            document.body.addEventListener('htmx:sseOpen', function () {
+                setConnectionStatus(true);
+            });
+            document.body.addEventListener('htmx:sseError', function () {
+                setConnectionStatus(false);
+            });
+            document.body.addEventListener('htmx:sseBeforeMessage', function (e) {
+                if (e.detail && e.detail.type === 'header') {
+                    window.location.reload();
                 }
             });
-        }
+        })();
     </script>
 
     <script>

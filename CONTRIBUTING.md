@@ -238,8 +238,8 @@ static/
 
 1. **Hot Reload**: Restart `cargo run -- webui` after template changes
 2. **CSS Changes**: Modify `templates/base.html` (CSS variables at top)
-3. **HTMX Debugging**: Check browser console for `htmx:*` events
-4. **SSE Testing**: Monitor Network tab for EventSource connections
+3. **HTMX Debugging**: Check browser console for `htmx:*` and `htmx:sseOpen` / `htmx:sseError`
+4. **SSE Testing**: Monitor Network tab for the `/api/sse` EventSource opened by `htmx-ext-sse`
 
 ### WebUI Testing
 

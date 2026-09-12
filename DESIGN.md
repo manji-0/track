@@ -9,7 +9,7 @@ Rust is adopted to achieve fast operation with a single binary and robust error 
 
 | Category | Crate | Purpose |
 | :--- | :--- | :--- |
-| CLI argument parsing | clap (v4.4+) | Automatic generation of subcommands, flags, and help messages |
+| CLI argument parsing | clap (v4.6+) | Automatic generation of subcommands, flags, and help messages |
 | DB operations | rusqlite (bundled) | SQLite connection. Uses bundled feature to reduce system dependencies |
 | Path management | directories | XDG Base Directory compliant (~/.local/share/...) path resolution |
 | Error handling | anyhow, thiserror | Simplification of error propagation and context addition |
