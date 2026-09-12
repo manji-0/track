@@ -61,6 +61,34 @@ pub struct AddLinkForm {
     pub title: Option<String>,
 }
 
+fn render_task_identity_html(
+    templates: &crate::webui::templates::Templates,
+    task: &crate::models::Task,
+    oob: bool,
+) -> Result<String, AppError> {
+    Ok(templates.render(
+        "partials/task_identity.html",
+        serde_json::json!({
+            "task": task,
+            "oob": oob,
+        }),
+    )?)
+}
+
+fn render_ticket_mutation_html(
+    templates: &crate::webui::templates::Templates,
+    task: &crate::models::Task,
+) -> Result<String, AppError> {
+    let ticket = templates.render(
+        "partials/ticket.html",
+        serde_json::json!({
+            "task": task,
+        }),
+    )?;
+    let identity = render_task_identity_html(templates, task, true)?;
+    Ok(format!("{ticket}{identity}"))
+}
+
 fn render_todo_list_html(
     templates: &crate::webui::templates::Templates,
     db: &crate::db::Database,
@@ -149,6 +177,18 @@ pub async fn get_ticket(State(state): State<WebState>) -> Result<Html<String>, A
             "task": task,
         }),
     )?;
+
+    Ok(Html(html))
+}
+
+/// Get topbar task identity HTML (name, alias, ticket badge)
+pub async fn get_identity(State(state): State<WebState>) -> Result<Html<String>, AppError> {
+    let db = state.app.db.lock().await;
+    let current_task_id = db.get_current_task_id()?.ok_or(TrackError::NoActiveTask)?;
+
+    let task_service = TaskService::new(&db);
+    let task = task_service.get_task(current_task_id)?;
+    let html = render_task_identity_html(&state.templates, &task, false)?;
 
     Ok(Html(html))
 }
@@ -395,13 +435,8 @@ pub async fn update_ticket(
     // Broadcast SSE event
     state.app.broadcast(SseEvent::Ticket);
 
-    // Return updated ticket section
-    let html = state.templates.render(
-        "partials/ticket.html",
-        serde_json::json!({
-            "task": task,
-        }),
-    )?;
+    // Ticket section plus out-of-band topbar identity so the badge updates immediately
+    let html = render_ticket_mutation_html(&state.templates, &task)?;
 
     Ok(Html(html))
 }

@@ -156,6 +156,11 @@ fn pending_needs_workspace(todos: &[Todo]) -> bool {
         .any(|todo| todo.status == TodoStatus::Pending && todo.requires_workspace)
 }
 
+/// Repo registration is only a setup gate when pending work actually needs a workspace.
+fn repo_registration_required(todos: &[Todo], repos: &[TaskRepo]) -> bool {
+    repos.is_empty() && pending_needs_workspace(todos)
+}
+
 /// True when pending TODOs still use the legacy per-TODO `--worktree` model.
 pub fn legacy_worktree_pending(todos: &[Todo]) -> bool {
     todos
@@ -192,6 +197,10 @@ fn git_workspace_needed(task: &Task, todos: &[Todo], repos: &[TaskRepo]) -> bool
 }
 
 /// Computes the workflow phase from current task state.
+///
+/// An empty repository list is Setup only when the task has no TODOs yet, or
+/// when pending TODOs require a workspace. Notes and `/plan` work skip repo
+/// registration and go straight to Execute.
 pub fn compute_workflow_phase(
     vcs_mode: VcsMode,
     task: &Task,
@@ -203,7 +212,11 @@ pub fn compute_workflow_phase(
         return WorkflowPhase::Archived;
     }
 
-    if repos.is_empty() {
+    if todos.is_empty() && repos.is_empty() {
+        return WorkflowPhase::Setup;
+    }
+
+    if repo_registration_required(todos, repos) {
         return WorkflowPhase::Setup;
     }
 
@@ -254,29 +267,34 @@ pub fn build_workflow_checklist(
 
     match phase {
         WorkflowPhase::Setup => {
-            let mut steps = vec![WorkflowStep {
-                id: "repo",
-                label: "Register at least one repository".to_string(),
-                done: !repos.is_empty(),
-                command: Some("track repo add".to_string()),
-            }];
-            if vcs_mode == VcsMode::Jj && !repos.is_empty() {
-                let all_init = repos
-                    .iter()
-                    .all(|repo| jj_task::repo_initialized(&repo.repo_path));
+            let mut steps = Vec::new();
+            if pending_needs_workspace(todos) {
                 steps.push(WorkflowStep {
-                    id: "jj_repo_init",
-                    label: "Initialize jj-task in each repo (once)".to_string(),
-                    done: all_init,
-                    command: Some("jj-task repo init".to_string()),
+                    id: "repo",
+                    label: "Register at least one repository".to_string(),
+                    done: !repos.is_empty(),
+                    command: Some("track repo add".to_string()),
+                });
+                if vcs_mode == VcsMode::Jj && !repos.is_empty() {
+                    let all_init = repos
+                        .iter()
+                        .all(|repo| jj_task::repo_initialized(&repo.repo_path));
+                    steps.push(WorkflowStep {
+                        id: "jj_repo_init",
+                        label: "Initialize jj-task in each repo (once)".to_string(),
+                        done: all_init,
+                        command: Some("jj-task repo init".to_string()),
+                    });
+                }
+            }
+            if todos.is_empty() {
+                steps.push(WorkflowStep {
+                    id: "todos",
+                    label: "Add TODOs for this task".to_string(),
+                    done: false,
+                    command: Some("track todo add \"...\"".to_string()),
                 });
             }
-            steps.push(WorkflowStep {
-                id: "todos",
-                label: "Add TODOs for this task".to_string(),
-                done: !todos.is_empty(),
-                command: Some("track todo add \"...\"".to_string()),
-            });
             steps
         }
         WorkflowPhase::SyncRequired => {
@@ -319,18 +337,28 @@ pub fn build_next_action(
     let paths = repo_paths(repos);
 
     match phase {
-        WorkflowPhase::Setup => NextAction {
-            kind: NextActionKind::RunCommand,
-            command: Some("track repo add [path]".to_string()),
-            reason: match vcs_mode {
-                VcsMode::Jj => {
-                    "Register at least one repository, then run jj-task repo init from the main workspace".to_string()
+        WorkflowPhase::Setup => {
+            if todos.is_empty() {
+                NextAction {
+                    kind: NextActionKind::RunCommand,
+                    command: Some("track todo add \"...\"".to_string()),
+                    reason: "Add TODOs to start work. Use --no-workspace (or /plan in the WebUI) when a repository is not needed.".to_string(),
                 }
-                VcsMode::Git => {
-                    "Register at least one git repository, then run track sync to create a worktree".to_string()
+            } else {
+                NextAction {
+                    kind: NextActionKind::RunCommand,
+                    command: Some("track repo add [path]".to_string()),
+                    reason: match vcs_mode {
+                        VcsMode::Jj => {
+                            "Register at least one repository, then run jj-task repo init from the main workspace".to_string()
+                        }
+                        VcsMode::Git => {
+                            "Register at least one git repository, then run track sync to create a worktree".to_string()
+                        }
+                    },
                 }
-            },
-        },
+            }
+        }
         WorkflowPhase::SyncRequired => match vcs_mode {
             VcsMode::Jj => {
                 if legacy_worktree_sync_needed(todos, worktrees) {
@@ -362,9 +390,7 @@ pub fn build_next_action(
             VcsMode::Git => NextAction {
                 kind: NextActionKind::RunCommand,
                 command: Some("track sync".to_string()),
-                reason: format!(
-                    "Create git worktree at .worktrees/{slug} on branch track/{slug}"
-                ),
+                reason: format!("Create git worktree at .worktrees/{slug} on branch track/{slug}"),
             },
         },
         WorkflowPhase::Execute => {
@@ -505,7 +531,8 @@ pub fn build_next_action(
             VcsMode::Git => NextAction {
                 kind: NextActionKind::RunCommand,
                 command: Some("track archive".to_string()),
-                reason: "All TODOs done — push/merge your PR with git, then archive the task".to_string(),
+                reason: "All TODOs done — push/merge your PR with git, then archive the task"
+                    .to_string(),
             },
         },
         WorkflowPhase::Archived => NextAction {
@@ -734,6 +761,62 @@ mod tests {
         assert_eq!(ctx.branch, "track/proj-1");
         assert_eq!(ctx.sync_command, "track sync");
         assert!(!ctx.workspace_ready);
+    }
+
+    #[test]
+    fn plan_todos_without_repos_skip_setup() {
+        let task = sample_task(TaskStatus::Active);
+        let todos = vec![sample_research_todo(1)];
+
+        assert_eq!(
+            compute_workflow_phase(VcsMode::Jj, &task, &todos, &[], &[]),
+            WorkflowPhase::Execute
+        );
+
+        let action =
+            build_next_action(VcsMode::Jj, WorkflowPhase::Execute, &task, &todos, &[], &[]);
+        assert_eq!(action.kind, NextActionKind::ExecuteTodo);
+        assert_eq!(action.command.as_deref(), Some("track todo done 1"));
+
+        let checklist =
+            build_workflow_checklist(VcsMode::Jj, WorkflowPhase::Execute, &task, &todos, &[]);
+        assert!(checklist.is_empty());
+    }
+
+    #[test]
+    fn empty_task_without_repos_asks_for_todos_not_a_repo() {
+        let task = sample_task(TaskStatus::Active);
+
+        assert_eq!(
+            compute_workflow_phase(VcsMode::Jj, &task, &[], &[], &[]),
+            WorkflowPhase::Setup
+        );
+
+        let action = build_next_action(VcsMode::Jj, WorkflowPhase::Setup, &task, &[], &[], &[]);
+        assert_eq!(action.command.as_deref(), Some("track todo add \"...\""));
+
+        let checklist =
+            build_workflow_checklist(VcsMode::Jj, WorkflowPhase::Setup, &task, &[], &[]);
+        assert!(checklist.iter().all(|step| step.id != "repo"));
+        assert!(checklist.iter().any(|step| step.id == "todos"));
+    }
+
+    #[test]
+    fn workspace_todos_without_repos_still_require_repo_setup() {
+        let task = sample_task(TaskStatus::Active);
+        let todos = vec![sample_todo(1, false)];
+
+        assert_eq!(
+            compute_workflow_phase(VcsMode::Jj, &task, &todos, &[], &[]),
+            WorkflowPhase::Setup
+        );
+
+        let action = build_next_action(VcsMode::Jj, WorkflowPhase::Setup, &task, &todos, &[], &[]);
+        assert_eq!(action.command.as_deref(), Some("track repo add [path]"));
+
+        let checklist =
+            build_workflow_checklist(VcsMode::Jj, WorkflowPhase::Setup, &task, &todos, &[]);
+        assert!(checklist.iter().any(|step| step.id == "repo"));
     }
 
     #[test]

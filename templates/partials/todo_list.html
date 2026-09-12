@@ -23,6 +23,7 @@
                 <span class="todo-idx">#{{ todo.todo_id }}</span>
                 <div class="todo-body">
                     <span class="todo-content">{{ todo.content_html | safe }}</span>
+                    {% if not todo.requires_workspace %}<span class="todo-kind" title="No workspace required">plan</span>{% endif %}
                     {% if todo.worktree_requested %}<span title="Workspace requested">🌿</span>{% endif %}
                     {% if todo.worktree_paths and todo.worktree_paths|length > 0 %}
                     {% for path in todo.worktree_paths %}
@@ -65,7 +66,10 @@
             <div class="todo-item closed" data-todo-id="{{ todo.todo_id }}">
                 <div class="todo-row">
                     <span class="todo-idx">#{{ todo.todo_id }}</span>
-                    <div class="todo-body">{{ todo.content_html | safe }}</div>
+                    <div class="todo-body">
+                        {{ todo.content_html | safe }}
+                        {% if not todo.requires_workspace %}<span class="todo-kind" title="No workspace required">plan</span>{% endif %}
+                    </div>
                     <span class="status-dot-sm {{ todo.status }}"></span>
                     <div class="todo-actions">
                         <button class="act-btn delete" title="Delete" hx-delete="/api/todo/{{ todo.todo_id }}"

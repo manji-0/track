@@ -64,6 +64,11 @@ impl Templates {
         )
         .expect("Failed to add ticket.html template");
         env.add_template(
+            "partials/task_identity.html",
+            include_str!("../../templates/partials/task_identity.html"),
+        )
+        .expect("Failed to add task_identity.html template");
+        env.add_template(
             "partials/links.html",
             include_str!("../../templates/partials/links.html"),
         )

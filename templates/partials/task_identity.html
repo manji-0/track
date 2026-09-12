@@ -1,0 +1,11 @@
+<div id="task-identity" class="task-identity"{% if oob %} hx-swap-oob="outerHTML"{% endif %}
+    hx-get="/api/card/identity" hx-trigger="sse:ticket" hx-target="#task-identity"
+    hx-swap="outerHTML" hx-sync="this:replace" hx-disinherit="hx-trigger">
+    <span class="task-title">{{ task.name }}</span>
+    {% if task.alias %}<span class="task-alias">{{ task.alias }}</span>{% endif %}
+    {% if task.ticket_id %}
+    <span class="ticket-badge">{{ task.ticket_id }}</span>
+    {% else %}
+    <span class="task-id">#{{ task.id }}</span>
+    {% endif %}
+</div>

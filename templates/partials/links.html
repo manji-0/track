@@ -21,7 +21,7 @@
 
     <!-- Add Link Form -->
     <form class="link-add" hx-post="/api/link" hx-disabled-elt="find button[type='submit']">
-        <input type="text" name="url" placeholder="URL" required autocomplete="off" style="flex: 1.5;">
+        <input type="text" name="url" placeholder="URL" required autocomplete="off" class="link-url-input">
         <input type="text" name="title" placeholder="Title (optional)" autocomplete="off">
         <button type="submit" class="btn-secondary">+ Add</button>
     </form>

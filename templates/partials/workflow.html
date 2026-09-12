@@ -1,5 +1,5 @@
 <div class="workflow-footer" id="workflow-section" hx-get="/partials/workflow"
-    hx-trigger="sse:todos, sse:worktrees" hx-target="#workflow-section" hx-swap="outerHTML"
+    hx-trigger="sse:todos, sse:worktrees, sse:repos" hx-target="#workflow-section" hx-swap="outerHTML"
     hx-sync="this:replace" hx-disinherit="hx-trigger">
     {% if workflow %}
     <div class="workflow-head">

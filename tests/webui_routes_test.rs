@@ -254,6 +254,9 @@ async fn index_with_task_uses_named_sse_triggers() {
         .to_bytes();
     let html = String::from_utf8(body.to_vec()).unwrap();
     assert!(html.contains("hx-trigger=\"sse:todos, sse:worktrees\""));
+    assert!(html.contains("hx-trigger=\"sse:todos, sse:worktrees, sse:repos\""));
+    assert!(html.contains("hx-trigger=\"sse:ticket\""));
+    assert!(html.contains("id=\"task-identity\""));
     assert!(html.contains("hx-trigger=\"sse:scraps\""));
     assert!(html.contains("hx-target=\"#todos-section\""));
     assert!(html.contains("hx-disinherit=\"hx-trigger\""));
@@ -292,6 +295,105 @@ async fn add_todo_returns_todo_list_partial() {
 }
 
 #[tokio::test]
+async fn add_plan_todo_marks_item_as_plan() {
+    let db = Database::new_in_memory().unwrap();
+    let task_service = TaskService::new(&db);
+    let task = task_service
+        .create_task("Web task", None, None, None)
+        .unwrap();
+    db.set_current_task_id(task.id).unwrap();
+
+    let app = test_router(db);
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/todo")
+                .header("content-type", "application/x-www-form-urlencoded")
+                .body(Body::from("content=Weekly+notes&no_workspace=true"))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = http_body_util::BodyExt::collect(response.into_body())
+        .await
+        .unwrap()
+        .to_bytes();
+    let html = String::from_utf8(body.to_vec()).unwrap();
+    assert!(html.contains("Weekly notes"));
+    assert!(html.contains("todo-kind"));
+    assert!(html.contains(">plan</span>"));
+}
+
+#[tokio::test]
+async fn identity_partial_renders_task_name() {
+    let db = Database::new_in_memory().unwrap();
+    let task_service = TaskService::new(&db);
+    let task = task_service
+        .create_task("Web task", None, None, None)
+        .unwrap();
+    db.set_current_task_id(task.id).unwrap();
+
+    let app = test_router(db);
+    let response = app
+        .oneshot(
+            Request::builder()
+                .uri("/api/card/identity")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = http_body_util::BodyExt::collect(response.into_body())
+        .await
+        .unwrap()
+        .to_bytes();
+    let html = String::from_utf8(body.to_vec()).unwrap();
+    assert!(html.contains("id=\"task-identity\""));
+    assert!(html.contains("Web task"));
+    assert!(!html.contains("hx-swap-oob"));
+}
+
+#[tokio::test]
+async fn update_ticket_returns_identity_out_of_band() {
+    let db = Database::new_in_memory().unwrap();
+    let task_service = TaskService::new(&db);
+    let task = task_service
+        .create_task("Web task", None, None, None)
+        .unwrap();
+    db.set_current_task_id(task.id).unwrap();
+
+    let app = test_router(db);
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/ticket")
+                .header("content-type", "application/x-www-form-urlencoded")
+                .body(Body::from("ticket_id=NOTES-12"))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = http_body_util::BodyExt::collect(response.into_body())
+        .await
+        .unwrap()
+        .to_bytes();
+    let html = String::from_utf8(body.to_vec()).unwrap();
+    assert!(html.contains("id=\"ticket-section\""));
+    assert!(html.contains("NOTES-12"));
+    assert!(html.contains("id=\"task-identity\""));
+    assert!(html.contains("hx-swap-oob=\"outerHTML\""));
+    assert!(html.contains("ticket-badge"));
+}
+
+#[tokio::test]
 async fn workflow_partial_renders_for_active_task() {
     let db = Database::new_in_memory().unwrap();
     let task_service = TaskService::new(&db);
@@ -318,4 +420,46 @@ async fn workflow_partial_renders_for_active_task() {
         .to_bytes();
     let html = String::from_utf8(body.to_vec()).unwrap();
     assert!(html.contains("id=\"workflow-section\""));
+    assert!(html.contains("track todo add"));
+    assert!(!html.contains("track repo add"));
+}
+
+#[tokio::test]
+async fn workflow_partial_for_plan_todo_is_execute_not_repo_setup() {
+    let db = Database::new_in_memory().unwrap();
+    let task_service = TaskService::new(&db);
+    let task = task_service
+        .create_task("Notes task", None, None, None)
+        .unwrap();
+    db.set_current_task_id(task.id).unwrap();
+
+    let todo_service = TodoService::new(&db);
+    todo_service
+        .add_todo(
+            task.id,
+            "Weekly notes",
+            track::models::TodoAddOptions::from_flags(false, true),
+        )
+        .unwrap();
+
+    let app = test_router(db);
+    let response = app
+        .oneshot(
+            Request::builder()
+                .uri("/partials/workflow")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = http_body_util::BodyExt::collect(response.into_body())
+        .await
+        .unwrap()
+        .to_bytes();
+    let html = String::from_utf8(body.to_vec()).unwrap();
+    assert!(html.contains("phase-execute"));
+    assert!(html.contains("track todo done"));
+    assert!(!html.contains("track repo add"));
 }

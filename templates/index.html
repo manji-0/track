@@ -11,13 +11,7 @@
     <!-- ===== Topbar ===== -->
     <header class="topbar">
         <span class="brand">tr</span>
-        <span class="task-title">{{ task.name }}</span>
-        {% if task.alias %}<span class="task-alias">{{ task.alias }}</span>{% endif %}
-        {% if task.ticket_id %}
-        <span class="ticket-badge">{{ task.ticket_id }}</span>
-        {% else %}
-        <span class="task-id">#{{ task.id }}</span>
-        {% endif %}
+        {% include "partials/task_identity.html" %}
         <button class="chip" id="drawer-chip" type="button" onclick="toggleDrawer()"
             aria-expanded="false" aria-controls="context-drawer">
             Context <span class="chev">⌄</span>
@@ -35,7 +29,7 @@
     <!-- ===== Context drawer (collapsed by default, toggled by the Context chip) ===== -->
     <div class="drawer" id="context-drawer" hidden>
         {% if task.is_today_task %}
-        <div style="grid-column: span 2;">
+        <div class="drawer-calendar">
             {% include "partials/calendar.html" %}
         </div>
         {% include "partials/links.html" %}

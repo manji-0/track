@@ -22,6 +22,7 @@ pub fn build_router(web_state: WebState) -> Router {
         // Card GET endpoints for HTMX updates
         .route("/api/card/description", get(routes::get_description))
         .route("/api/card/ticket", get(routes::get_ticket))
+        .route("/api/card/identity", get(routes::get_identity))
         .route("/api/card/links", get(routes::get_links))
         .route("/api/card/todos", get(routes::get_todos))
         .route("/api/card/scraps", get(routes::get_scraps))

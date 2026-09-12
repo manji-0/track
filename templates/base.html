@@ -83,13 +83,17 @@
         }
 
         /* ===== App shell ===== */
-        .app { height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+        .app {
+            height: 100vh; display: flex; flex-direction: column;
+            overflow: hidden; min-width: 0;
+        }
 
         /* ===== Topbar ===== */
         .topbar {
             display: flex; align-items: center; gap: 12px;
             height: 52px; padding: 0 20px;
             border-bottom: 1px solid var(--border); flex: none;
+            min-width: 0;
         }
 
         .brand {
@@ -99,8 +103,16 @@
             display: flex; align-items: center; justify-content: center;
         }
 
-        .task-title { font-weight: 600; font-size: 14px; }
-        .task-alias { color: var(--muted); font-size: 12px; }
+        .task-identity {
+            display: flex; align-items: center; gap: 12px;
+            min-width: 0;
+        }
+        .task-title {
+            font-weight: 600; font-size: 14px;
+            min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        .task-alias { color: var(--muted); font-size: 12px; flex: none; }
+        .brand, .chip, .icon-btn, .connection-status, .ticket-badge, .task-id { flex: none; }
 
         .ticket-badge {
             font-family: var(--mono); font-size: 11px; padding: 2px 8px; border-radius: 99px;
@@ -139,10 +151,16 @@
 
         /* ===== Context drawer ===== */
         .drawer {
-            display: grid; grid-template-columns: 1.3fr 1fr 1fr; gap: 24px;
+            display: grid;
+            grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1fr);
+            gap: 24px;
             padding: 16px 20px; background: var(--rail);
             border-bottom: 1px solid var(--border); flex: none;
+            min-width: 0;
         }
+
+        .drawer > * { min-width: 0; }
+        .drawer-calendar { grid-column: span 2; min-width: 0; }
 
         .drawer[hidden] { display: none; }
 
@@ -156,7 +174,10 @@
         .description { color: var(--sub); font-size: 12.5px; white-space: pre-wrap; }
         .text-muted { color: var(--muted); }
 
-        .ticket-line { display: flex; align-items: center; gap: 8px; margin-top: 12px; }
+        .ticket-line {
+            display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
+            margin-top: 12px; min-width: 0;
+        }
         .ticket-line .ticket-id { font-family: var(--mono); font-size: 11.5px; color: var(--accent); }
         .ticket-line .ticket-url { font-size: 11px; color: var(--sub); }
 
@@ -167,10 +188,13 @@
             background: var(--code-bg); color: var(--sub);
         }
 
-        .link-item { display: flex; align-items: center; gap: 7px; font-size: 12px; padding: 2.5px 0; }
-        .link-item .btn-delete { margin-left: auto; }
-        .link-add { display: flex; gap: 6px; margin-top: 8px; }
-        .link-add input { flex: 1; font-size: 11.5px; padding: 5px 8px; border-radius: 6px; }
+        .link-item { display: flex; align-items: center; gap: 7px; font-size: 12px; padding: 2.5px 0; min-width: 0; }
+        .link-item .link-url { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .link-item .btn-delete { margin-left: auto; flex: none; }
+        .link-add { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+        .link-add input { flex: 1 1 8rem; min-width: 0; font-size: 11.5px; padding: 5px 8px; border-radius: 6px; }
+        .link-add .link-url-input { flex: 1.5 1 10rem; }
+        .link-add .btn-secondary { flex: none; }
 
         .btn-delete {
             cursor: pointer; background: none; border: none; color: var(--muted);
@@ -179,7 +203,11 @@
         .btn-delete:hover { color: var(--red); }
 
         /* ===== Body grid ===== */
-        .body-grid { display: grid; grid-template-columns: 360px 1fr; flex: 1; min-height: 0; }
+        .body-grid {
+            display: grid;
+            grid-template-columns: minmax(240px, 360px) minmax(0, 1fr);
+            flex: 1; min-height: 0;
+        }
 
         /* ===== TODO rail ===== */
         .todo-rail {
@@ -215,13 +243,19 @@
         .todo-body { flex: 1; min-width: 0; font-size: 12.5px; color: var(--text-2); }
         .todo-item.in-progress .todo-body { font-weight: 500; color: var(--text); }
         .todo-body a { pointer-events: auto; }
+        .todo-kind {
+            display: inline-block; margin-left: 6px; vertical-align: middle;
+            font-size: 10px; font-weight: 600; letter-spacing: .04em;
+            padding: 0 6px; border-radius: 99px;
+            background: var(--code-bg); color: var(--sub);
+        }
 
         .worktree-path {
             margin-top: 3px; font-family: var(--mono); font-size: 10.5px; color: var(--sub);
             overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
         }
 
-        .todo-actions { display: flex; gap: 4px; flex: none; opacity: 0; transition: opacity .12s; }
+        .todo-actions { display: flex; gap: 4px; flex: none; opacity: .55; transition: opacity .12s; }
         .todo-item:hover .todo-actions,
         .todo-item:focus-within .todo-actions { opacity: 1; }
 
@@ -281,7 +315,7 @@
         }
 
         /* ===== Stream (scraps) ===== */
-        .stream-col { display: flex; flex-direction: column; min-height: 0; }
+        .stream-col { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
 
         .stream {
             flex: 1; overflow-y: auto; min-height: 0; padding: 20px 28px;
@@ -374,10 +408,50 @@
         /* ===== Calendar ===== */
         .calendar-container iframe { border: 0; width: 100%; height: 420px; border-radius: 8px; }
 
+        @media (max-width: 1100px) {
+            .drawer {
+                grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+                gap: 16px 20px;
+            }
+            .drawer-calendar { grid-column: 1 / -1; }
+        }
+
         @media (max-width: 900px) {
-            .drawer { grid-template-columns: 1fr; gap: 16px; }
-            .body-grid { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
-            .todo-rail { border-right: none; border-bottom: 1px solid var(--border); max-height: 45vh; }
+            .topbar { gap: 8px; padding: 0 12px; }
+            .connection-status .status-text { display: none; }
+            .kbd { display: none; }
+
+            .drawer {
+                grid-template-columns: minmax(0, 1fr);
+                gap: 14px;
+                padding: 12px 14px;
+                max-height: 40vh;
+                overflow-y: auto;
+            }
+
+            .body-grid {
+                grid-template-columns: minmax(0, 1fr);
+                grid-template-rows: minmax(0, 42vh) minmax(0, 1fr);
+            }
+            .todo-rail {
+                border-right: none;
+                border-bottom: 1px solid var(--border);
+                min-height: 0;
+            }
+
+            .stream { padding: 12px 14px; }
+            .stream-row { grid-template-columns: minmax(0, 1fr); gap: 4px; padding-bottom: 14px; }
+            .stream-time { text-align: left; }
+            .stream-line { display: none; }
+
+            .cmd-bar { padding: 10px 12px 12px; }
+            .cmd-box { padding: 4px 12px; }
+        }
+
+        @media (max-width: 560px) {
+            .task-id, .ticket-badge { display: none; }
+            .workflow-footer { padding: 10px 12px; }
+            .rail-header { padding: 10px 12px 8px; }
         }
     </style>
 
@@ -472,6 +546,44 @@
                 if (e.detail && e.detail.type === 'header') {
                     window.location.reload();
                 }
+            });
+
+            // Mutation responses already swap the section HTML. Skip the follow-up
+            // SSE GET for the same target so the actor tab does not refetch twice.
+            var LOCAL_SWAP_MS = 2000;
+            function resolveSwapTarget(cfg, elt) {
+                var target = (cfg && cfg.target) || elt;
+                if (typeof target === 'string') {
+                    target = document.querySelector(target);
+                }
+                return target;
+            }
+            function markLocalSwap(elt) {
+                if (elt && elt.id) {
+                    elt.dataset.localSwapAt = String(Date.now());
+                }
+            }
+            document.body.addEventListener('htmx:beforeRequest', function (e) {
+                var elt = e.detail && e.detail.elt;
+                var cfg = e.detail && e.detail.requestConfig;
+                if (!cfg) return;
+                var verb = (cfg.verb || 'get').toLowerCase();
+                var target = resolveSwapTarget(cfg, elt);
+                if (verb !== 'get') {
+                    // Mark before the response so a same-tick SSE GET can be skipped.
+                    markLocalSwap(target);
+                    return;
+                }
+                var trigger = cfg.triggeringEvent;
+                var isSse = trigger && typeof trigger.type === 'string' && trigger.type.indexOf('sse:') === 0;
+                if (!isSse) return;
+                var at = Number((target && target.dataset && target.dataset.localSwapAt) || 0);
+                if (at && Date.now() - at < LOCAL_SWAP_MS) {
+                    e.preventDefault();
+                }
+            });
+            document.body.addEventListener('htmx:afterSwap', function (e) {
+                markLocalSwap(e.detail && e.detail.elt);
             });
         })();
     </script>
