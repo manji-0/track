@@ -1,3 +1,5 @@
+use crate::cli::handlers::confirm::confirm_from_tty;
+use crate::cli::handlers::json_out::{emit_mutation, list_json, print_json, MutationKind};
 use crate::cli::handlers::CommandCtx;
 use crate::models::TodoAddOptions;
 use crate::services::{TaskService, TodoService, WorktreeService};
@@ -7,7 +9,6 @@ use crate::use_cases::{
 use crate::utils::{Result, TrackError};
 use chrono::Local;
 use prettytable::{format, Cell, Row, Table};
-use std::io::{self, Write};
 
 pub fn handle_new(
     ctx: &CommandCtx,
@@ -16,21 +17,13 @@ pub fn handle_new(
     ticket: Option<&str>,
     ticket_url: Option<&str>,
     template: Option<&str>,
+    json: bool,
 ) -> Result<()> {
     let task_service = TaskService::new(ctx.db);
     let task = task_service.create_task(name, description, ticket, ticket_url)?;
+    let mut copied = 0usize;
+    let mut template_empty: Option<String> = None;
 
-    println!("Created task #{}: {}", task.id, task.name);
-    if let Some(ticket_id) = &task.ticket_id {
-        print!("Ticket: {}", ticket_id);
-        if let Some(url) = &task.ticket_url {
-            print!(" ({})", url);
-        }
-        println!();
-    }
-    println!("Switched to task #{}", task.id);
-
-    // If template is specified, copy TODOs from template task
     if let Some(template_ref) = template {
         let template_task_id = task_service.resolve_task_id(template_ref)?;
         let template_task = task_service.get_task(template_task_id)?;
@@ -39,17 +32,8 @@ pub fn handle_new(
         let template_todos = todo_service.list_todos(template_task_id)?;
 
         if template_todos.is_empty() {
-            println!(
-                "Warning: Template task '{}' has no TODOs",
-                template_task.name
-            );
+            template_empty = Some(template_task.name);
         } else {
-            println!(
-                "\nCopying {} TODOs from template task '{}'...",
-                template_todos.len(),
-                template_task.name
-            );
-
             for template_todo in &template_todos {
                 todo_service.add_todo(
                     task.id,
@@ -60,15 +44,41 @@ pub fn handle_new(
                     },
                 )?;
             }
-
-            println!("Successfully copied {} TODOs", template_todos.len());
+            copied = template_todos.len();
         }
     }
 
-    Ok(())
+    emit_mutation(
+        ctx,
+        json,
+        MutationKind::TaskNew,
+        Some(task.id),
+        Some(task.id),
+        || {
+            println!("Created task #{}: {}", task.id, task.name);
+            if let Some(ticket_id) = &task.ticket_id {
+                print!("Ticket: {}", ticket_id);
+                if let Some(url) = &task.ticket_url {
+                    print!(" ({})", url);
+                }
+                println!();
+            }
+            println!("Switched to task #{}", task.id);
+            if let Some(name) = template_empty {
+                println!("Warning: Template task '{name}' has no TODOs");
+            } else if copied > 0 {
+                println!("\nCopying {copied} TODOs from template...");
+                println!("Successfully copied {copied} TODOs");
+            }
+        },
+    )
 }
 
-pub fn handle_list(ctx: &CommandCtx, include_archived: bool) -> Result<()> {
+pub fn handle_list(ctx: &CommandCtx, include_archived: bool, json: bool) -> Result<()> {
+    if json {
+        return print_json(&list_json(ctx.db, include_archived)?);
+    }
+
     let task_service = TaskService::new(ctx.db);
     let tasks = task_service.list_tasks(include_archived)?;
     let current_task_id = ctx.db.get_current_task_id()?;
@@ -107,24 +117,33 @@ pub fn handle_list(ctx: &CommandCtx, include_archived: bool) -> Result<()> {
     Ok(())
 }
 
-pub fn handle_switch(ctx: &CommandCtx, task_ref: &str) -> Result<()> {
+pub fn handle_switch(ctx: &CommandCtx, task_ref: &str, json: bool) -> Result<()> {
     let task_service = TaskService::new(ctx.db);
 
-    // Check if the user wants to switch to today's task
     if task_ref.to_lowercase() == "today" {
         let task = CreateTodayTaskUseCase::new(ctx.db).get_or_create()?;
-        // Update the current task context
         task_service.switch_task(task.id)?;
-        println!("Switched to today's task: {}", task.name);
-        return Ok(());
+        return emit_mutation(
+            ctx,
+            json,
+            MutationKind::Switch,
+            Some(task.id),
+            Some(task.id),
+            || println!("Switched to today's task: {}", task.name),
+        );
     }
 
-    // Normal task switching
     let task_id = task_service.resolve_task_id(task_ref)?;
     let task = task_service.switch_task(task_id)?;
 
-    println!("Switched to task #{}: {}", task.id, task.name);
-    Ok(())
+    emit_mutation(
+        ctx,
+        json,
+        MutationKind::Switch,
+        Some(task.id),
+        Some(task.id),
+        || println!("Switched to task #{}: {}", task.id, task.name),
+    )
 }
 
 pub fn handle_info(
@@ -391,7 +410,12 @@ pub fn handle_ticket(
     Ok(())
 }
 
-pub fn handle_archive(ctx: &CommandCtx, task_ref: Option<&str>, force: bool) -> Result<()> {
+pub fn handle_archive(
+    ctx: &CommandCtx,
+    task_ref: Option<&str>,
+    force: bool,
+    json: bool,
+) -> Result<()> {
     let use_case = ArchiveTaskUseCase::new(ctx.db);
     let task_id = use_case.resolve_task_id(task_ref)?;
 
@@ -402,12 +426,7 @@ pub fn handle_archive(ctx: &CommandCtx, task_ref: Option<&str>, force: bool) -> 
             for line in &view.warning_lines {
                 println!("{line}");
             }
-            print!("{}", view.prompt);
-            io::stdout().flush()?;
-            let mut input = String::new();
-            io::stdin().read_line(&mut input)?;
-
-            if !matches!(input.trim().to_lowercase().as_str(), "y" | "yes") {
+            if !confirm_from_tty(&view.prompt, &view.non_tty_hint)? {
                 println!("Cancelled.");
                 return Ok(());
             }
@@ -416,14 +435,21 @@ pub fn handle_archive(ctx: &CommandCtx, task_ref: Option<&str>, force: bool) -> 
         }
     };
 
-    let view = outcome.completion_view();
-    for line in &view.info_lines {
-        println!("{line}");
-    }
-    for line in &view.error_lines {
-        eprintln!("{line}");
-    }
-    println!("{}", view.summary);
-
-    Ok(())
+    emit_mutation(
+        ctx,
+        json,
+        MutationKind::Archive,
+        Some(outcome.task.id),
+        Some(outcome.task.id),
+        || {
+            let view = outcome.completion_view();
+            for line in &view.info_lines {
+                println!("{line}");
+            }
+            for line in &view.error_lines {
+                eprintln!("{line}");
+            }
+            println!("{}", view.summary);
+        },
+    )
 }

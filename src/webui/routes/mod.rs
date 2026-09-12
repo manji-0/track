@@ -1,6 +1,6 @@
 //! HTTP route handlers for the WebUI.
 
-use crate::models::TodoStatus;
+use crate::models::{TodoAction, TodoStatus};
 use crate::services::{LinkService, RepoService, ScrapService, TaskService, TodoService};
 use crate::use_cases::{ApplyTodoActionUseCase, GetTaskInfoUseCase};
 use crate::utils::TrackError;
@@ -14,6 +14,7 @@ use axum::{
     Form, Json,
 };
 use serde::Deserialize;
+use std::str::FromStr;
 
 /// Extended application state with templates
 #[derive(Clone)]
@@ -300,15 +301,10 @@ pub async fn update_todo_status(
 
     let current_task_id = db.get_current_task_id()?.ok_or(TrackError::NoActiveTask)?;
 
-    let todo_service = TodoService::new(&db);
-    let todo = todo_service.get_todo_by_index(current_task_id, todo_index)?;
-
-    if new_status.as_str() == TodoStatus::PENDING {
-        todo_service.update_status(todo.id, &new_status)?;
-    } else {
-        let action = crate::models::TodoAction::from_web_route(&new_status)?;
-        ApplyTodoActionUseCase::new(&db).execute(current_task_id, todo_index, action)?;
-    }
+    let status = TodoStatus::from_str(&new_status)
+        .map_err(|_| TrackError::InvalidStatus(new_status.clone()))?;
+    let action = TodoAction::from_web_route(status)?;
+    ApplyTodoActionUseCase::new(&db).execute(current_task_id, todo_index, action)?;
 
     // Broadcast SSE event
     state.app.broadcast(SseEvent::Todos);

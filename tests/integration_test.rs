@@ -40,7 +40,9 @@ fn test_full_task_workflow() {
     assert!(todos[1].worktree_requested);
 
     // Update TODO status
-    todo_service.update_status(todo1.id, "done").unwrap();
+    todo_service
+        .update_status(todo1.id, TodoStatus::Done)
+        .unwrap();
     let updated_todo = todo_service.get_todo(todo1.id).unwrap();
     assert_eq!(updated_todo.status, TodoStatus::Done);
 
@@ -206,7 +208,7 @@ fn test_error_handling() {
     assert!(result.is_err());
 
     // Try to update non-existent TODO
-    let result = todo_service.update_status(999, "done");
+    let result = todo_service.update_status(999, TodoStatus::Done);
     assert!(result.is_err());
 
     // Try to delete non-existent TODO

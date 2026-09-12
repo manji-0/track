@@ -4,11 +4,11 @@ This document provides context and guidelines for AI assistants working on the T
 
 ## Project Overview
 
-Track is a command-line task management tool written in Rust that helps developers manage todos, links, and notes directly from the terminal. It features:
+Track is a personal work-context manager (Rust CLI + Web UI): one implicit current task in XDG SQLite. Coding workspaces and commits belong to jj-task / `$jj`. It features:
 
-- **CLI Interface**: Fast, intuitive command-line operations
+- **CLI Interface**: Fast, intuitive command-line operations (`--json` for agents)
 - **Web UI**: Browser-based interface with real-time updates
-- **Database**: SQLite for persistent storage
+- **Database**: SQLite at `$HOME/.local/share/track/track.db`
 - **Shell Integration**: Completions for bash/zsh/fish
 
 ## Technology Stack

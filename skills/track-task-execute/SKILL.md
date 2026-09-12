@@ -31,9 +31,9 @@ implement + test
         ↓
 $jj skill → prek, jj squash/commit, push (per PR phase)
         ↓
-track scrap add "..."
+track scrap add --json "..."
         ↓
-track todo done <index>
+track todo done --json <index>
         ↓
 repeat until task_complete
 ```
@@ -80,20 +80,20 @@ Do **not** use bare `jj describe` as a substitute for `$jj` commit rules.
 ## Step 4 — Record in track
 
 ```bash
-track scrap add "Chose bcrypt; tests at 95%"
+track scrap add --json "Chose bcrypt; tests at 95%"
 ```
 
 ## Step 5 — Complete TODO (track DB)
 
 ```bash
-track todo done <index>
+track todo done --json <index>
 ```
 
-Marks TODO done in track. JJ history stays in the jj-task workspace via `$jj`.
+Marks TODO done in track. JJ history stays in the jj-task workspace via `$jj`. The JSON response includes `workflow.next_action` for the next TODO.
 
 ## Step 6 — Repeat
 
-Re-run `track status --json` for the next TODO.
+If the mutation JSON already includes `workflow.next_action`, follow it. Otherwise re-run `track status --json`.
 
 ## Error recovery
 

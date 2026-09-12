@@ -76,7 +76,7 @@ Do **not** use bare `jj describe` as a substitute for `$jj` commit rules.
 ### Step 4: Record Progress
 
 ```bash
-track scrap add "<note>"
+track scrap add --json "<note>"
 ```
 
 ---
@@ -84,10 +84,10 @@ track scrap add "<note>"
 ### Step 5: Complete TODO
 
 ```bash
-track todo done <index>
+track todo done --json <index>
 ```
 
-Marks TODO done in track DB. JJ history stays in the jj-task workspace via `$jj`.
+Marks TODO done in track DB. JJ history stays in the jj-task workspace via `$jj`. The JSON response includes `workflow.next_action` for the next TODO.
 
 **Never** reopen done/cancelled TODOs — add a new TODO instead.
 
@@ -95,7 +95,7 @@ Marks TODO done in track DB. JJ history stays in the jj-task workspace via `$jj`
 
 ### Step 6: Repeat
 
-Re-run `track status --json` for the next TODO until `workflow.phase` is `task_complete`.
+If the mutation JSON already includes `workflow.next_action`, follow it. Otherwise re-run `track status --json` until `workflow.phase` is `task_complete`.
 
 ---
 
@@ -107,9 +107,8 @@ jj-task start proj-123
 cd "$(jj-task path proj-123)"
 # ... implement, test ...
 # $jj skill: squash/commit per PR phase
-track scrap add "Completed OAuth flow. Tests passing."
-track todo done 2
-track status --json
+track scrap add --json "Completed OAuth flow. Tests passing."
+track todo done --json 2
 ```
 
 ---
@@ -132,7 +131,7 @@ When all TODOs are done:
 | Wrong directory | `cd "$(jj-task path <jj.slug>)"` |
 | Commit/PR questions | Load **`$jj`** skill |
 | TODO state | `track status --json` |
-| jj-task phase not merged at archive | `$jj` skill to finish PR, `jj-task done`, or `track archive --force` |
+| jj-task phase not merged at archive | `$jj` skill to finish PR, then `jj-task done`. Do not `--force` unless the user asks to skip checks. Non-TTY cannot confirm. |
 
 ## Quick Reference
 

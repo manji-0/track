@@ -2,7 +2,7 @@
 
 ## Overview
 
-Track is a Rust CLI and Web UI for managing development tasks with JJ workspace integration. Data is stored in SQLite under `~/.local/share/track/track.db`.
+Track is a personal work-context manager (Rust CLI + Web UI). One implicit current task lives in SQLite at `~/.local/share/track/track.db`. JJ workspaces and commits are owned by jj-task / `$jj` — see [docs/JJ_INTEGRATION.md](docs/JJ_INTEGRATION.md).
 
 ## Directory Structure
 
@@ -69,7 +69,7 @@ Models (typed enums, task-scoped indices)
 
 ### Agent JSON (`track status --json`)
 
-Adds `workflow`, `todos_agent`, and `guardrails` to `track status --json` and `GET /api/status`.
+Adds `workflow`, `todos_agent`, and `guardrails` to `track status --json` and `GET /api/status`. Mutating CLI commands accept `--json` and return that snapshot plus `ok`/`mutation`. `track list --json` lists tasks.
 
 ### Skills / agents
 

@@ -30,7 +30,7 @@ impl<'a> ApplyTodoActionUseCase<'a> {
             }
             TodoAction::Cancel => {
                 let todo = todo_service.get_todo_by_index(task_id, todo_index)?;
-                todo_service.update_status(todo.id, TodoStatus::Cancelled.as_str())?;
+                todo_service.update_status(todo.id, TodoStatus::Cancelled)?;
                 Ok(None)
             }
             TodoAction::MakeNext => {
@@ -67,7 +67,7 @@ mod tests {
     #[test]
     fn complete_via_update_status_string_is_rejected_at_parse() {
         use crate::utils::TrackError;
-        let err = TodoAction::from_cli_update_status("done").unwrap_err();
+        let err = TodoAction::from_cli_update_status(TodoStatus::Done).unwrap_err();
         assert!(matches!(err, TrackError::TodoCompleteRequiresDoneCommand));
     }
 }

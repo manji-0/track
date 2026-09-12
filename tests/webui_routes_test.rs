@@ -3,6 +3,7 @@ use axum::http::{Request, StatusCode};
 use std::sync::Arc;
 use tower::ServiceExt;
 use track::db::Database;
+use track::models::TodoStatus;
 use track::services::{TaskService, TodoService};
 use track::webui::{build_router, AppState, Templates, WebState};
 
@@ -183,7 +184,9 @@ async fn update_todo_rejects_reopen_from_done() {
 
     let todo_service = TodoService::new(&db);
     let todo = todo_service.add_todo(task.id, "Done item", false).unwrap();
-    todo_service.update_status(todo.id, "done").unwrap();
+    todo_service
+        .update_status(todo.id, TodoStatus::Done)
+        .unwrap();
 
     let app = test_router(db);
 
@@ -205,7 +208,7 @@ async fn update_todo_rejects_reopen_from_done() {
         .unwrap()
         .to_bytes();
     let text = String::from_utf8(body.to_vec()).unwrap();
-    assert!(text.contains("cannot be reopened"));
+    assert!(text.contains("reopen is not allowed"));
 }
 
 #[tokio::test]

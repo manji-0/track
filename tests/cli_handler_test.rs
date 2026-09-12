@@ -25,6 +25,7 @@ fn test_handle_new_creates_and_switches_task() {
         ticket: None,
         ticket_url: None,
         template: None,
+        json: false,
     };
 
     handler.handle(cmd).unwrap();
@@ -55,6 +56,7 @@ fn test_handle_switch_changes_task() {
 
     let cmd = Commands::Switch {
         task_ref: t1.id.to_string(),
+        json: false,
     };
     handler.handle(cmd).unwrap();
 
@@ -75,6 +77,7 @@ fn test_handle_todo_add_and_update() {
         text: "My Todo".to_string(),
         worktree: false,
         no_workspace: false,
+        json: false,
     });
     handler.handle(cmd).unwrap();
 
@@ -83,7 +86,7 @@ fn test_handle_todo_add_and_update() {
     assert_eq!(todos[0].content, "My Todo");
     assert_eq!(todos[0].status, TodoStatus::Pending);
 
-    let cmd = Commands::Todo(TodoCommands::Done { id: 1 });
+    let cmd = Commands::Todo(TodoCommands::Done { id: 1, json: false });
     handler.handle(cmd).unwrap();
 
     let todo = todo_service.get_todo(todos[0].id).unwrap();
@@ -101,6 +104,7 @@ fn test_handle_todo_add_rejects_worktree_flag() {
         text: "Legacy".to_string(),
         worktree: true,
         no_workspace: false,
+        json: false,
     });
     let result = handler.handle(cmd);
     assert!(matches!(result, Err(TrackError::WorktreeFlagRemoved)));
@@ -120,12 +124,14 @@ fn test_handle_todo_update_done_is_rejected() {
         text: "My Todo".to_string(),
         worktree: false,
         no_workspace: false,
+        json: false,
     });
     handler.handle(cmd).unwrap();
 
     let cmd = Commands::Todo(TodoCommands::Update {
         id: 1,
-        status: "done".to_string(),
+        status: TodoStatus::Done,
+        json: false,
     });
     let result = handler.handle(cmd);
 
@@ -171,6 +177,7 @@ fn test_handle_scrap_add() {
 
     let cmd = Commands::Scrap(ScrapCommands::Add {
         content: "My Note".to_string(),
+        json: false,
     });
     handler.handle(cmd).unwrap();
 
@@ -197,6 +204,7 @@ fn test_handle_repo_add_remove() {
     let cmd = Commands::Repo(RepoCommands::Add {
         path: Some(repo_path.clone()),
         base: None,
+        json: false,
     });
     handler.handle(cmd).unwrap();
 
@@ -224,12 +232,44 @@ fn test_todo_delete_force() {
 
     // Test delete with force=true
     // Should NOT prompt. So valid even with empty stdin.
-    let cmd = Commands::Todo(TodoCommands::Delete { id: 1, force: true });
+    let cmd = Commands::Todo(TodoCommands::Delete {
+        id: 1,
+        force: true,
+        json: false,
+    });
 
     handler.handle(cmd).unwrap();
 
     let todos = todo_service.list_todos(task.id).unwrap();
     assert_eq!(todos.len(), 0);
+}
+
+#[test]
+fn test_todo_delete_without_force_fails_when_stdin_is_not_a_tty() {
+    if std::io::IsTerminal::is_terminal(&std::io::stdin()) {
+        return;
+    }
+
+    let db = Database::new_in_memory().unwrap();
+    let handler = CommandHandler::from_db(db);
+    let db = handler.get_db();
+    let task_service = TaskService::new(db);
+    let todo_service = TodoService::new(db);
+
+    let task = task_service.create_task("Task", None, None, None).unwrap();
+    todo_service.add_todo(task.id, "Keep me", false).unwrap();
+
+    let err = handler
+        .handle(Commands::Todo(TodoCommands::Delete {
+            id: 1,
+            force: false,
+            json: false,
+        }))
+        .unwrap_err();
+
+    assert!(matches!(err, TrackError::ConfirmationRequired { .. }));
+    assert!(err.to_string().contains("track todo delete 1 --force"));
+    assert_eq!(todo_service.list_todos(task.id).unwrap().len(), 1);
 }
 
 #[test]
@@ -383,6 +423,7 @@ fn test_handle_archive_clean_worktree() {
     let cmd = Commands::Archive {
         task_ref: Some(task.id.to_string()),
         force: false,
+        json: false,
     };
 
     // Note: This relies on stdin being empty in test env.
@@ -664,7 +705,9 @@ fn test_handle_sync_skip_done_todos() {
 
     // Add TODO with worktree request but mark as done
     let todo = todo_service.add_todo(task.id, "Done Todo", true).unwrap();
-    todo_service.update_status(todo.id, "done").unwrap();
+    todo_service
+        .update_status(todo.id, TodoStatus::Done)
+        .unwrap();
 
     // Call Sync - should NOT create worktree for done TODO
     let cmd = Commands::Sync { legacy: true };
@@ -825,6 +868,7 @@ fn test_handle_archive_default_current_task() {
     let cmd = Commands::Archive {
         task_ref: None,
         force: false,
+        json: false,
     };
     handler.handle(cmd).unwrap();
 
@@ -872,6 +916,7 @@ fn test_handle_todo_add_no_workspace_flag() {
             text: "Research".to_string(),
             worktree: false,
             no_workspace: true,
+            json: false,
         }))
         .unwrap();
 
@@ -897,6 +942,42 @@ fn test_handle_status_json_includes_workflow() {
             id: None,
             json: true,
             all: false,
+        })
+        .unwrap();
+}
+
+#[test]
+fn test_handle_todo_add_json_succeeds() {
+    let db = Database::new_in_memory().unwrap();
+    let handler = CommandHandler::from_db(db);
+    let db = handler.get_db();
+    TaskService::new(db)
+        .create_task("JSON Task", None, None, None)
+        .unwrap();
+
+    handler
+        .handle(Commands::Todo(TodoCommands::Add {
+            text: "From json".to_string(),
+            worktree: false,
+            no_workspace: false,
+            json: true,
+        }))
+        .unwrap();
+}
+
+#[test]
+fn test_handle_list_json_succeeds() {
+    let db = Database::new_in_memory().unwrap();
+    let handler = CommandHandler::from_db(db);
+    let db = handler.get_db();
+    TaskService::new(db)
+        .create_task("Listed", None, None, None)
+        .unwrap();
+
+    handler
+        .handle(Commands::List {
+            all: false,
+            json: true,
         })
         .unwrap();
 }

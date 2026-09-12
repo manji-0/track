@@ -37,6 +37,7 @@ impl CommandHandler {
                 ticket,
                 ticket_url,
                 template,
+                json,
             } => super::handlers::handle_new(
                 &ctx,
                 &name,
@@ -44,9 +45,12 @@ impl CommandHandler {
                 ticket.as_deref(),
                 ticket_url.as_deref(),
                 template.as_deref(),
+                json,
             ),
-            Commands::List { all } => super::handlers::handle_list(&ctx, all),
-            Commands::Switch { task_ref } => super::handlers::handle_switch(&ctx, &task_ref),
+            Commands::List { all, json } => super::handlers::handle_list(&ctx, all, json),
+            Commands::Switch { task_ref, json } => {
+                super::handlers::handle_switch(&ctx, &task_ref, json)
+            }
             Commands::Status { id, json, all } => super::handlers::handle_info(&ctx, id, json, all),
             Commands::Desc { description, task } => {
                 super::handlers::handle_desc(&ctx, description.as_deref(), task)
@@ -56,9 +60,11 @@ impl CommandHandler {
                 url,
                 task,
             } => super::handlers::handle_ticket(&ctx, &ticket_id, &url, task),
-            Commands::Archive { task_ref, force } => {
-                super::handlers::handle_archive(&ctx, task_ref.as_deref(), force)
-            }
+            Commands::Archive {
+                task_ref,
+                force,
+                json,
+            } => super::handlers::handle_archive(&ctx, task_ref.as_deref(), force, json),
             Commands::Todo(cmd) => super::handlers::handle_todo(&ctx, cmd),
             Commands::Link(cmd) => super::handlers::handle_link(&ctx, cmd),
             Commands::Scrap(cmd) => super::handlers::handle_scrap(&ctx, cmd),

@@ -113,6 +113,9 @@ pub enum TrackError {
     #[allow(dead_code)]
     Cancelled,
 
+    #[error("Confirmation required (stdin is not a TTY). {hint}")]
+    ConfirmationRequired { hint: String },
+
     #[error("Failed to resolve path: {0}")]
     PathResolutionFailed(String),
 
@@ -196,9 +199,6 @@ pub enum TrackError {
 
     #[error("Unknown config key '{0}' (supported: vcs-mode)")]
     UnknownConfigKey(String),
-
-    #[error("{0}")]
-    Other(String),
 }
 
 /// Convenience type alias for Results with TrackError.

@@ -48,7 +48,8 @@ impl WebError {
             | TrackError::LinkNotFound(_)
             | TrackError::InvalidVcsMode(_)
             | TrackError::UnknownConfigKey(_)
-            | TrackError::InvalidAppStateValue { .. } => StatusCode::BAD_REQUEST,
+            | TrackError::InvalidAppStateValue { .. }
+            | TrackError::ConfirmationRequired { .. } => StatusCode::BAD_REQUEST,
             TrackError::TaskNotFound(_)
             | TrackError::TodoNotFound(_)
             | TrackError::WorktreeNotFound(_)
@@ -71,8 +72,7 @@ impl WebError {
             | TrackError::Cancelled
             | TrackError::TemplateRenderFailed { .. }
             | TrackError::DataDirectoryUnavailable
-            | TrackError::MigrationBlocked { .. }
-            | TrackError::Other(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            | TrackError::MigrationBlocked { .. } => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 
@@ -94,18 +94,6 @@ impl From<TrackError> for WebError {
 impl From<serde_json::Error> for WebError {
     fn from(err: serde_json::Error) -> Self {
         Self::from_track(TrackError::SerializationFailed(err.to_string()))
-    }
-}
-
-impl From<anyhow::Error> for WebError {
-    fn from(err: anyhow::Error) -> Self {
-        match err.downcast::<TrackError>() {
-            Ok(track) => Self::from_track(track),
-            Err(err) => Self {
-                status: StatusCode::INTERNAL_SERVER_ERROR,
-                message: err.to_string(),
-            },
-        }
     }
 }
 

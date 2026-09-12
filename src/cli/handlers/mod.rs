@@ -3,6 +3,8 @@
 mod alias;
 mod completion;
 mod config;
+mod confirm;
+mod json_out;
 mod link;
 mod llm_help;
 mod migrate;

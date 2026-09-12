@@ -75,7 +75,7 @@ jj-task done <jj.slug>
 track archive
 ```
 
-`track archive` validates jj-task phase and dirty workspaces. Use `track archive --force` only when you intentionally skip those checks.
+`track archive` validates jj-task phase and dirty workspaces. On a TTY it prompts; without a TTY it errors instead of hanging. Use `track archive --force` only when you intentionally skip those checks.
 
 ---
 

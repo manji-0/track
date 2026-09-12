@@ -56,6 +56,10 @@ track scrap / todo done  →  track DB only
 3. **All jj commands via `$jj` skill** — squash, commit, push, PR phases
 4. **`track todo done`** — marks TODO in track DB (not a substitute for `$jj`)
 5. **No reopen** — done/cancelled TODOs stay terminal
+6. **Never wait on confirmation prompts** — stdin is not a TTY; confirmation fails
+7. **`track todo delete N --force`** — always `--force` (do not prompt)
+8. **`track archive` without `--force`** — if it errors, follow the hint (`jj-task done`). `--force` only when the user explicitly skips checks
+9. **Prefer `--json` on writes** — `todo add/done`, `scrap add`, `new`, `switch` return the same snapshot as `status --json` plus `mutation`. Skip a second status call when you already have it
 
 ## Skill catalog
 

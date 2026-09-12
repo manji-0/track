@@ -20,8 +20,9 @@ track status --json                    # confirm task_complete
 # $jj skill: merge PR, final push
 jj-task done <jj.slug>                 # mark workspace merged in jj map
 track archive                          # validates jj-task phase + dirty workspaces
-track archive --force                  # skip validation when intentional
 ```
+
+Do **not** pass `track archive --force` unless the user explicitly wants to skip those checks. Agents cannot confirm prompts: non-TTY stdin fails instead of hanging. Fix the blocker (`jj-task done`, commit/discard) and archive again.
 
 ## Multi-repository task
 

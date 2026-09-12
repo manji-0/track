@@ -4,7 +4,6 @@ use crate::models::{Todo, TodoStatus};
 use crate::utils::{Result, TrackError};
 use chrono::Utc;
 use rusqlite::params;
-use std::str::FromStr;
 
 pub struct TodoService<'a> {
     db: &'a Database,
@@ -99,11 +98,9 @@ impl<'a> TodoService<'a> {
         Ok(todo)
     }
 
-    /// Updates a TODO status from a CLI/API string value.
-    pub fn update_status(&self, todo_id: i64, status: &str) -> Result<()> {
-        let new_status = TodoStatus::from_str(status)
-            .map_err(|_| TrackError::InvalidStatus(status.to_string()))?;
-        self.transition_status(todo_id, new_status)
+    /// Updates a TODO status after domain transition checks.
+    pub fn update_status(&self, todo_id: i64, status: TodoStatus) -> Result<()> {
+        self.transition_status(todo_id, status)
     }
 
     /// Marks a TODO as done.
@@ -342,6 +339,7 @@ mod tests {
     use super::*;
     use crate::db::Database;
     use crate::services::TaskService;
+    use std::str::FromStr;
 
     fn setup_db() -> Database {
         Database::new_in_memory().unwrap()
@@ -448,7 +446,7 @@ mod tests {
         let service = TodoService::new(&db);
 
         let todo = service.add_todo(task_id, "Test TODO", false).unwrap();
-        service.update_status(todo.id, "done").unwrap();
+        service.update_status(todo.id, TodoStatus::Done).unwrap();
 
         let updated = service.get_todo(todo.id).unwrap();
         assert_eq!(updated.status, TodoStatus::Done);
@@ -462,9 +460,9 @@ mod tests {
         let service = TodoService::new(&db);
 
         let todo = service.add_todo(task_id, "Test TODO", false).unwrap();
-        service.update_status(todo.id, "done").unwrap();
+        service.update_status(todo.id, TodoStatus::Done).unwrap();
 
-        let result = service.update_status(todo.id, "pending");
+        let result = service.update_status(todo.id, TodoStatus::Pending);
         assert!(matches!(
             result,
             Err(TrackError::TodoReopenForbidden { .. })
@@ -478,9 +476,11 @@ mod tests {
         let service = TodoService::new(&db);
 
         let todo = service.add_todo(task_id, "Test TODO", false).unwrap();
-        service.update_status(todo.id, "cancelled").unwrap();
+        service
+            .update_status(todo.id, TodoStatus::Cancelled)
+            .unwrap();
 
-        let result = service.update_status(todo.id, "pending");
+        let result = service.update_status(todo.id, TodoStatus::Pending);
         assert!(matches!(
             result,
             Err(TrackError::TodoReopenForbidden { .. })
@@ -488,14 +488,8 @@ mod tests {
     }
 
     #[test]
-    fn test_update_status_invalid() {
-        let db = setup_db();
-        let task_id = create_test_task(&db);
-        let service = TodoService::new(&db);
-
-        let todo = service.add_todo(task_id, "Test TODO", false).unwrap();
-        let result = service.update_status(todo.id, "invalid_status");
-        assert!(matches!(result, Err(TrackError::InvalidStatus(_))));
+    fn test_update_status_invalid_is_rejected_at_parse() {
+        assert!(TodoStatus::from_str("invalid_status").is_err());
     }
 
     #[test]
@@ -503,7 +497,7 @@ mod tests {
         let db = setup_db();
         let service = TodoService::new(&db);
 
-        let result = service.update_status(999, "done");
+        let result = service.update_status(999, TodoStatus::Done);
         assert!(matches!(result, Err(TrackError::TodoNotFound(999))));
     }
 
@@ -676,7 +670,7 @@ mod tests {
         service.add_todo(task_id, "TODO 4", false).unwrap();
 
         // Mark TODO #1 as done
-        service.update_status(todo1.id, "done").unwrap();
+        service.update_status(todo1.id, TodoStatus::Done).unwrap();
 
         // Move TODO #4 to the front (should be first among pending)
         service.move_to_next(task_id, 4).unwrap();
@@ -702,7 +696,7 @@ mod tests {
         service.add_todo(task_id, "TODO 2", false).unwrap();
 
         // Mark TODO #1 as done
-        service.update_status(todo1.id, "done").unwrap();
+        service.update_status(todo1.id, TodoStatus::Done).unwrap();
 
         // Try to move a done todo
         let result = service.move_to_next(task_id, 1);
@@ -718,7 +712,9 @@ mod tests {
 
         service.add_todo(from_task, "Keep", false).unwrap();
         let done_todo = service.add_todo(from_task, "Skip", false).unwrap();
-        service.update_status(done_todo.id, "done").unwrap();
+        service
+            .update_status(done_todo.id, TodoStatus::Done)
+            .unwrap();
 
         let mapping = service.copy_incomplete_todos(from_task, to_task).unwrap();
         assert_eq!(mapping.len(), 1);

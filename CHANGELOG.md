@@ -8,7 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
-- Bump crate dependencies: clap 4.6, rusqlite 0.40, axum 0.8, pulldown-cmark 0.13, minijinja 2.24, tower-http 0.7
+- Destructive CLI prompts (`todo delete`, `archive`) fail on non-TTY stdin instead of blocking; agents must pass `--force` to delete, and must not hang on archive confirmation
+- Mutating commands (`new`, `switch`, `archive`, `todo add/done/update/next/delete`, `scrap add`, `repo add`) accept `--json` and return the status snapshot plus `mutation`; `track list --json` lists tasks
+- README, DESIGN, `llm-help` design, and today-task docs describe Track as a personal work-context manager (two-layer jj-task stack), not a repo issue tracker
+- Documentation index in `docs/README.md`; historical design notes moved to `docs/archive/`
+- Drop unused `anyhow` and the unused `tower-http` `cors` feature; `todo update` / WebUI status paths take `TodoStatus` instead of raw strings
 - WebUI HTMX 1.9 → 2.0.10 with `htmx-ext-sse`; named SSE events drive `hx-trigger`, and mutations swap the returned HTML
 - GitHub Actions: `actions/checkout@v7`, `softprops/action-gh-release@v3`
 

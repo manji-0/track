@@ -121,10 +121,7 @@ cargo clippy -- -D warnings
   - Use `Result<T>` for fallible operations
   - Propagate errors with `?` operator
   - Use custom error types (`TrackError`) for domain errors
-- **Documentation**:
-  - Add doc comments (`///`) for public APIs
-  - Include examples in doc comments where helpful
-  - Document non-obvious behavior
+See [docs/README.md](docs/README.md) for the documentation map. Update the relevant doc when behavior changes.
 - **Imports**:
   - Group imports: std, external crates, internal modules
   - Use `use` statements to avoid repetition

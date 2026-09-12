@@ -9,6 +9,8 @@ pub mod handlers;
 
 use clap::{Parser, Subcommand, ValueEnum};
 
+use crate::models::TodoStatus;
+
 /// Types of completion data that can be output
 #[derive(Debug, Clone, ValueEnum)]
 pub enum CompletionType {
@@ -25,7 +27,7 @@ pub enum CompletionType {
 /// Main CLI structure for the track application.
 #[derive(Parser)]
 #[command(name = "track")]
-#[command(about = "WorkTracker CLI - Manage your development tasks and context", long_about = None)]
+#[command(about = "Personal work-context manager for tasks, TODOs, and scraps", long_about = None)]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Commands,
@@ -53,6 +55,10 @@ pub enum Commands {
         /// Template task reference (ID, ticket, or alias) to copy TODOs from
         #[arg(long)]
         template: Option<String>,
+
+        /// Output the status snapshot after creating the task
+        #[arg(short, long)]
+        json: bool,
     },
 
     /// List tasks
@@ -60,12 +66,20 @@ pub enum Commands {
         /// Include archived tasks
         #[arg(short, long)]
         all: bool,
+
+        /// Output tasks as JSON
+        #[arg(short, long)]
+        json: bool,
     },
 
     /// Switch to a different task
     Switch {
         /// Task ID or ticket reference (e.g., 1 or t:PROJ-123)
         task_ref: String,
+
+        /// Output the status snapshot after switching
+        #[arg(short, long)]
+        json: bool,
     },
 
     /// Show detailed information about the current task
@@ -110,9 +124,13 @@ pub enum Commands {
         /// Task ID or ticket reference (defaults to current task)
         task_ref: Option<String>,
 
-        /// Skip jj-task and dirty-workspace checks
+        /// Skip jj-task and dirty-workspace checks (required when stdin is not a TTY)
         #[arg(short, long)]
         force: bool,
+
+        /// Output the status snapshot after archiving
+        #[arg(short, long)]
+        json: bool,
     },
 
     /// TODO management
@@ -216,6 +234,10 @@ pub enum TodoCommands {
         /// Research/planning TODO that does not need a jj-task or git worktree
         #[arg(long, conflicts_with = "worktree")]
         no_workspace: bool,
+
+        /// Output the status snapshot after adding
+        #[arg(short, long)]
+        json: bool,
     },
 
     /// List TODOs
@@ -226,14 +248,22 @@ pub enum TodoCommands {
         /// TODO ID
         id: i64,
 
-        /// New status (done or cancelled; reopen to pending is not allowed)
-        status: String,
+        /// New status (`cancelled`; use `todo done` to complete). Reopen to pending is not allowed.
+        status: TodoStatus,
+
+        /// Output the status snapshot after updating
+        #[arg(short, long)]
+        json: bool,
     },
 
     /// Complete a TODO (merges worktree if exists)
     Done {
         /// TODO ID
         id: i64,
+
+        /// Output the status snapshot after completing
+        #[arg(short, long)]
+        json: bool,
     },
 
     /// Create or show worktrees for a TODO in the current repo
@@ -259,15 +289,23 @@ pub enum TodoCommands {
         /// TODO ID
         id: i64,
 
-        /// Skip confirmation prompt
+        /// Skip confirmation (required when stdin is not a TTY)
         #[arg(short, long)]
         force: bool,
+
+        /// Output the status snapshot after deleting
+        #[arg(short, long)]
+        json: bool,
     },
 
     /// Move a TODO to the front (make it the next todo to work on)
     Next {
         /// TODO ID
         id: i64,
+
+        /// Output the status snapshot after reordering
+        #[arg(short, long)]
+        json: bool,
     },
 }
 
@@ -298,6 +336,10 @@ pub enum ScrapCommands {
     Add {
         /// Scrap content
         content: String,
+
+        /// Output the status snapshot after adding
+        #[arg(short, long)]
+        json: bool,
     },
 
     /// List scraps
@@ -314,6 +356,10 @@ pub enum RepoCommands {
         /// Base branch to use (defaults to current branch)
         #[arg(short, long)]
         base: Option<String>,
+
+        /// Output the status snapshot after registering
+        #[arg(short, long)]
+        json: bool,
     },
 
     /// List repositories

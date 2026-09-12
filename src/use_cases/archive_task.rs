@@ -87,6 +87,7 @@ pub enum ArchivePromptKind {
 pub struct ArchivePromptView {
     pub warning_lines: Vec<String>,
     pub prompt: String,
+    pub non_tty_hint: String,
 }
 
 impl ArchivePrompt {
@@ -100,6 +101,7 @@ impl ArchivePrompt {
                 ArchivePromptView {
                     warning_lines,
                     prompt: "Archive and remove workspaces anyway? [y/N]: ".to_string(),
+                    non_tty_hint: "commit or discard workspace changes, or re-run with `track archive --force`".to_string(),
                 }
             }
             ArchivePromptKind::JjTaskNotCompleted { slug, workspaces } => {
@@ -113,6 +115,9 @@ impl ArchivePrompt {
                     warning_lines,
                     prompt: "Archive the track task anyway (jj-task map unchanged)? [y/N]: "
                         .to_string(),
+                    non_tty_hint: format!(
+                        "run `jj-task done {slug}` after merging, or re-run with `track archive --force`"
+                    ),
                 }
             }
         }
@@ -614,6 +619,8 @@ mod tests {
                 let view = prompt.view();
                 assert!(view.warning_lines[0].contains("jj-task"));
                 assert!(view.prompt.contains("jj-task map unchanged"));
+                assert!(view.non_tty_hint.contains("jj-task done"));
+                assert!(view.non_tty_hint.contains("track archive --force"));
             }
             ArchiveTaskStep::Completed(_) => panic!("expected confirmation prompt"),
         }

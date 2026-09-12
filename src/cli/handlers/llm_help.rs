@@ -38,6 +38,8 @@ track status --json
 | `todos_agent[].is_next` | Current TODO |
 | `guardrails.must_use_jj_skill` | Load `$jj` for jj/PR work |
 
+Mutating commands accept `--json` and return the **same snapshot** plus `ok` and `mutation` (`kind`, `id`). Prefer `track todo add --json` / `track todo done <n> --json` / `track scrap add --json` so you do not need a second `status` call. `track list --json` lists tasks (not the current-task snapshot).
+
 WebUI: `GET /api/status` — same fields.
 
 ### Step 2: Start jj-task workspace (when sync_required)
@@ -55,12 +57,12 @@ cd "$(jj-task path <jj.slug>)"
 
 ### Step 4: Record progress in track
 ```bash
-track scrap add "<note>"
+track scrap add --json "<note>"
 ```
 
 ### Step 5: Complete TODO in track
 ```bash
-track todo done <index>
+track todo done --json <index>
 ```
 
 ### Step 6: Repeat until task_complete, then archive
@@ -81,8 +83,8 @@ See `skills/INSTALL.md` and `docs/JJ_INTEGRATION.md`.
 
 ## Overview
 
-`track` is a CLI tool for managing development tasks, TODOs, and JJ workspaces.
-This guide explains the standard workflow for completing tasks.
+`track` is a personal work-context manager (current task, TODOs, scraps) for humans and coding agents.
+JJ workspaces and commits are **`$jj` / jj-task**, not `track sync`. This guide is the agent workflow.
 
 ## Complete Task Workflow
 
@@ -144,35 +146,37 @@ This guide explains the standard workflow for completing tasks.
 | `track status` | Show current task, TODOs, workspaces, links |
 | `track status --json` | **Preferred for agents** — task + workflow + todos_agent + guardrails |
 | `track status --all` | Show all scraps instead of recent |
-| `track new "<name>"` | Create new task |
+| `track new "<name>" [--json]` | Create new task |
 | `track new "<name>" --ticket <id> --ticket-url <url>` | Create task with ticket |
 | `track new "<name>" --template <ref>` | Create task from template (copies TODOs) |
 | `track list` | List all tasks |
+| `track list --json` | List tasks as JSON (`current_task_id` + `tasks[].is_current`) |
 | `track desc [text]` | View or set task description |
 | `track ticket <ticket_id> <url>` | Link ticket to current task |
-| `track switch <id>` | Switch to another task |
+| `track switch <id> [--json]` | Switch to another task |
 | `track switch t:<ticket_id>` | Switch by ticket reference |
 | `track switch a:<alias>` | Switch by alias |
-| `track archive [task_ref] [--force]` | Archive task (requires `jj-task done` when workspace active) |
+| `track archive [task_ref] [--json]` | Archive after `jj-task done`. Blockers prompt on a TTY; non-TTY fails (do not `--force` unless skipping checks) |
+| `track archive --force` | Skip jj-task/dirty checks (humans on TTY can confirm instead) |
 | `track alias set <alias>` | Set alias for current task |
 | `track alias set <alias> --force` | Overwrite existing alias on another task |
 | `track alias remove` | Remove alias from current task |
-| `track repo add [path]` | Register repository (default: current dir) |
+| `track repo add [path] [--json]` | Register repository (default: current dir) |
 | `track repo add --base <bookmark>` | Register with custom base bookmark |
 | `track repo list` | List registered repositories |
 | `track repo remove <index>` | Remove repository by task-scoped index |
-| `track todo add "<text>"` | Add TODO |
-| `track todo add "<text>" [--no-workspace]` | Add TODO (`--no-workspace` for research) |
+| `track todo add "<text>" [--no-workspace] [--json]` | Add TODO (`--json` returns status snapshot + mutation) |
 | `track todo list` | List TODOs |
 | `track todo workspace <index>` | Show or recreate TODO workspace |
-| `track todo done <index>` | Complete TODO (rebases workspace if exists) |
-| `track todo update <index> cancelled` | Cancel a pending TODO (use `todo done` to complete) |
-| `track todo delete <index>` | Delete TODO |
+| `track todo done <index> [--json]` | Complete TODO |
+| `track todo next <index> [--json]` | Move a TODO to the front |
+| `track todo update <index> cancelled [--json]` | Cancel a pending TODO (use `todo done` to complete) |
+| `track todo delete <index> --force [--json]` | Delete TODO (agents: always `--force`; non-TTY cannot confirm) |
 | `track link add <url>` | Add reference link |
 | `track link add <url> --title "<title>"` | Add link with custom title |
 | `track link list` | List all links |
 | `track link delete <index>` | Delete link by task-scoped index |
-| `track scrap add "<note>"` | Record work note |
+| `track scrap add "<note>" [--json]` | Record work note |
 | `track scrap list` | List all scraps |
 | `track webui` | Start web-based UI (default: http://localhost:3000) |
 | `track llm-help` | Show this help message |
@@ -224,13 +228,14 @@ track archive t:PROJ-123
 track status t:PROJ-123
 ```
 
-### Automatic Bookmark Naming
-When a ticket is linked, `track sync` automatically uses the ticket ID in bookmark names:
+### jj-task slug
+Track derives `jj.slug` (the jj-task workspace name) from the current task:
 
-- **With ticket**: `task/PROJ-123` (and `task/PROJ-123-todo-1` for TODO workspaces)
-- **Without ticket**: `task/task-42` (and `task/task-42-todo-1` for TODO workspaces)
+- **Alias** if set (`track alias set fix-oauth`)
+- else **ticket id** sanitized (`PROJ-123` → `proj-123`)
+- else `task-{{id}}`
 
-This makes it easy to correlate bookmarks with tickets in your issue tracker.
+Do not treat `task/PROJ-123` bookmarks from legacy `track sync` as the current workspace. Use `jj.slug` from JSON.
 
 ## Template Feature
 
@@ -268,7 +273,8 @@ Access at: http://localhost:3000
 - **Git mode**: run `track sync` before coding in the task worktree.
 - TODO, Link, and Repository indices are **task-scoped**, not global.
 - `track archive` requires `jj-task done <slug>` when the jj-task map shows an active workspace.
-- Use `track archive --force` to skip jj-task/dirty checks (interactive prompt without flag).
+- **Agents never wait on confirmation.** `todo delete` and `archive` prompt only on a TTY. Non-TTY stdin fails with `Confirmation required` — pass `--force` (delete) or finish `jj-task done` first (archive).
+- Use `track archive --force` only to skip jj-task/dirty checks (interactive prompt without flag on a TTY).
 - `track sync` in JJ mode is for **legacy** per-TODO `--worktree` tasks only (or `--legacy` flag).
 - Run `track migrate legacy-worktrees` to move old tasks to jj-task (removes legacy worktree records).
 - Use `track scrap add` to document decisions and findings during work.
@@ -279,8 +285,8 @@ Access at: http://localhost:3000
 Per-TODO `--worktree` was removed from the CLI. Existing DB rows with `worktree_requested` still use `track sync` and `track todo workspace`.
 
 ### Archive Process
-1. Verifies jj-task workspace is `done` (or prompts / use `--force`).
-2. Checks track-managed workspaces for uncommitted changes.
+1. Verifies jj-task workspace is merged (`jj-task done`) — or prompts / `--force`.
+2. Checks track-managed workspaces for uncommitted changes (TTY prompt; non-TTY error).
 3. Removes track-managed workspaces and marks the task archived.
 "#
     );

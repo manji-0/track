@@ -1,6 +1,8 @@
+use crate::cli::handlers::confirm::confirm_from_tty;
+use crate::cli::handlers::json_out::{emit_mutation, MutationKind};
 use crate::cli::handlers::CommandCtx;
 use crate::cli::TodoCommands;
-use crate::models::{TodoAction, TodoAddOptions, TodoStatus};
+use crate::models::{TodoAction, TodoAddOptions};
 use crate::services::TodoService;
 use crate::use_cases::{
     ApplyTodoActionUseCase, CompleteTodoUseCase, DeleteTodoStep, DeleteTodoUseCase,
@@ -8,7 +10,6 @@ use crate::use_cases::{
 };
 use crate::utils::{Result, TrackError};
 use prettytable::{format, Cell, Row, Table};
-use std::io::{self, Write};
 
 pub fn handle_todo(ctx: &CommandCtx, command: TodoCommands) -> Result<()> {
     let current_task_id = ctx
@@ -22,17 +23,26 @@ pub fn handle_todo(ctx: &CommandCtx, command: TodoCommands) -> Result<()> {
             text,
             worktree,
             no_workspace,
+            json,
         } => {
             if worktree {
                 return Err(TrackError::WorktreeFlagRemoved);
             }
             let options = TodoAddOptions::from_flags(false, no_workspace);
             let todo = todo_service.add_todo(current_task_id, &text, options)?;
-            println!("Added TODO #{}: {}", todo.task_index, todo.content);
-
-            if no_workspace {
-                println!("No jj-task/git workspace required for this TODO");
-            }
+            emit_mutation(
+                ctx,
+                json,
+                MutationKind::TodoAdd,
+                Some(todo.task_index),
+                Some(current_task_id),
+                || {
+                    println!("Added TODO #{}: {}", todo.task_index, todo.content);
+                    if no_workspace {
+                        println!("No jj-task/git workspace required for this TODO");
+                    }
+                },
+            )
         }
         TodoCommands::List => {
             let todos = todo_service.list_todos(current_task_id)?;
@@ -53,26 +63,37 @@ pub fn handle_todo(ctx: &CommandCtx, command: TodoCommands) -> Result<()> {
             }
 
             table.printstd();
+            Ok(())
         }
-        TodoCommands::Update { id, status } => {
-            let todo = todo_service.get_todo_by_index(current_task_id, id)?;
-            if status == TodoStatus::PENDING {
-                todo_service.update_status(todo.id, &status)?;
-            } else {
-                let action = TodoAction::from_cli_update_status(&status)?;
-                ApplyTodoActionUseCase::new(ctx.db).execute(current_task_id, id, action)?;
-            }
-            println!("Updated TODO #{} status to '{}'", id, status);
+        TodoCommands::Update { id, status, json } => {
+            let action = TodoAction::from_cli_update_status(status)?;
+            ApplyTodoActionUseCase::new(ctx.db).execute(current_task_id, id, action)?;
+            emit_mutation(
+                ctx,
+                json,
+                MutationKind::TodoUpdate,
+                Some(id),
+                Some(current_task_id),
+                || println!("Updated TODO #{id} status to '{}'", status.as_str()),
+            )
         }
-        TodoCommands::Done { id } => {
+        TodoCommands::Done { id, json } => {
             let outcome = CompleteTodoUseCase::new(ctx.db).execute(current_task_id, id)?;
-            if let Some(branch) = outcome.merged_bookmark {
-                println!(
-                    "Rebased and removed workspace for TODO #{} (bookmark: {}).",
-                    id, branch
-                );
-            }
-            println!("Marked TODO #{} as done.", id);
+            emit_mutation(
+                ctx,
+                json,
+                MutationKind::TodoDone,
+                Some(id),
+                Some(current_task_id),
+                || {
+                    if let Some(branch) = outcome.merged_bookmark {
+                        println!(
+                            "Rebased and removed workspace for TODO #{id} (bookmark: {branch})."
+                        );
+                    }
+                    println!("Marked TODO #{id} as done.");
+                },
+            )
         }
         TodoCommands::Workspace {
             id,
@@ -107,19 +128,15 @@ pub fn handle_todo(ctx: &CommandCtx, command: TodoCommands) -> Result<()> {
                     );
                 }
             }
+            Ok(())
         }
-        TodoCommands::Delete { id, force } => {
+        TodoCommands::Delete { id, force, json } => {
             let use_case = DeleteTodoUseCase::new(ctx.db);
             let outcome = match use_case.run(current_task_id, id, force)? {
                 DeleteTodoStep::Completed(outcome) => outcome,
                 DeleteTodoStep::NeedsConfirmation(prompt) => {
                     let view = prompt.view();
-                    print!("{}", view.prompt);
-                    io::stdout().flush()?;
-                    let mut input = String::new();
-                    io::stdin().read_line(&mut input)?;
-
-                    if !matches!(input.trim().to_lowercase().as_str(), "y" | "yes") {
+                    if !confirm_from_tty(&view.prompt, &view.non_tty_hint)? {
                         println!("Cancelled.");
                         return Ok(());
                     }
@@ -127,14 +144,25 @@ pub fn handle_todo(ctx: &CommandCtx, command: TodoCommands) -> Result<()> {
                     use_case.confirm_and_run(current_task_id, id)?
                 }
             };
-
-            println!("{}", outcome.completion_view().summary);
+            emit_mutation(
+                ctx,
+                json,
+                MutationKind::TodoDelete,
+                Some(outcome.task_index),
+                Some(current_task_id),
+                || println!("{}", outcome.completion_view().summary),
+            )
         }
-        TodoCommands::Next { id } => {
+        TodoCommands::Next { id, json } => {
             todo_service.move_to_next(current_task_id, id)?;
-            println!("Moved TODO #{} to the front (next todo to work on)", id);
+            emit_mutation(
+                ctx,
+                json,
+                MutationKind::TodoNext,
+                Some(id),
+                Some(current_task_id),
+                || println!("Moved TODO #{id} to the front (next todo to work on)"),
+            )
         }
     }
-
-    Ok(())
 }

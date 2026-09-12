@@ -1,120 +1,147 @@
-# WorkTracker CLI Design Specification
+# Track Design Specification
 
-## 1. Overview
-WorkTracker is a CLI tool for recording and managing developer work logs based on "context" (current work state).
-Users can set the current task (WorkTracker) they are working on, allowing them to manage TODOs, record notes, and manage related repositories without specifying IDs each time.
+<!-- constrained-by ./docs/JJ_INTEGRATION.md -->
+<!-- constrained-by ./docs/LLM_HELP_DESIGN.md -->
 
-## 2. Technology Stack (Rust)
-Rust is adopted to achieve fast operation with a single binary and robust error handling.
+## Overview
+
+Track is a **personal work-context manager**. It stores one person's current work — tasks, TODOs, scraps, links, tickets — in an XDG SQLite database at `$HOME/.local/share/track/track.db`. After `track new` or `track switch`, every command applies to `current_task_id`. You do not pass a task ID on each `todo add`.
+
+Track is **not**:
+
+- a repository issue tracker (GitHub Issues, Jira, Beads)
+- a PRD planner that expands specs into a graph (Task Master)
+- a multi-agent claim / orchestration layer (Gas Town)
+
+Tickets and URLs are optional labels on a personal task. The source of truth for "what am I doing" is the local DB, shared by a human and coding agents.
+
+## Two-layer stack
+
+<!-- constrained-by ./docs/JJ_INTEGRATION.md#Division of responsibility -->
+
+| Layer | Tool | Responsibility |
+|-------|------|----------------|
+| **WHAT** | `track` + track skills | Current task, TODOs, scraps, workflow JSON |
+| **HOW** | `$jj` skill + `jj-task` | Workspaces, squash/commit, PR, push |
+
+In JJ mode (default), track does **not** create the coding workspace. Agents read `jj.slug` from `track status --json` and run `jj-task start <slug>`. Commits follow the `$jj` skill, not `track todo done`.
+
+Git mode (`track config set vcs-mode git`) still uses `track sync` for `.worktrees/<slug>` on `track/<slug>` branches.
+
+## Technology stack
 
 | Category | Crate | Purpose |
 | :--- | :--- | :--- |
-| CLI argument parsing | clap (v4.6+) | Automatic generation of subcommands, flags, and help messages |
-| DB operations | rusqlite (bundled) | SQLite connection. Uses bundled feature to reduce system dependencies |
-| Path management | directories | XDG Base Directory compliant (~/.local/share/...) path resolution |
-| Error handling | anyhow, thiserror | Simplification of error propagation and context addition |
-| Date/time | chrono | Timestamp management for work logs |
-| Display formatting | prettytable-rs | Table formatting for list display |
+| CLI | clap 4.6 | Subcommands and `--json` / `-j` |
+| DB | rusqlite (bundled) | SQLite at the XDG data dir |
+| Paths | directories | XDG Base Directory |
+| Errors | thiserror | `TrackError` |
+| Time | chrono | Timestamps |
+| Tables | prettytable-rs | Human list output |
+| JSON | serde / serde_json | Agent snapshots |
+| Web | axum, minijinja, HTMX, SSE | Browser UI |
 
-## 3. Database Design (SQLite)
-Data is stored in `$HOME/.local/share/track/track.db`.
+The CLI binary is `track` (`task-track` on crates.io).
 
-### 3.1. Schema Definition
+## Implicit current task
 
-#### app_state
-Holds the current state of the application.
-- `key`: TEXT PK (e.g., 'current_task_id')
-- `value`: TEXT
+`app_state.current_task_id` is the session. `track new` inserts a task and writes that key. `track switch` only updates the key (or `track switch today` for the daily task). Item commands (`todo`, `scrap`, `link`, `repo`) fail with `NoActiveTask` when the key is missing.
 
-#### tasks (Work Context)
-- `id`: INTEGER PK
-- `name`: TEXT (task name)
-- `status`: TEXT (e.g., 'active', 'archived')
-- `created_at`: DATETIME
+User-facing TODO / link / repo IDs are **task-scoped** (`task_index` starting at 1 per task), not global row IDs.
 
-#### todos (TODOs within a task)
-- `id`: INTEGER PK
-- `task_id`: INTEGER (FK -> tasks.id)
-- `content`: TEXT
-- `status`: TEXT (e.g., 'pending', 'done')
-- `created_at`: DATETIME
+## Database
 
-#### links (Generic related URLs)
-- `id`: INTEGER PK
-- `task_id`: INTEGER (FK -> tasks.id)
-- `url`: TEXT
-- `title`: TEXT
-- `created_at`: DATETIME
+Path: `$HOME/.local/share/track/track.db`. `CREATE TABLE` in `src/db/mod.rs` plus columns added in `src/db/migrate.rs`.
 
-#### logs (Work records/Scraps)
-- `id`: INTEGER PK
-- `task_id`: INTEGER (FK -> tasks.id)
-- `content`: TEXT
-- `created_at`: DATETIME
+### app_state
 
-#### git_items (Related repositories/Worktrees)
-- `id`: INTEGER PK
-- `task_id`: INTEGER (FK -> tasks.id)
-- `path`: TEXT (absolute path of repository)
-- `branch`: TEXT (branch name at registration)
-- `description`: TEXT (optional)
+- `current_task_id`
+- `vcs-mode` (`jj` \| `git`)
+- `calendar_id` (WebUI today-task calendar)
+- section revision counters for SSE
 
-#### repo_links (Issues/PRs related to repositories)
-- `id`: INTEGER PK
-- `git_item_id`: INTEGER (FK -> git_items.id)
-- `url`: TEXT
-- `kind`: TEXT (auto-detected: 'PR', 'Issue', 'Discussion', 'Link')
-- `created_at`: DATETIME
+### tasks
 
-## 4. Command Interface Design
-Commands are executed with `track` as a prefix.
+- `id`, `name`, `description`, `status` (`active` \| `archived`)
+- `ticket_id`, `ticket_url`, `alias` (unique)
+- `is_today_task`
+- `created_at`
 
-### 4.1. Context Management (Global Operations)
+### todos
 
-| Command | Arguments | Behavior |
-| :--- | :--- | :--- |
-| `track new` | `<name>` | Creates a new task and automatically switches to that task. |
-| `track list` | `--all` | Displays a list of recent tasks. Shows `*` for the current task. |
-| `track switch` | `<task_id>` | Switches the working task. |
-| `track status` | | Displays all information (TODO, Log, Repo, Link) for the current task. |
+- `id`, `task_id`, `task_index`, `content`
+- `status` (`pending` \| `done` \| `cancelled`)
+- `requires_workspace` (false = research; `--no-workspace`)
+- `worktree_requested` (legacy per-TODO flag; CLI `--worktree` is removed)
+- `created_at`, `completed_at`
 
-### 4.2. Task Item Operations
-These are executed on the currently switched task.
+### links, scraps
 
-| Category | Command | Arguments | Behavior |
-| :--- | :--- | :--- | :--- |
-| **TODO** | `track todo add` | `<text>` | Adds a TODO. |
-| | `track todo list` | | Displays TODO list. |
-| | `track todo update` | `<id> <status>` | Updates status (e.g., done). |
-| | `track todo delete` | `<id>` | Deletes a TODO. |
-| **Link** | `track link add` | `<url> [title]` | Adds a reference URL. |
-| | `track link list` | | Displays link list. |
-| **Log** | `track log add` | `<content>` | Adds a work log (Scrap). |
-| | `track log list` | | Displays logs in chronological order. |
+Task-scoped URL list and chronological notes. Scraps may set `active_todo_id` to the pending TODO at insert time.
 
-### 4.3. Git Repository Integration (repo)
+### task_repos
 
-| Command | Arguments | Behavior |
-| :--- | :--- | :--- |
-| `track repo add` | `[path]` | Registers the specified path (current directory if omitted) as a Git item. Internally calls `git rev-parse` to automatically save the branch name. |
-| `track repo list` | | Displays registered repositories and their associated Issues/PRs. |
-| `track repo link` | `<repo_id> <url>` | Links a URL to the specified repository item. Automatically detects PR, Issue, etc. from URL pattern. |
-| `track repo delete` | `<repo_id>` | Unregisters a repository. |
+Registered working copies for the current task (`repo_path`, `base_branch`, `base_commit_hash`, `task_index`). This is what `track repo add` writes.
 
-## 5. Logic Details
+### worktrees, repo_links
 
-### Automatic Context Switch
-When `track new` is executed, after INSERT to the database, the `current_task_id` in the `app_state` table is immediately updated.
-Subsequent `add` commands retrieve the ID from `app_state` and use it as a foreign key.
+Legacy / git-mode workspace rows. JJ-mode coding happens in jj-task's `.worktrees/<slug>/` and `~/.config/jj/task-workspaces.json`, not as the primary store.
 
-### Git Information Retrieval
-When `track repo add` is executed, git commands are executed as subprocesses using Rust's `std::process::Command`.
-Retrieval command: `git -C <path> rev-parse --abbrev-ref HEAD`
-This eliminates dependency on Git libraries (git2), optimizing build time and binary size.
+## Command surface
 
-### URL Type Inference
-When a URL is passed to `track repo link`, the `kind` is determined by the following string matching:
-- `/pull/` or `/merge_requests/` -> `PR`
-- `/issues/` -> `Issue`
-- `/discussions/` -> `Discussion`
-- Others -> `Link`
+Prefix: `track`. Human tables/prose are the default. `--json` / `-j` is for agents.
+
+### Context
+
+| Command | Behavior |
+| :--- | :--- |
+| `track new <name>` | Create task, switch to it. Optional `--ticket`, `--template`, `--json`. |
+| `track list [--all]` | Task inventory. `--json` → `current_task_id` + `tasks[].is_current` (not a status snapshot). |
+| `track switch <ref>` | Switch by id, `t:<ticket>`, `a:<alias>`, or `today`. |
+| `track status [--json]` | Current-task snapshot. JSON includes `workflow`, `jj`, `todos_agent`, `guardrails`. |
+| `track archive` | Archive after `jj-task done` (JJ). Prompts only on a TTY; `--force` skips checks. |
+
+### Items (current task)
+
+| Command | Behavior |
+| :--- | :--- |
+| `track todo add/list/done/update/next/delete` | TODOs. Delete requires `--force` off-TTY. |
+| `track scrap add/list` | Work notes (not `track log`). |
+| `track link add/list/delete` | Reference URLs. |
+| `track repo add/list/remove` | Register repos. JJ: `jj` subprocess for base bookmark. |
+
+Mutations that accept `--json` (`new`, `switch`, `archive`, `todo add/done/update/next/delete`, `scrap add`, `repo add`) print the **same shape as `track status --json`** plus `ok` and `mutation` (`kind`, `id`). They do not invent per-command schemas.
+
+### Other
+
+`desc`, `ticket`, `alias`, `config`, `sync` (git / legacy JJ `--worktree`), `migrate legacy-worktrees`, `webui`, `llm-help`, `completion`.
+
+## Agent contract
+
+<!-- constrained-by ./docs/LLM_INTEGRATION.md -->
+<!-- dagayn: implemented-by src/use_cases/get_task_info.rs::GetTaskInfoUseCase.to_cli_json -->
+
+Coding agents should:
+
+1. Read `track status --json` (or a mutation `--json` response).
+2. Follow `workflow.next_action` / `workflow.checklist`.
+3. Start `jj-task` from `jj.slug` when `phase` is `sync_required`.
+4. Use `$jj` for commits; use track only for TODO/scrap/archive.
+
+MCP is intentionally absent: Cursor / Claude Code / Codex already have a shell and skills. A future MCP would wrap this same snapshot, not a second schema.
+
+## Web UI
+
+`track webui` — Axum + HTMX + SSE. `GET /api/status` returns the same agent fields as CLI JSON. HTML partials are for humans, not a second agent API.
+
+Today-task and calendar behavior: [docs/TODAY_TASK.md](docs/TODAY_TASK.md).
+
+## Related documents
+
+- [docs/README.md](docs/README.md) — index
+- [docs/JJ_INTEGRATION.md](docs/JJ_INTEGRATION.md) — two-layer runtime strategy
+- [docs/LLM_HELP_DESIGN.md](docs/LLM_HELP_DESIGN.md) — `track llm-help` content contract
+- [docs/LLM_INTEGRATION.md](docs/LLM_INTEGRATION.md) — skills install
+- [docs/FUNCTIONAL_SPEC.md](docs/FUNCTIONAL_SPEC.md) — command-level spec
+- [docs/TODAY_TASK.md](docs/TODAY_TASK.md) — today task
+- [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md) — crate layout

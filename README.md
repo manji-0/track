@@ -3,14 +3,15 @@
   <h1>Track</h1>
 </div>
 
-A lightweight CLI tool for managing development tasks with integrated JJ workspace support.
+A personal work-context manager for humans and coding agents: one implicit current task in an XDG SQLite database (`$HOME/.local/share/track/track.db`). Track holds **what** you are doing (tasks, TODOs, scraps). [agent-skill-jj](https://github.com/manji-0/agent-skill-jj) (`$jj` + `jj-task`) holds **how** you commit. It is not a repo issue tracker or a multi-agent planner.
 
 ## Features
 
-- **Context-based Task Management**: Switch to a task and all operations apply automatically
-- **Ticket Integration**: Seamlessly integrate with Jira, GitHub Issues, and GitLab Issues
-- **JJ Workspace Management**: Automatically manage isolated working directories for parallel development
-- **Web UI**: Modern browser-based interface with real-time updates
+- **Implicit current task**: `track new` / `track switch` then `todo` / `scrap` / `link` without repeating IDs
+- **Agent JSON**: `track status --json` and write commands with `--json` share `workflow`, `jj`, `todos_agent`, `guardrails`
+- **Tickets as labels**: optional Jira / GitHub / GitLab IDs on a personal task — not the source of truth
+- **Two-layer JJ**: `jj-task start <slug>` for workspaces; `$jj` for commits (see [docs/JJ_INTEGRATION.md](docs/JJ_INTEGRATION.md))
+- **Web UI**: browser view with SSE, including [today task](docs/TODAY_TASK.md)
 
 
 ## Installation
@@ -58,10 +59,10 @@ track status --json
 
 | Command | Description |
 |---------|-------------|
-| `track new <name>` | Create a new task and set it as active |
+| `track new <name> [--json]` | Create a new task and set it as active |
 | `track new <name> --template <task_ref>` | Create task from template (copies TODOs) |
-| `track list [--all]` | Display task list |
-| `track switch <task_id>` | Switch tasks |
+| `track list [--all] [--json]` | Display task list |
+| `track switch <task_id> [--json]` | Switch tasks |
 | `track switch today` | Switch to today's task (auto-creates if needed) |
 | `track status [id]` | Display task information |
 | `track status --json` | Output in JSON format |
@@ -71,7 +72,7 @@ track status --json
 | `track alias set <alias>` | Set an alias for the current task |
 | `track alias set <alias> --force` | Overwrite existing alias on another task |
 | `track alias remove` | Remove alias from the current task |
-| `track archive [task_id]` | Archive a task |
+| `track archive [task_id] [--json]` | Archive a task |
 
 ### Configuration
 
@@ -84,14 +85,14 @@ track status --json
 
 | Command | Description |
 |---------|-------------|
-| `track todo add <text> [--no-workspace]` | Add a TODO (`--no-workspace` for research/planning) |
+| `track todo add <text> [--no-workspace] [--json]` | Add a TODO (`--json` returns the status snapshot) |
 | `track todo list` | Display TODO list |
-| `track todo update <index> <status>` | Update TODO status |
-| `track todo done <index>` | Complete a TODO (rebases and removes workspaces) |
+| `track todo update <index> <status> [--json]` | Update TODO status |
+| `track todo done <index> [--json]` | Complete a TODO |
 | `track todo workspace <index> [--recreate --force --all]` | Show or recreate workspaces for a TODO |
-| `track todo next <index>` | Move a TODO to the front (make it the next todo to work on) |
+| `track todo next <index> [--json]` | Move a TODO to the front (make it the next todo to work on) |
 | `track todo delete <index>` | Delete a TODO |
-| `track todo delete <index> --force` | Delete without confirmation |
+| `track todo delete <index> --force [--json]` | Delete without confirmation |
 
 ### Link Management
 
@@ -105,14 +106,14 @@ track status --json
 
 | Command | Description |
 |---------|-------------|
-| `track scrap add <content>` | Add a work note |
+| `track scrap add <content> [--json]` | Add a work note |
 | `track scrap list` | Display note list |
 
 ### Repository Management
 
 | Command | Description |
 |---------|-------------|
-| `track repo add [path]` | Register a repository to the current task |
+| `track repo add [path] [--json]` | Register a repository to the current task |
 | `track repo add --base <bookmark>` | Register repository with custom base bookmark |
 | `track repo list` | Display registered repositories |
 | `track repo remove <id>` | Remove a repository registration |
@@ -121,7 +122,7 @@ track status --json
 
 | Command | Description |
 |---------|-------------|
-| `track sync` | Sync repositories and setup task bookmarks |
+| `track sync` | Git mode: create the task worktree. JJ mode: legacy per-TODO `--worktree` only (`jj-task start` is the default) |
 
 ### Web UI
 
@@ -196,8 +197,8 @@ For detailed information on the following features, see [docs/USAGE_EXAMPLES.md]
 - **Task Aliases**: Assign human-readable aliases to tasks
 - **Task Templates**: Create new tasks from existing task templates
 - **Ticket Reference**: Reference tasks by ticket ID
-- **Bookmark Naming Convention**: Automatic bookmark naming based on ticket IDs
-- **JJ Workspace Workflows**: Detailed workflows for parallel development
+- **jj-task slug**: alias, else ticket id, else `task-{id}` — see [docs/JJ_INTEGRATION.md](docs/JJ_INTEGRATION.md)
+- **JJ workflows**: two-layer track + `$jj` (not `track sync` before every edit)
 
 ## Database
 
@@ -215,7 +216,7 @@ Complies with the XDG Base Directory specification.
 - **Language**: Rust (Edition 2021)
 - **CLI**: clap v4.6+
 - **Database**: SQLite (rusqlite with bundled feature)
-- **Error handling**: anyhow, thiserror
+- **Error handling**: thiserror
 - **Date/time**: chrono
 - **Display**: prettytable-rs
 - **Web UI**: Axum, MiniJinja, HTMX, SSE
@@ -226,12 +227,15 @@ See [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md) for details.
 
 ## Documentation
 
-- [DESIGN.md](DESIGN.md) - Design specification
-- [docs/FUNCTIONAL_SPEC.md](docs/FUNCTIONAL_SPEC.md) - Functional specification
-- [docs/TODAY_TASK.md](docs/TODAY_TASK.md) - Today task feature guide
-- [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md) - Project structure
-- [docs/USAGE_EXAMPLES.md](docs/USAGE_EXAMPLES.md) - Detailed usage examples
-- [docs/LLM_INTEGRATION.md](docs/LLM_INTEGRATION.md) - LLM agent integration guide (includes `track llm-help` command)
+- [docs/README.md](docs/README.md) — documentation index
+- [DESIGN.md](DESIGN.md) — product design (personal context, implicit current task)
+- [docs/JJ_INTEGRATION.md](docs/JJ_INTEGRATION.md) — track + `$jj` / jj-task
+- [docs/LLM_INTEGRATION.md](docs/LLM_INTEGRATION.md) — agent skills and `track llm-help`
+- [docs/TODAY_TASK.md](docs/TODAY_TASK.md) — `track switch today`
+- [docs/FUNCTIONAL_SPEC.md](docs/FUNCTIONAL_SPEC.md) — command-level spec
+- [docs/USAGE_EXAMPLES.md](docs/USAGE_EXAMPLES.md) — copy-paste workflows
+- [docs/TESTING.md](docs/TESTING.md) — test layout
+- [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md) — crate layout
 
 ## License
 

@@ -1,6 +1,8 @@
-# WorkTracker CLI Functional Specification
+# Track CLI Functional Specification
 
-This document defines the specific functional specifications for the WorkTracker CLI tool.
+Command-level behavior for Track, a personal work-context manager (not a repo issue tracker). Product framing and the two-layer JJ stack live in [DESIGN.md](../DESIGN.md) and [JJ_INTEGRATION.md](JJ_INTEGRATION.md).
+
+Mutating commands that accept `--json` / `-j` return the same snapshot as `track status --json` plus `ok` and `mutation`. `track list --json` is a task inventory.
 
 ---
 
@@ -17,6 +19,7 @@ This document defines the specific functional specifications for the WorkTracker
 | `--description` / `-d` | String | | Task description (detailed context about the task) |
 | `--ticket` / `-t` | String | | Ticket ID (see format below) |
 | `--ticket-url` | URL | | Ticket URL |
+| `--json` / `-j` | Flag | | Print the status snapshot after create |
 
 **Ticket ID Format**:
 | Platform | Format | Example |
@@ -106,29 +109,17 @@ URL: <url>
 
 ---
 
-### 1.4. Bookmark Naming Convention
+### 1.4. jj-task slug
 
-For tasks with registered Ticket IDs, bookmark names automatically use the Ticket ID.
+JJ-mode workspaces are named by `jj.slug` from `track status --json`, not by `track sync` bookmark names.
 
-**Naming Patterns**:
-| Condition | Bookmark Name |
+| Source (first match) | Example |
 |---|---|
-| Task bookmark (Ticket exists) | `task/<ticket_id>` (e.g., `task/PROJ-123`) |
-| Task bookmark (No Ticket) | `task/task-<task_id>` (e.g., `task/task-5`) |
-| TODO bookmark (Ticket exists) | `<ticket_id>-todo-<task_index>` (e.g., `PROJ-123-todo-1`) |
-| TODO bookmark (No Ticket) | `task-<task_id>-todo-<task_index>` (e.g., `task-5-todo-1`) |
+| Task alias | `fix-oauth-refresh` |
+| Sanitized ticket id | `PROJ-123` → `proj-123` |
+| Fallback | `task-{id}` |
 
-**Behavior in `track sync`**:
-```bash
-# When ticket PROJ-123 is registered
-track sync
-# -> Creates task bookmark: task/PROJ-123
-
-# With TODO that has --worktree flag
-track todo add "Implement feature" --worktree
-track sync
-# -> Creates TODO bookmark: PROJ-123-todo-1
-```
+Legacy git-mode / `track sync` still uses `task/<ticket_id>` bookmarks. Per-TODO `--worktree` is removed; migrate with `track migrate legacy-worktrees`.
 
 ---
 
@@ -140,6 +131,7 @@ track sync
 | Flag | Description |
 |---|---|
 | `--all` / `-a` | Show all tasks including archived ones |
+| `--json` / `-j` | Task inventory JSON (`current_task_id`, `tasks[].is_current`) |
 | (default) | Show only tasks with `status = 'active'` |
 
 **Process Flow**:
@@ -269,6 +261,17 @@ This includes endpoint design, database schema, and integration tests.
   ]
 }
 ```
+
+Mutating commands (`new`, `switch`, `archive`, `todo add/done/update/next/delete`, `scrap add`, `repo add`) also accept `--json` / `-j`. Success output is the same snapshot as `track status --json`, plus:
+
+```json
+{
+  "ok": true,
+  "mutation": { "kind": "todo_add", "id": 3 }
+}
+```
+
+`track list --json` is a task inventory (`current_task_id` and `tasks[].is_current`), not a status snapshot.
 
 ---
 
@@ -498,8 +501,10 @@ Marked TODO #<index> as done.
 **Process Flow**:
 1. Get current Task ID.
 2. Resolve task-scoped index to internal TODO ID.
-3. If `--force` is not specified, display a confirmation prompt.
-4. Execute deletion only if user enters `y` or `yes`.
+3. If `--force` is not specified:
+   - TTY: display a confirmation prompt.
+   - Non-TTY: error (do not wait for stdin).
+4. Execute deletion only if user enters `y` or `yes`, or if `--force` is set.
 
 **Confirmation Prompt**:
 ```
@@ -521,6 +526,7 @@ Cancelled.
 |---|---|
 | No active task | `Error: No active task. Run 'track new' or 'track switch' first.` |
 | Index out of range | `Error: TODO #<index> not found in current task` |
+| Confirmation needed and stdin is not a TTY | `Error: Confirmation required (stdin is not a TTY). re-run with \`track todo delete <index> --force\`` |
 
 ---
 
@@ -594,10 +600,9 @@ Added scrap at <timestamp>
 
 ## 5. Workspace Integration Functions
 
-Leverages JJ workspaces to manage independent working directories for each task.
-Workspaces are automatically created via `track sync` for TODOs with `--worktree` flag and cleaned up via `track todo done`.
+JJ mode: coding workspaces are **jj-task** (`.worktrees/<slug>/`). Track does not create them. Git mode and leftover `worktree_requested` rows still use `track sync` / `track todo workspace`. See [JJ_INTEGRATION.md](JJ_INTEGRATION.md).
 
-> **Note**: The explicit `track workspace add/list/link/remove` commands have been deprecated. Workspace lifecycle is now fully integrated with repository and TODO management via `track repo`, `track sync`, and `track todo done`.
+The old `track workspace add/list/link/remove` commands are gone. Register repos with `track repo`; complete TODOs with `track todo done` (track DB only in JJ mode).
 
 ### 5.1. Task Lifecycle Integration
 
@@ -610,7 +615,8 @@ Automatically manages relevant workspaces according to task state changes.
    - If `task_id` provided: Use that task.
    - If omitted: Use current active task (Error if no active task).
 2. Check for uncommitted changes in all related workspaces.
-   - If changes exist, display warning and ask for confirmation.
+   - TTY: display warning and ask for confirmation.
+   - Non-TTY: error with a hint (`jj-task done` or `--force`). Do not wait for stdin.
 3. For all related workspaces:
    - Execute `jj workspace forget <name>` and remove the directory.
    - Delete record from DB.
@@ -661,9 +667,10 @@ Complies with XDG Base Directory specification. Uses `directories` crate.
 ### 6.4. Common Error Handling
 
 ```rust
-// Use anyhow::Result to attach context
-db.execute(...)
-    .context("Failed to insert task")?;
+fn insert_task(db: &Database) -> Result<(), TrackError> {
+    db.execute(...)?;
+    Ok(())
+}
 ```
 
 ---
@@ -738,112 +745,63 @@ Removed repository #<id>
 
 ### 8.4. `track sync` - Sync Repositories
 
-**Overview**: Synchronizes all registered repositories with the task bookmark.
+**Overview**: Git mode (and legacy JJ `--worktree` rows) create/move task worktrees. Default JJ mode rejects `track sync` unless leftover `worktree_requested` TODOs exist, or `--legacy` is passed. New work uses `jj-task start <jj.slug>`.
 
-**Process Flow**:
-1. Get current task.
-2. Determine task bookmark name:
-   - If `ticket_id` exists: `task/<ticket_id>` (e.g., `task/PROJ-123`)
-   - Otherwise: `task/task-<task_id>` (e.g., `task/task-5`)
-3. For each registered repository:
-   - Check if repository path exists.
-   - Check if task bookmark exists.
-   - If bookmark doesn't exist:
-     - Get current bookmark as base.
-     - Create task bookmark from current HEAD.
-   - Move workspace to the task bookmark.
-   - Display sync status.
-4. Iterate through registered TODOs for the current task.
-5. If a TODO has `worktree_requested = true` and no existing workspace:
-   - Create workspace for the TODO.
-   - Link git_item to the TODO.
-   - Display creation status.
+**JJ mode (current)**:
+1. If no legacy per-TODO worktrees are pending: error, tell the agent to run `jj-task start`.
+2. With pending legacy rows or `--legacy`: keep old bookmark/workspace behavior.
 
-**Output Example**:
-```
-Syncing task bookmark: task/PROJ-123
-
-Repository: /home/user/projects/api
-  ✓ Bookmark task/PROJ-123 created from main
-  ✓ Moved workspace to task/PROJ-123
-
-Repository: /home/user/projects/frontend
-  ✓ Bookmark task/PROJ-123 already exists
-  ✓ Moved workspace to task/PROJ-123
-
-Checking for pending workspaces...
-Creating workspace for TODO #15: Implement login endpoint
-  Created /home/user/projects/api-workspaces/PROJ-123/todo-15 (PROJ-123/todo-15)
-
-Sync complete.
-```
+**Git mode**:
+1. Get current task and registered repos.
+2. Create `.worktrees/<slug>` on `track/<slug>` as needed.
 
 **Error Cases**:
 | Condition | Error Message |
 |---|---|
 | No active task | `Error: No active task` |
+| JJ mode, no legacy TODOs | Use `jj-task start` (see `track status --json`) |
 | No repositories registered | `Error: No repositories registered for this task` |
-| Repository path doesn't exist | `Warning: Repository <path> not found, skipping` |
-| Dirty working copy (excluding workspaces) | `Error: Repository <path> has uncommitted changes` |
 
 ---
 
-### 8.5. `track todo add <text> --worktree` - Add TODO with Workspace
+### 8.5. `track todo add <text> [--no-workspace]` - Add TODO
 
-**Overview**: Adds a TODO and requests workspace creation (actual creation happens during `track sync`).
+**Overview**: Adds a TODO to the current task. Default TODOs expect a jj-task (or git) workspace. `--no-workspace` marks research/planning items. `--worktree` is removed and returns an error.
 
 **Input**:
 | Argument/Flag | Type | Required | Description |
-|---|---|---|---| 
+|---|---|---|---|
 | `text` | String | ✓ | TODO content |
-| `--worktree` / `-w` | Flag | | Create workspaces for this TODO |
+| `--no-workspace` | Flag | | Do not require a coding workspace |
+| `--json` / `-j` | Flag | | Status snapshot after insert |
 
-**Process Flow** (when `--worktree` is specified):
-1. Create TODO record with `worktree_requested` = true.
-2. Output confirmation message indicating workspace creation is scheduled.
-3. (Workspace is NOT created immediately).
-
-**Note**: To create the actual workspaces, the user must run `track sync`.
+**Process Flow**:
+1. Reject `--worktree` (`WorktreeFlagRemoved`).
+2. INSERT TODO with `requires_workspace = false` when `--no-workspace`.
+3. Optionally print JSON snapshot.
 
 **Output Example**:
 ```
 Added TODO #15: Implement login endpoint
-Workspace creation scheduled for 'track sync'
 ```
-
-**Error Cases**:
-| Condition | Error Message |
-|---|---|
-| No repositories registered | `Warning: No repositories registered, workspace creation skipped` |
-| Bookmark already exists | `Error: Bookmark <bookmark> already exists in <repo>` |
-| Workspace creation fails | `Error: Failed to create workspace: <detail>` |
 
 ---
 
-### 8.6. `track todo done <id>` - Complete TODO with Workspace Cleanup
+### 8.6. `track todo done <id>` - Complete TODO
 
-**Overview**: Completes a TODO and automatically merges and removes associated workspaces.
+**Overview**: Marks a TODO done in the track DB. In JJ mode this is **not** a jj commit or workspace merge — use `$jj` then keep working in the same jj-task workspace. Legacy per-TODO workspaces (git mode / leftover `worktree_requested`) may still rebase and remove a worktree.
 
 **Input**:
 | Argument | Type | Required | Description |
-|---|---|---|---| 
-| `id` | Integer | ✓ | TODO ID |
+|---|---|---|---|
+| `id` | Integer | ✓ | Task-scoped TODO index |
+| `--json` / `-j` | Flag | | Status snapshot after complete |
 
 **Process Flow**:
-1. Validate TODO exists and belongs to current task.
-2. Find all `git_items` where `todo_id = <id>`.
-3. For each workspace:
-   - Check for uncommitted changes: `jj status`
-   - If changes exist, display warning and prompt for confirmation.
-   - Get task bookmark name (from task ticket or ID).
-   - Move base workspace to the task bookmark.
-   - Merge or rebase workspace bookmark into the task bookmark.
-   - If merge succeeds:
-     - Forget workspace: `jj workspace forget <name>` and remove directory
-     - Delete `git_items` record.
-   - If merge fails:
-     - Display error and abort.
-4. Update TODO status to `'done'`.
+1. Validate TODO exists and is pending.
+2. If a legacy track-managed worktree exists for that TODO, rebase/cleanup as before.
+3. Set TODO `status` to `done`.
+4. Print JSON snapshot when requested (`workflow.next_action` for the next TODO).
 
 **Output Example**:
 ```

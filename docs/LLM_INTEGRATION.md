@@ -1,6 +1,6 @@
 # LLM Integration
 
-Track provides **Agent Skills** for task/TODO management. **[agent-skill-jj](https://github.com/manji-0/agent-skill-jj)** provides the **`$jj` skill** for JJ commits and PR workflows. Use both together.
+Track is a **personal work-context manager**. Skills cover task/TODO state. **[agent-skill-jj](https://github.com/manji-0/agent-skill-jj)** provides the **`$jj` skill** for JJ commits and PR workflows. Use both together. Mutations that accept `--json` return the same snapshot as `track status --json` plus `ok` / `mutation`.
 
 ## Quick Start for Agents
 

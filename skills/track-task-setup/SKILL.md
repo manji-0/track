@@ -58,9 +58,9 @@ jj-task repo init
 ### 5. Add TODOs
 
 ```bash
-track todo add "Implement token refresh"
-track todo add "Compare providers" --no-workspace
-track todo add "Add integration tests"
+track todo add --json "Implement token refresh"
+track todo add --json "Compare providers" --no-workspace
+track todo add --json "Add integration tests"
 ```
 
 One **jj-task** workspace covers all code TODOs sequentially.

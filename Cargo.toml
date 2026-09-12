@@ -3,10 +3,10 @@ name = "task-track"
 version = "0.7.0"
 edition = "2021"
 authors = ["manji0"]
-description = "A JJ workspace-based task and TODO management CLI tool"
+description = "Personal work-context manager for humans and coding agents (CLI + Web UI, XDG SQLite)"
 license = "MIT"
 repository = "https://github.com/manji0/track"
-keywords = ["cli", "task-management", "jj", "workspace", "productivity"]
+keywords = ["cli", "task-management", "jj", "context", "productivity"]
 categories = ["command-line-utilities", "development-tools"]
 readme = "README.md"
 
@@ -22,7 +22,6 @@ clap = { version = "4.6", features = ["derive"] }
 clap_complete = "4.6"
 rusqlite = { version = "0.40", features = ["bundled"] }
 directories = "6.0"
-anyhow = "1.0"
 thiserror = "2.0"
 chrono = { version = "0.4", features = ["serde"] }
 prettytable-rs = "0.10"
@@ -36,7 +35,7 @@ ammonia = "4.1"
 # Web server
 axum = { version = "0.8", features = ["macros"] }
 tokio = { version = "1", features = ["rt-multi-thread", "net", "sync", "time", "macros"] }
-tower-http = { version = "0.7", features = ["fs", "cors"] }
+tower-http = { version = "0.7", features = ["fs"] }
 
 # Templating
 minijinja = { version = "2.24", features = ["loader"] }

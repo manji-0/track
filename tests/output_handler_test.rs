@@ -1,6 +1,7 @@
 use track::cli::handler::CommandHandler;
 use track::cli::{Commands, LinkCommands, ScrapCommands, TodoCommands};
 use track::db::Database;
+use track::models::TodoStatus;
 use track::services::{LinkService, ScrapService, TaskService, TodoService};
 
 #[test]
@@ -20,11 +21,17 @@ fn test_handle_list_no_output_errors() {
     task_service.archive_task(t1.id).unwrap();
 
     // List active only - should not error
-    let cmd = Commands::List { all: false };
+    let cmd = Commands::List {
+        all: false,
+        json: false,
+    };
     assert!(handler.handle(cmd).is_ok());
 
     // List all - should not error
-    let cmd = Commands::List { all: true };
+    let cmd = Commands::List {
+        all: true,
+        json: false,
+    };
     assert!(handler.handle(cmd).is_ok());
 }
 
@@ -50,9 +57,11 @@ fn test_handle_info_no_output_errors() {
     // Add various items
     let _t1 = todo_service.add_todo(task.id, "Pending", false).unwrap();
     let t2 = todo_service.add_todo(task.id, "Done", false).unwrap();
-    todo_service.update_status(t2.id, "done").unwrap();
+    todo_service.update_status(t2.id, TodoStatus::Done).unwrap();
     let t3 = todo_service.add_todo(task.id, "Cancelled", false).unwrap();
-    todo_service.update_status(t3.id, "cancelled").unwrap();
+    todo_service
+        .update_status(t3.id, TodoStatus::Cancelled)
+        .unwrap();
 
     link_service
         .add_link(task.id, "http://example.com", Some("Example"))

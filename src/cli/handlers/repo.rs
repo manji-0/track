@@ -1,3 +1,4 @@
+use crate::cli::handlers::json_out::{emit_mutation, MutationKind};
 use crate::cli::handlers::CommandCtx;
 use crate::cli::RepoCommands;
 use crate::services::RepoService;
@@ -12,7 +13,7 @@ pub fn handle_repo(ctx: &CommandCtx, command: RepoCommands) -> Result<()> {
     let repo_service = RepoService::new(ctx.db);
 
     match command {
-        RepoCommands::Add { path, base } => {
+        RepoCommands::Add { path, base, json } => {
             let repo_path = path.as_deref().unwrap_or(".");
 
             // Determine base bookmark and change ID
@@ -94,14 +95,23 @@ pub fn handle_repo(ctx: &CommandCtx, command: RepoCommands) -> Result<()> {
                 base_branch.clone(),
                 base_commit_hash.clone(),
             )?;
-            println!("Registered repository: {}", repo.repo_path);
-            if let Some(branch) = base_branch {
-                println!(
-                    "Base bookmark: {} ({})",
-                    branch,
-                    &base_commit_hash.unwrap()[..8]
-                );
-            }
+            emit_mutation(
+                ctx,
+                json,
+                MutationKind::RepoAdd,
+                Some(repo.task_index),
+                Some(current_task_id),
+                || {
+                    println!("Registered repository: {}", repo.repo_path);
+                    if let Some(branch) = base_branch {
+                        println!(
+                            "Base bookmark: {} ({})",
+                            branch,
+                            &base_commit_hash.unwrap()[..8]
+                        );
+                    }
+                },
+            )?;
         }
         RepoCommands::List => {
             let repos = repo_service.list_repos(current_task_id)?;

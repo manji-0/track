@@ -40,6 +40,7 @@ pub struct DeleteTodoPrompt {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DeleteTodoPromptView {
     pub prompt: String,
+    pub non_tty_hint: String,
 }
 
 impl DeleteTodoPrompt {
@@ -48,6 +49,10 @@ impl DeleteTodoPrompt {
             prompt: format!(
                 "Delete TODO #{}: \"{}\"? [y/N]: ",
                 self.task_index, self.content
+            ),
+            non_tty_hint: format!(
+                "re-run with `track todo delete {} --force`",
+                self.task_index
             ),
         }
     }
@@ -110,6 +115,10 @@ mod tests {
         };
         let view = prompt.view();
         assert_eq!(view.prompt, "Delete TODO #2: \"Ship it\"? [y/N]: ");
+        assert_eq!(
+            view.non_tty_hint,
+            "re-run with `track todo delete 2 --force`"
+        );
     }
 
     #[test]

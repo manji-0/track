@@ -29,9 +29,9 @@ cd "$(jj-task path <slug>)"  →  implement in task workspace (not main)
         ↓
 $jj skill              →  prek, jj squash/commit, two-phase PR, push
         ↓
-track scrap add       →  record decisions in track DB
+track scrap add --json   →  record decisions; response includes workflow
         ↓
-track todo done N     →  mark TODO complete (status only)
+track todo done N --json →  mark TODO complete; follow returned next_action
         ↓
 repeat until task_complete
         ↓
@@ -44,7 +44,7 @@ $jj skill + jj-task done <slug> + track archive
 
 - Task / TODO lifecycle (`track new`, `track todo add/done`)
 - Scraps, links, tickets, aliases
-- `track status --json` / `GET /api/status` — `workflow`, `jj`, `todos_agent`, `guardrails`
+- `track status --json` / mutation `--json` / `GET /api/status` — `workflow`, `jj`, `todos_agent`, `guardrails`
 - WebUI
 - `track archive` (task-level cleanup; treats jj-task phase `merged` or legacy `done` as complete)
 

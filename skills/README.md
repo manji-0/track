@@ -1,6 +1,6 @@
 # Track CLI Skills for LLM Agents
 
-Official [Agent Skills](https://github.com/anthropics/skills) for the `track` CLI — split by **use case** and installable via **[Skills CLI](https://github.com/vercel-labs/skills)** (`npx skills`), Cursor, Claude Code, and Codex.
+Official [Agent Skills](https://github.com/anthropics/skills) for Track, a **personal work-context manager** (current task, TODOs, scraps) — split by **use case** and installable via **[Skills CLI](https://github.com/vercel-labs/skills)** (`npx skills`), Cursor, Claude Code, and Codex. Pair with the `$jj` skill for commits.
 
 ## Quick install (all skills)
 
