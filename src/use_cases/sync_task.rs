@@ -91,7 +91,9 @@ impl<'a> SyncTaskUseCase<'a> {
             let todo_service = TodoService::new(self.db);
             let todos = todo_service.list_todos(task_id)?;
             if !crate::models::legacy_worktree_pending(&todos) {
-                return Err(TrackError::SyncUseJjTask { slug });
+                return Err(TrackError::SyncUseJjTask {
+                    slug: slug.to_string(),
+                });
             }
         }
 

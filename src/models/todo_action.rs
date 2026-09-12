@@ -52,3 +52,79 @@ impl TodoAction {
         }
     }
 }
+
+/// Actions advertised on a TODO in agent JSON (`todos_agent[].allowed_actions`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TodoAgentAction {
+    Complete,
+    Cancel,
+    MakeNext,
+    Delete,
+}
+
+impl TodoAgentAction {
+    pub fn allowed_for(todo: &Todo) -> Vec<Self> {
+        let mut actions: Vec<Self> = TodoAction::allowed_for(todo)
+            .into_iter()
+            .map(Self::from)
+            .collect();
+        if todo.status == TodoStatus::Pending {
+            actions.push(Self::Delete);
+        }
+        actions
+    }
+}
+
+impl From<TodoAction> for TodoAgentAction {
+    fn from(action: TodoAction) -> Self {
+        match action {
+            TodoAction::Complete => Self::Complete,
+            TodoAction::Cancel => Self::Cancel,
+            TodoAction::MakeNext => Self::MakeNext,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::models::Todo;
+    use chrono::Utc;
+
+    fn pending_todo() -> Todo {
+        Todo {
+            id: 1,
+            task_id: 1,
+            task_index: 1,
+            content: "Work".to_string(),
+            status: TodoStatus::Pending,
+            worktree_requested: false,
+            requires_workspace: true,
+            created_at: Utc::now(),
+            completed_at: None,
+        }
+    }
+
+    #[test]
+    fn agent_actions_include_delete_for_pending() {
+        let actions = TodoAgentAction::allowed_for(&pending_todo());
+        assert_eq!(
+            actions,
+            vec![
+                TodoAgentAction::MakeNext,
+                TodoAgentAction::Complete,
+                TodoAgentAction::Cancel,
+                TodoAgentAction::Delete,
+            ]
+        );
+    }
+
+    #[test]
+    fn agent_actions_serialize_as_snake_case() {
+        let json = serde_json::to_value(TodoAgentAction::MakeNext).unwrap();
+        assert_eq!(json, "make_next");
+        let json = serde_json::to_value(TodoAgentAction::Delete).unwrap();
+        assert_eq!(json, "delete");
+    }
+}

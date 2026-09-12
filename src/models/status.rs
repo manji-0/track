@@ -1,3 +1,4 @@
+use crate::utils::TrackError;
 use serde::Serialize;
 use std::str::FromStr;
 
@@ -33,6 +34,17 @@ impl TaskStatus {
                 | (TaskStatus::Active, TaskStatus::Archived)
                 | (TaskStatus::Archived, TaskStatus::Archived)
         )
+    }
+
+    /// Archives an active task. Already-archived tasks stay archived.
+    pub fn archive(self) -> Result<Self, TrackError> {
+        if !self.can_transition_to(Self::Archived) {
+            return Err(TrackError::InvalidStatusTransition {
+                from: self.as_str().to_string(),
+                to: Self::ARCHIVED.to_string(),
+            });
+        }
+        Ok(Self::Archived)
     }
 }
 
@@ -102,6 +114,38 @@ impl TodoStatus {
     /// Returns true when the TODO can no longer be worked on.
     pub fn is_terminal(self) -> bool {
         matches!(self, Self::Done | Self::Cancelled)
+    }
+
+    /// Applies a status change, rejecting reopen and other illegal pairs.
+    pub fn transition(self, to: Self) -> Result<Self, TrackError> {
+        if Self::is_reopen_attempt(self, to) {
+            return Err(TrackError::TodoReopenForbidden {
+                from: self.as_str().to_string(),
+            });
+        }
+        if !self.can_transition_to(to) {
+            return Err(TrackError::InvalidStatusTransition {
+                from: self.as_str().to_string(),
+                to: to.as_str().to_string(),
+            });
+        }
+        Ok(to)
+    }
+
+    /// Completes a pending TODO. Terminal statuses cannot be completed again.
+    pub fn complete(self) -> Result<Self, TrackError> {
+        match self {
+            Self::Pending => Ok(Self::Done),
+            other => Err(TrackError::InvalidStatusTransition {
+                from: other.as_str().to_string(),
+                to: Self::DONE.to_string(),
+            }),
+        }
+    }
+
+    /// Cancels a pending TODO.
+    pub fn cancel(self) -> Result<Self, TrackError> {
+        self.transition(Self::Cancelled)
     }
 }
 
@@ -194,5 +238,17 @@ mod tests {
         assert!(TodoStatus::Done.is_terminal());
         assert!(TodoStatus::Cancelled.is_terminal());
         assert!(!TodoStatus::Pending.is_terminal());
+        assert!(matches!(
+            TodoStatus::Done.transition(TodoStatus::Pending),
+            Err(TrackError::TodoReopenForbidden { .. })
+        ));
+        assert_eq!(TodoStatus::Pending.complete().unwrap(), TodoStatus::Done);
+        assert!(TodoStatus::Cancelled.complete().is_err());
+        assert_eq!(TodoStatus::Pending.cancel().unwrap(), TodoStatus::Cancelled);
+        assert_eq!(TaskStatus::Active.archive().unwrap(), TaskStatus::Archived);
+        assert_eq!(
+            TaskStatus::Archived.archive().unwrap(),
+            TaskStatus::Archived
+        );
     }
 }

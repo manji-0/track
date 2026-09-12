@@ -74,10 +74,11 @@ track alias set fix-oauth-refresh
 
 ## Implementation reference
 
-Workflow phase computation and agent `next_action` generation are implemented in
+Workflow phase computation and agent `next_action` generation are pure functions in
 [`src/models/workflow.rs`](../src/models/workflow.rs) (`compute_workflow_phase`,
-`build_workflow_context`, `build_next_action`). JJ map reads use
-[`src/services/jj_task/`](../src/services/jj_task/).
+`build_workflow_context`, `build_next_action`), given observed `WorkspaceFacts`.
+Filesystem and jj-task map reads live in [`src/services/agent_context.rs`](../src/services/agent_context.rs)
+and [`src/services/jj_task/`](../src/services/jj_task/).
 
 ## JSON fields (`track status --json`)
 

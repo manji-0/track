@@ -22,7 +22,7 @@ track/
 │   ├── models/              # Task, Todo, status, workflow, TodoAction
 │   │   ├── status.rs        # TaskStatus, TodoStatus + transitions
 │   │   ├── todo_action.rs   # Intent-based TODO operations
-│   │   └── workflow.rs      # WorkflowPhase, agent view types
+│   │   └── workflow.rs      # Pure WorkflowPhase / next_action from WorkspaceFacts
 │   ├── services/            # Domain services (SQL + business rules)
 │   │   ├── task_service.rs
 │   │   ├── todo_service.rs

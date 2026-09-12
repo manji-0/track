@@ -86,7 +86,7 @@ impl<'a> MigrateLegacyWorktreesUseCase<'a> {
             reports.push(LegacyWorktreeTaskReport {
                 task_id: task.id,
                 task_name: task.name.clone(),
-                jj_slug: slug,
+                jj_slug: slug.to_string(),
                 flagged_todos: flagged,
                 legacy_worktrees: legacy_paths.len(),
                 worktrees_removed: if dry_run { 0 } else { cleanup.removed.len() },

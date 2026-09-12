@@ -1,17 +1,73 @@
 use crate::models::Task;
+use serde::Serialize;
+use std::fmt;
+use std::ops::Deref;
+
+/// jj-task slug derived from a track task (`alias` → `ticket_id` → `task-{id}`).
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize)]
+#[serde(transparent)]
+pub struct JjSlug(String);
+
+impl JjSlug {
+    fn from_sanitized(value: String) -> Self {
+        Self(value)
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl Deref for JjSlug {
+    type Target = str;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl AsRef<str> for JjSlug {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
+
+impl fmt::Display for JjSlug {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl From<JjSlug> for String {
+    fn from(slug: JjSlug) -> Self {
+        slug.0
+    }
+}
+
+impl PartialEq<str> for JjSlug {
+    fn eq(&self, other: &str) -> bool {
+        self.0 == other
+    }
+}
+
+impl PartialEq<&str> for JjSlug {
+    fn eq(&self, other: &&str) -> bool {
+        self.0 == *other
+    }
+}
 
 /// Derives the jj-task slug for a track task.
 ///
 /// Priority: alias → ticket_id (sanitized) → `task-{id}`.
 /// Matches [agent-skill-jj](https://github.com/manji-0/agent-skill-jj) conventions.
-pub fn jj_slug(task: &Task) -> String {
+pub fn jj_slug(task: &Task) -> JjSlug {
     if let Some(alias) = task.alias.as_deref() {
-        return sanitize_jj_slug(alias);
+        return JjSlug::from_sanitized(sanitize_jj_slug(alias));
     }
     if let Some(ticket) = task.ticket_id.as_deref() {
-        return sanitize_jj_slug(ticket);
+        return JjSlug::from_sanitized(sanitize_jj_slug(ticket));
     }
-    format!("task-{}", task.id)
+    JjSlug::from_sanitized(format!("task-{}", task.id))
 }
 
 /// Normalizes a string into a jj-task-compatible slug (lowercase, hyphen-separated).
@@ -60,19 +116,19 @@ mod tests {
     #[test]
     fn jj_slug_prefers_alias() {
         let task = sample_task(1, Some("PROJ-123"), Some("oauth-fix"));
-        assert_eq!(jj_slug(&task), "oauth-fix");
+        assert_eq!(jj_slug(&task).as_str(), "oauth-fix");
     }
 
     #[test]
     fn jj_slug_uses_ticket_when_no_alias() {
         let task = sample_task(2, Some("PROJ-456"), None);
-        assert_eq!(jj_slug(&task), "proj-456");
+        assert_eq!(jj_slug(&task).as_str(), "proj-456");
     }
 
     #[test]
     fn jj_slug_falls_back_to_task_id() {
         let task = sample_task(7, None, None);
-        assert_eq!(jj_slug(&task), "task-7");
+        assert_eq!(jj_slug(&task).as_str(), "task-7");
     }
 
     #[test]

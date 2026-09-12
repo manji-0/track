@@ -111,17 +111,7 @@ impl<'a> TodoService<'a> {
     /// Applies a validated status transition.
     pub fn transition_status(&self, todo_id: i64, new_status: TodoStatus) -> Result<()> {
         let todo = self.get_todo(todo_id)?;
-        if TodoStatus::is_reopen_attempt(todo.status, new_status) {
-            return Err(TrackError::TodoReopenForbidden {
-                from: todo.status.as_str().to_string(),
-            });
-        }
-        if !todo.status.can_transition_to(new_status) {
-            return Err(TrackError::InvalidStatusTransition {
-                from: todo.status.as_str().to_string(),
-                to: new_status.as_str().to_string(),
-            });
-        }
+        let new_status = todo.status.transition(new_status)?;
 
         let completed_at = if new_status == TodoStatus::Done {
             Some(Utc::now().to_rfc3339())

@@ -168,7 +168,7 @@ impl<'a> ArchiveTaskUseCase<'a> {
         let repo_paths: Vec<String> = repos.iter().map(|repo| repo.repo_path.clone()).collect();
         let active = jj_task::active_registrations(&slug, &repo_paths);
         if !active.is_empty() {
-            blockers.jj_task_slug = Some(slug.clone());
+            blockers.jj_task_slug = Some(slug.to_string());
             blockers.jj_task_workspaces = active
                 .iter()
                 .filter_map(|status| status.workspace_path.clone())

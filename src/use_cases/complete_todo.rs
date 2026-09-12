@@ -1,5 +1,4 @@
 use crate::db::Database;
-use crate::models::TodoStatus;
 use crate::services::{TodoService, WorktreeService};
 use crate::utils::{Result, TrackError};
 
@@ -31,13 +30,7 @@ impl<'a> CompleteTodoUseCase<'a> {
         let worktree_service = WorktreeService::new(self.db);
 
         let todo = todo_service.get_todo_by_index(task_id, task_index)?;
-
-        if todo.status != TodoStatus::Pending {
-            return Err(TrackError::InvalidStatusTransition {
-                from: todo.status.as_str().to_string(),
-                to: TodoStatus::Done.as_str().to_string(),
-            });
-        }
+        todo.status.complete()?;
 
         let merged_bookmark = worktree_service.complete_worktree_for_todo(todo.id)?;
 

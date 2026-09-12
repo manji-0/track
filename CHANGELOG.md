@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - README, DESIGN, `llm-help` design, and today-task docs describe Track as a personal work-context manager (two-layer jj-task stack), not a repo issue tracker
 - Documentation index in `docs/README.md`; historical design notes moved to `docs/archive/`
 - Drop unused `anyhow` and the unused `tower-http` `cors` feature; `todo update` / WebUI status paths take `TodoStatus` instead of raw strings
+- Workflow phase / next_action stay pure (`WorkspaceFacts`); jj-task and git I/O live in `agent_context`. TODO/task status changes go through typed transitions; slugs are `JjSlug`
 - WebUI HTMX 1.9 → 2.0.10 with `htmx-ext-sse`; named SSE events drive `hx-trigger`, and mutations swap the returned HTML
 - GitHub Actions: `actions/checkout@v7`, `softprops/action-gh-release@v3`
 

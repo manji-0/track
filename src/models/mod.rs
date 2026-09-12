@@ -13,17 +13,18 @@ mod todo_add_options;
 mod vcs_mode;
 mod workflow;
 
-pub use jj::{jj_slug, sanitize_jj_slug};
+pub use jj::{jj_slug, sanitize_jj_slug, JjSlug};
 pub use status::{TaskStatus, TodoStatus};
-pub use todo_action::TodoAction;
+pub use todo_action::{TodoAction, TodoAgentAction};
 pub use todo_add_options::TodoAddOptions;
 pub use vcs_mode::VcsMode;
 pub use workflow::{
-    build_git_context, build_jj_context, build_next_action, build_workflow_checklist,
-    build_workflow_context, compute_workflow_phase, legacy_worktree_pending,
-    legacy_worktree_sync_needed, oldest_pending_todo, workspace_lifecycle, AgentGuardrails,
-    GitAgentContext, JjAgentContext, NextAction, NextActionKind, TodoAgentView, WorkflowContext,
-    WorkflowPhase, WorkflowStep, WorkspaceAgentView, WorkspaceLifecycle,
+    build_next_action, build_workflow_checklist, build_workflow_context, compute_workflow_phase,
+    jj_map_phase_is_complete, legacy_worktree_pending, legacy_worktree_sync_needed,
+    oldest_pending_todo, workspace_lifecycle, AgentGuardrails, GitAgentContext, JjAgentContext,
+    NextAction, NextActionKind, RepoRegistration, RepoWorkspaceStatus, TodoAgentView,
+    WorkflowContext, WorkflowPhase, WorkflowStep, WorkspaceAgentView, WorkspaceFacts,
+    WorkspaceLifecycle,
 };
 
 fn render_markdown_with_links(content: &str) -> String {

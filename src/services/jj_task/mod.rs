@@ -2,8 +2,8 @@
 
 mod map;
 
+use crate::models::{jj_map_phase_is_complete, RepoWorkspaceStatus};
 use map::load_map;
-use serde::Serialize;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -60,17 +60,6 @@ pub fn workspace_path(repo_path: &str, slug: &str) -> Option<String> {
         .map(|task| task.workspace.clone())
 }
 
-/// Per-repository jj-task workspace registration for a slug.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-pub struct RepoWorkspaceStatus {
-    pub repo_path: String,
-    pub registered: bool,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub workspace_path: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub phase: Option<String>,
-}
-
 /// Returns workspace registration status for each repo path.
 pub fn repos_workspace_status(slug: &str, repo_paths: &[String]) -> Vec<RepoWorkspaceStatus> {
     let map = load_map();
@@ -122,11 +111,8 @@ pub fn repo_initialized(repo_path: &str) -> bool {
 }
 
 /// True when the jj-task map phase means the workspace is finished.
-///
-/// agent-skill-jj uses `merged` after `jj-task done`. `done` is accepted for
-/// older maps / tests that used that label.
 pub fn is_completed_phase(phase: Option<&str>) -> bool {
-    matches!(phase, Some("merged") | Some("done"))
+    jj_map_phase_is_complete(phase)
 }
 
 /// Returns registrations that are not marked completed in the jj-task map.

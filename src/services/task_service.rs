@@ -156,12 +156,7 @@ impl<'a> TaskService<'a> {
     /// * `task_id` - The ID of the task to archive
     pub fn archive_task(&self, task_id: i64) -> Result<()> {
         let task = self.get_task(task_id)?;
-        if !task.status.can_transition_to(TaskStatus::Archived) {
-            return Err(TrackError::InvalidStatusTransition {
-                from: task.status.as_str().to_string(),
-                to: TaskStatus::Archived.as_str().to_string(),
-            });
-        }
+        task.status.archive()?;
 
         let conn = self.db.get_connection();
 
