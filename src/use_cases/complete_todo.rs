@@ -5,7 +5,7 @@ use crate::utils::{Result, TrackError};
 /// Result of completing a TODO, including optional workspace bookmark name.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CompleteTodoOutcome {
-    pub task_index: i64,
+    pub task_index: crate::models::TodoIndex,
     pub merged_bookmark: Option<String>,
 }
 
@@ -25,7 +25,11 @@ impl<'a> CompleteTodoUseCase<'a> {
     }
 
     /// Complete the TODO identified by task-scoped `task_index` on `task_id`.
-    pub fn execute(&self, task_id: i64, task_index: i64) -> Result<CompleteTodoOutcome> {
+    pub fn execute(
+        &self,
+        task_id: crate::models::TaskId,
+        task_index: crate::models::TodoIndex,
+    ) -> Result<CompleteTodoOutcome> {
         let todo_service = TodoService::new(self.db);
         let worktree_service = WorktreeService::new(self.db);
 
@@ -37,7 +41,7 @@ impl<'a> CompleteTodoUseCase<'a> {
         if let Err(err) = todo_service.mark_done(todo.id) {
             if let Some(bookmark) = merged_bookmark.clone() {
                 return Err(TrackError::TodoCompletionDbFailed {
-                    todo_index: task_index,
+                    todo_index: task_index.as_i64(),
                     bookmark,
                     detail: err.to_string(),
                 });

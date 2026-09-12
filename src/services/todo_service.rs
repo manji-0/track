@@ -1,6 +1,6 @@
 use crate::db::row_mapping::row_to_todo;
 use crate::db::Database;
-use crate::models::{Todo, TodoStatus};
+use crate::models::{TaskId, Todo, TodoAddOptions, TodoId, TodoIndex, TodoStatus};
 use crate::utils::{Result, TrackError};
 use chrono::Utc;
 use rusqlite::params;
@@ -16,9 +16,9 @@ impl<'a> TodoService<'a> {
 
     pub fn add_todo(
         &self,
-        task_id: i64,
+        task_id: TaskId,
         content: &str,
-        options: impl Into<crate::models::TodoAddOptions>,
+        options: impl Into<TodoAddOptions>,
     ) -> Result<Todo> {
         let options = options.into();
         if content.trim().is_empty() {
@@ -53,13 +53,13 @@ impl<'a> TodoService<'a> {
                 ],
             )?;
 
-            let todo_id = conn.last_insert_rowid();
+            let todo_id = TodoId::from_i64(conn.last_insert_rowid());
             self.db.increment_rev("todos")?;
             self.get_todo(todo_id)
         })
     }
 
-    pub fn get_todo(&self, todo_id: i64) -> Result<Todo> {
+    pub fn get_todo(&self, todo_id: TodoId) -> Result<Todo> {
         let conn = self.db.get_connection();
         let mut stmt = conn.prepare(
             "SELECT id, task_id, task_index, content, status, worktree_requested, requires_workspace, created_at, completed_at FROM todos WHERE id = ?1"
@@ -67,12 +67,12 @@ impl<'a> TodoService<'a> {
 
         let todo = stmt
             .query_row(params![todo_id], row_to_todo)
-            .map_err(|_| TrackError::TodoNotFound(todo_id))?;
+            .map_err(|_| TrackError::TodoNotFound(todo_id.as_i64()))?;
 
         Ok(todo)
     }
 
-    pub fn list_todos(&self, task_id: i64) -> Result<Vec<Todo>> {
+    pub fn list_todos(&self, task_id: TaskId) -> Result<Vec<Todo>> {
         let conn = self.db.get_connection();
         let mut stmt = conn.prepare(
             "SELECT id, task_id, task_index, content, status, worktree_requested, requires_workspace, created_at, completed_at FROM todos WHERE task_id = ?1 ORDER BY task_index ASC"
@@ -85,7 +85,7 @@ impl<'a> TodoService<'a> {
         Ok(todos)
     }
 
-    pub fn get_todo_by_index(&self, task_id: i64, task_index: i64) -> Result<Todo> {
+    pub fn get_todo_by_index(&self, task_id: TaskId, task_index: TodoIndex) -> Result<Todo> {
         let conn = self.db.get_connection();
         let mut stmt = conn.prepare(
             "SELECT id, task_id, task_index, content, status, worktree_requested, requires_workspace, created_at, completed_at FROM todos WHERE task_id = ?1 AND task_index = ?2"
@@ -93,23 +93,23 @@ impl<'a> TodoService<'a> {
 
         let todo = stmt
             .query_row(params![task_id, task_index], row_to_todo)
-            .map_err(|_| TrackError::TodoIndexNotFound(task_index))?;
+            .map_err(|_| TrackError::TodoIndexNotFound(task_index.as_i64()))?;
 
         Ok(todo)
     }
 
     /// Updates a TODO status after domain transition checks.
-    pub fn update_status(&self, todo_id: i64, status: TodoStatus) -> Result<()> {
+    pub fn update_status(&self, todo_id: TodoId, status: TodoStatus) -> Result<()> {
         self.transition_status(todo_id, status)
     }
 
     /// Marks a TODO as done.
-    pub fn mark_done(&self, todo_id: i64) -> Result<()> {
+    pub fn mark_done(&self, todo_id: TodoId) -> Result<()> {
         self.transition_status(todo_id, TodoStatus::Done)
     }
 
     /// Applies a validated status transition.
-    pub fn transition_status(&self, todo_id: i64, new_status: TodoStatus) -> Result<()> {
+    pub fn transition_status(&self, todo_id: TodoId, new_status: TodoStatus) -> Result<()> {
         let todo = self.get_todo(todo_id)?;
         let new_status = todo.status.transition(new_status)?;
 
@@ -126,7 +126,7 @@ impl<'a> TodoService<'a> {
         )?;
 
         if affected == 0 {
-            return Err(TrackError::TodoNotFound(todo_id));
+            return Err(TrackError::TodoNotFound(todo_id.as_i64()));
         }
 
         self.db.increment_rev("todos")?;
@@ -134,7 +134,7 @@ impl<'a> TodoService<'a> {
     }
 
     /// Clears legacy per-TODO `worktree_requested` flags (jj-task migration).
-    pub fn clear_legacy_worktree_flags(&self, task_id: Option<i64>) -> Result<usize> {
+    pub fn clear_legacy_worktree_flags(&self, task_id: Option<TaskId>) -> Result<usize> {
         let conn = self.db.get_connection();
         let affected = if let Some(task_id) = task_id {
             conn.execute(
@@ -155,12 +155,12 @@ impl<'a> TodoService<'a> {
         Ok(affected)
     }
 
-    pub fn delete_todo(&self, todo_id: i64) -> Result<()> {
+    pub fn delete_todo(&self, todo_id: TodoId) -> Result<()> {
         let conn = self.db.get_connection();
         let affected = conn.execute("DELETE FROM todos WHERE id = ?1", params![todo_id])?;
 
         if affected == 0 {
-            return Err(TrackError::TodoNotFound(todo_id));
+            return Err(TrackError::TodoNotFound(todo_id.as_i64()));
         }
 
         self.db.increment_rev("todos")?;
@@ -171,7 +171,7 @@ impl<'a> TodoService<'a> {
     ///
     /// This reorders the task_index so that the specified todo becomes the oldest pending todo.
     /// Only pending todos are affected by the reordering.
-    pub fn move_to_next(&self, task_id: i64, task_index: i64) -> Result<()> {
+    pub fn move_to_next(&self, task_id: TaskId, task_index: TodoIndex) -> Result<()> {
         self.db.with_transaction(|| {
             let conn = self.db.get_connection();
 
@@ -193,7 +193,7 @@ impl<'a> TodoService<'a> {
             );
             let mut stmt = conn.prepare(&pending_query)?;
 
-            let pending_todos: Vec<(i64, i64)> = stmt
+            let pending_todos: Vec<(TodoId, TodoIndex)> = stmt
                 .query_map(params![task_id], |row| {
                     Ok((row.get(0)?, row.get(1)?))
                 })?
@@ -206,7 +206,7 @@ impl<'a> TodoService<'a> {
             // Find the position of the todo to move
             let move_pos = pending_todos.iter().position(|(_, idx)| *idx == task_index);
             if move_pos.is_none() {
-                return Err(TrackError::TodoNotPending(task_index));
+                return Err(TrackError::TodoNotPending(task_index.as_i64()));
             }
             let move_pos = move_pos.unwrap();
 
@@ -239,7 +239,7 @@ impl<'a> TodoService<'a> {
             for (i, (id, _)) in reordered.iter().enumerate() {
                 conn.execute(
                     "UPDATE todos SET task_index = ?1 WHERE id = ?2",
-                    params![min_index + i as i64, id],
+                    params![min_index.as_i64() + i as i64, id],
                 )?;
             }
 
@@ -263,8 +263,8 @@ impl<'a> TodoService<'a> {
     /// A HashMap mapping old task_index values to new task_index values.
     pub fn copy_incomplete_todos(
         &self,
-        from_task_id: i64,
-        to_task_id: i64,
+        from_task_id: TaskId,
+        to_task_id: TaskId,
     ) -> Result<std::collections::HashMap<i64, i64>> {
         self.db
             .with_transaction(|| self.copy_incomplete_todos_in_tx(from_task_id, to_task_id))
@@ -273,8 +273,8 @@ impl<'a> TodoService<'a> {
     /// Copies pending todos between tasks. Caller must already hold a DB transaction.
     pub(crate) fn copy_incomplete_todos_in_tx(
         &self,
-        from_task_id: i64,
-        to_task_id: i64,
+        from_task_id: TaskId,
+        to_task_id: TaskId,
     ) -> Result<std::collections::HashMap<i64, i64>> {
         use std::collections::HashMap;
 
@@ -335,7 +335,7 @@ mod tests {
         Database::new_in_memory().unwrap()
     }
 
-    fn create_test_task(db: &Database) -> i64 {
+    fn create_test_task(db: &Database) -> TaskId {
         let task_service = TaskService::new(db);
         task_service
             .create_task("Test Task", None, None, None)
@@ -372,11 +372,7 @@ mod tests {
         let service = TodoService::new(&db);
 
         let todo = service
-            .add_todo(
-                task_id,
-                "Research",
-                crate::models::TodoAddOptions::from_flags(false, true),
-            )
+            .add_todo(task_id, "Research", TodoAddOptions::from_flags(false, true))
             .unwrap();
         assert!(!todo.requires_workspace);
     }
@@ -410,7 +406,7 @@ mod tests {
         let db = setup_db();
         let service = TodoService::new(&db);
 
-        let result = service.get_todo(999);
+        let result = service.get_todo(TodoId::from_i64(999));
         assert!(matches!(result, Err(TrackError::TodoNotFound(999))));
     }
 
@@ -487,7 +483,7 @@ mod tests {
         let db = setup_db();
         let service = TodoService::new(&db);
 
-        let result = service.update_status(999, TodoStatus::Done);
+        let result = service.update_status(TodoId::from_i64(999), TodoStatus::Done);
         assert!(matches!(result, Err(TrackError::TodoNotFound(999))));
     }
 
@@ -509,7 +505,7 @@ mod tests {
         let db = setup_db();
         let service = TodoService::new(&db);
 
-        let result = service.delete_todo(999);
+        let result = service.delete_todo(TodoId::from_i64(999));
         assert!(matches!(result, Err(TrackError::TodoNotFound(999))));
     }
 
@@ -564,7 +560,9 @@ mod tests {
         let created = service.add_todo(task_id, "TODO 2", false).unwrap();
         service.add_todo(task_id, "TODO 3", false).unwrap();
 
-        let retrieved = service.get_todo_by_index(task_id, 2).unwrap();
+        let retrieved = service
+            .get_todo_by_index(task_id, TodoIndex::from_i64(2))
+            .unwrap();
         assert_eq!(retrieved.id, created.id);
         assert_eq!(retrieved.task_index, 2);
         assert_eq!(retrieved.content, "TODO 2");
@@ -578,7 +576,7 @@ mod tests {
 
         service.add_todo(task_id, "TODO 1", false).unwrap();
 
-        let result = service.get_todo_by_index(task_id, 5);
+        let result = service.get_todo_by_index(task_id, TodoIndex::from_i64(5));
         assert!(result.is_err());
     }
 
@@ -612,7 +610,9 @@ mod tests {
         service.add_todo(task_id, "TODO 4", false).unwrap();
 
         // Move TODO #4 to the front
-        service.move_to_next(task_id, 4).unwrap();
+        service
+            .move_to_next(task_id, TodoIndex::from_i64(4))
+            .unwrap();
 
         let todos = service.list_todos(task_id).unwrap();
         assert_eq!(todos.len(), 4);
@@ -638,7 +638,9 @@ mod tests {
         service.add_todo(task_id, "TODO 2", false).unwrap();
 
         // Try to move TODO #1 to the front (it's already there)
-        service.move_to_next(task_id, 1).unwrap();
+        service
+            .move_to_next(task_id, TodoIndex::from_i64(1))
+            .unwrap();
 
         let todos = service.list_todos(task_id).unwrap();
         assert_eq!(todos[0].task_index, 1);
@@ -663,7 +665,9 @@ mod tests {
         service.update_status(todo1.id, TodoStatus::Done).unwrap();
 
         // Move TODO #4 to the front (should be first among pending)
-        service.move_to_next(task_id, 4).unwrap();
+        service
+            .move_to_next(task_id, TodoIndex::from_i64(4))
+            .unwrap();
 
         let todos = service.list_todos(task_id).unwrap();
         // TODO #1 should still be at index 1 (done)
@@ -689,7 +693,7 @@ mod tests {
         service.update_status(todo1.id, TodoStatus::Done).unwrap();
 
         // Try to move a done todo
-        let result = service.move_to_next(task_id, 1);
+        let result = service.move_to_next(task_id, TodoIndex::from_i64(1));
         assert!(result.is_err());
     }
 

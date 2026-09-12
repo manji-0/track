@@ -14,7 +14,12 @@ impl<'a> LinkService<'a> {
         Self { db }
     }
 
-    pub fn add_link(&self, task_id: i64, url: &str, title: Option<&str>) -> Result<Link> {
+    pub fn add_link(
+        &self,
+        task_id: crate::models::TaskId,
+        url: &str,
+        title: Option<&str>,
+    ) -> Result<Link> {
         self.validate_url(url)?;
 
         let title = title.unwrap_or(url).to_string();
@@ -63,7 +68,7 @@ impl<'a> LinkService<'a> {
         Ok(link)
     }
 
-    pub fn list_links(&self, task_id: i64) -> Result<Vec<Link>> {
+    pub fn list_links(&self, task_id: crate::models::TaskId) -> Result<Vec<Link>> {
         let conn = self.db.get_connection();
         let mut stmt = conn.prepare(
             "SELECT id, task_id, task_index, url, title, created_at FROM links WHERE task_id = ?1 ORDER BY task_index ASC"
@@ -116,7 +121,7 @@ impl<'a> ScrapService<'a> {
         Self { db }
     }
 
-    pub fn add_scrap(&self, task_id: i64, content: &str) -> Result<Scrap> {
+    pub fn add_scrap(&self, task_id: crate::models::TaskId, content: &str) -> Result<Scrap> {
         if content.trim().is_empty() {
             return Err(TrackError::EmptyScrapContent);
         }
@@ -140,7 +145,7 @@ impl<'a> ScrapService<'a> {
                 "SELECT task_index FROM todos WHERE task_id = ?1 AND status = '{}' ORDER BY task_index ASC LIMIT 1",
                 TodoStatus::PENDING
             );
-            let active_todo_id: Option<i64> = conn
+            let active_todo_id: Option<crate::models::TodoId> = conn
                 .query_row(&active_query, params![task_id], |row| row.get(0))
                 .optional()?;
 
@@ -175,7 +180,7 @@ impl<'a> ScrapService<'a> {
         Ok(scrap)
     }
 
-    pub fn list_scraps(&self, task_id: i64) -> Result<Vec<Scrap>> {
+    pub fn list_scraps(&self, task_id: crate::models::TaskId) -> Result<Vec<Scrap>> {
         let conn = self.db.get_connection();
         let mut stmt = conn.prepare(
             "SELECT id, task_id, task_index, content, created_at, active_todo_id FROM scraps WHERE task_id = ?1 ORDER BY created_at ASC"
@@ -206,8 +211,8 @@ impl<'a> ScrapService<'a> {
     /// * `todo_mapping` - HashMap mapping old todo task_index to new todo task_index
     pub fn copy_linked_scraps(
         &self,
-        from_task_id: i64,
-        to_task_id: i64,
+        from_task_id: crate::models::TaskId,
+        to_task_id: crate::models::TaskId,
         todo_mapping: &std::collections::HashMap<i64, i64>,
     ) -> Result<()> {
         if todo_mapping.is_empty() {
@@ -222,8 +227,8 @@ impl<'a> ScrapService<'a> {
     /// Copies linked scraps between tasks. Caller must already hold a DB transaction.
     pub(crate) fn copy_linked_scraps_in_tx(
         &self,
-        from_task_id: i64,
-        to_task_id: i64,
+        from_task_id: crate::models::TaskId,
+        to_task_id: crate::models::TaskId,
         todo_mapping: &std::collections::HashMap<i64, i64>,
     ) -> Result<()> {
         let conn = self.db.get_connection();
@@ -273,7 +278,7 @@ mod tests {
         Database::new_in_memory().unwrap()
     }
 
-    fn create_test_task(db: &Database) -> i64 {
+    fn create_test_task(db: &Database) -> crate::models::TaskId {
         let task_service = TaskService::new(db);
         task_service
             .create_task("Test Task", None, None, None)
@@ -454,7 +459,7 @@ mod tests {
         scrap_service.add_scrap(from_task, "Linked scrap").unwrap();
 
         let mut mapping = HashMap::new();
-        mapping.insert(todo.task_index, 1);
+        mapping.insert(todo.task_index.as_i64(), 1);
 
         scrap_service
             .copy_linked_scraps(from_task, to_task, &mapping)
@@ -463,6 +468,9 @@ mod tests {
         let copied = scrap_service.list_scraps(to_task).unwrap();
         assert_eq!(copied.len(), 1);
         assert_eq!(copied[0].content, "Linked scrap");
-        assert_eq!(copied[0].active_todo_id, Some(1));
+        assert_eq!(
+            copied[0].active_todo_id,
+            Some(crate::models::TodoIndex::from_i64(1))
+        );
     }
 }

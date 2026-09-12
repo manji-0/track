@@ -94,9 +94,9 @@ mod tests {
 
     fn pending_todo() -> Todo {
         Todo {
-            id: 1,
-            task_id: 1,
-            task_index: 1,
+            id: crate::models::TodoId::from_i64(1),
+            task_id: crate::models::TaskId::from_i64(1),
+            task_index: crate::models::TodoIndex::from_i64(1),
             content: "Work".to_string(),
             status: TodoStatus::Pending,
             worktree_requested: false,

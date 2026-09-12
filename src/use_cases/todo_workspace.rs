@@ -31,8 +31,8 @@ impl<'a> TodoWorkspaceUseCase<'a> {
 
     pub fn execute(
         &self,
-        task_id: i64,
-        todo_index: i64,
+        task_id: crate::models::TaskId,
+        todo_index: crate::models::TodoIndex,
         request: TodoWorkspaceRequest,
     ) -> Result<TodoWorkspaceOutcome> {
         let todo_service = TodoService::new(self.db);
@@ -208,7 +208,7 @@ mod tests {
 
         let result = TodoWorkspaceUseCase::new(&db).execute(
             task.id,
-            1,
+            crate::models::TodoIndex::from_i64(1),
             TodoWorkspaceRequest {
                 recreate: false,
                 force: false,

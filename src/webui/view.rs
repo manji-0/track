@@ -55,7 +55,10 @@ impl StatusResponse {
 }
 
 /// Build Minijinja context for the dashboard and status cards.
-pub fn build_template_context(db: &Database, task_id: i64) -> Result<serde_json::Value> {
+pub fn build_template_context(
+    db: &Database,
+    task_id: crate::models::TaskId,
+) -> Result<serde_json::Value> {
     let info = GetTaskInfoUseCase::new(db);
     let snapshot = info.load(task_id)?;
     let calendar_id = db.get_app_state("calendar_id").ok().flatten();

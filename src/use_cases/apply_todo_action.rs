@@ -17,8 +17,8 @@ impl<'a> ApplyTodoActionUseCase<'a> {
 
     pub fn execute(
         &self,
-        task_id: i64,
-        todo_index: i64,
+        task_id: crate::models::TaskId,
+        todo_index: crate::models::TodoIndex,
         action: TodoAction,
     ) -> Result<Option<CompleteTodoOutcome>> {
         let todo_service = TodoService::new(self.db);

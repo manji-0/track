@@ -47,7 +47,7 @@ impl SseEvent {
 /// State snapshot for change detection using revision numbers
 #[derive(Clone, Debug, PartialEq)]
 struct ChangeState {
-    current_task_id: Option<i64>,
+    current_task_id: Option<crate::models::TaskId>,
     revs: SectionRevs,
 }
 

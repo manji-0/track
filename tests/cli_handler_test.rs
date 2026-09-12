@@ -118,7 +118,7 @@ fn test_handle_todo_update_done_is_rejected() {
     let task_service = TaskService::new(db);
     let todo_service = TodoService::new(db);
 
-    task_service.create_task("Task", None, None, None).unwrap();
+    let task = task_service.create_task("Task", None, None, None).unwrap();
 
     let cmd = Commands::Todo(TodoCommands::Add {
         text: "My Todo".to_string(),
@@ -140,7 +140,7 @@ fn test_handle_todo_update_done_is_rejected() {
         Err(track::utils::TrackError::TodoCompleteRequiresDoneCommand)
     ));
 
-    let todos = todo_service.list_todos(1).unwrap();
+    let todos = todo_service.list_todos(task.id).unwrap();
     assert_eq!(todos[0].status, TodoStatus::Pending);
 }
 

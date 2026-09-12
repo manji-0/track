@@ -18,8 +18,12 @@ track/
 │   │   └── handlers/        # task, todo, sync, repo, …
 │   ├── db/                  # SQLite schema, migrations, transactions
 │   │   ├── mod.rs
-│   │   └── row_mapping.rs   # Shared row → domain parsing
-│   ├── models/              # Task, Todo, status, workflow, TodoAction
+│   │   ├── row_mapping.rs   # Shared row → domain parsing
+│   │   └── sql_types.rs     # rusqlite ToSql/FromSql for domain IDs
+│   ├── models/              # Domain types (IDs, Task, Todo, status, workflow)
+│   │   ├── ids.rs           # TaskId, TodoId, TodoIndex
+│   │   ├── ticket.rs        # TicketId (Jira / GitHub)
+│   │   ├── entities.rs      # Task, Todo, Link, Scrap, Worktree
 │   │   ├── status.rs        # TaskStatus, TodoStatus + transitions
 │   │   ├── todo_action.rs   # Intent-based TODO operations
 │   │   └── workflow.rs      # Pure WorkflowPhase / next_action from WorkspaceFacts
@@ -54,7 +58,7 @@ Services — TaskService, TodoService, …
         ↓
 Database (rusqlite, with_transaction)
         ↓
-Models (typed enums, task-scoped indices)
+Models (typed IDs, enums, task-scoped indices)
 ```
 
 ### Use cases
@@ -81,7 +85,7 @@ Install with [Skills CLI](https://github.com/vercel-labs/skills): `npx skills ad
 
 ### Key patterns
 
-- **Task-scoped IDs**: user-facing `#1`, `#2` per task via `task_index` columns
+- **Typed IDs**: `TaskId` / `TodoId` (row IDs) vs `TodoIndex` (user-facing `#n` per task); `TicketId` parsed at write boundaries; rusqlite conversions in `db/sql_types.rs`
 - **Transactions**: `Database::with_transaction` + `BEGIN IMMEDIATE` for index allocation and today-task creation
 - **Status types**: `TaskStatus`, `TodoStatus` enums with explicit transition rules
 - **Real-time WebUI**: section revision counters + SSE polling for CLI-originated changes

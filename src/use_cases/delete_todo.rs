@@ -5,7 +5,7 @@ use crate::utils::Result;
 /// Result of deleting a TODO.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DeleteTodoOutcome {
-    pub task_index: i64,
+    pub task_index: crate::models::TodoIndex,
 }
 
 /// CLI-facing line after a successful delete.
@@ -32,7 +32,7 @@ pub enum DeleteTodoStep {
 /// Confirmation required before deleting a TODO.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DeleteTodoPrompt {
-    pub task_index: i64,
+    pub task_index: crate::models::TodoIndex,
     pub content: String,
 }
 
@@ -71,7 +71,12 @@ impl<'a> DeleteTodoUseCase<'a> {
     /// Runs delete, returning either completion or a confirmation prompt.
     ///
     /// When `force` is true, the TODO is deleted immediately.
-    pub fn run(&self, task_id: i64, todo_index: i64, force: bool) -> Result<DeleteTodoStep> {
+    pub fn run(
+        &self,
+        task_id: crate::models::TaskId,
+        todo_index: crate::models::TodoIndex,
+        force: bool,
+    ) -> Result<DeleteTodoStep> {
         if force {
             return self
                 .execute(task_id, todo_index)
@@ -86,12 +91,20 @@ impl<'a> DeleteTodoUseCase<'a> {
     }
 
     /// Deletes after the user confirmed a [`DeleteTodoPrompt`].
-    pub fn confirm_and_run(&self, task_id: i64, todo_index: i64) -> Result<DeleteTodoOutcome> {
+    pub fn confirm_and_run(
+        &self,
+        task_id: crate::models::TaskId,
+        todo_index: crate::models::TodoIndex,
+    ) -> Result<DeleteTodoOutcome> {
         self.execute(task_id, todo_index)
     }
 
     /// Deletes the TODO without prompting.
-    pub fn execute(&self, task_id: i64, todo_index: i64) -> Result<DeleteTodoOutcome> {
+    pub fn execute(
+        &self,
+        task_id: crate::models::TaskId,
+        todo_index: crate::models::TodoIndex,
+    ) -> Result<DeleteTodoOutcome> {
         let todo_service = TodoService::new(self.db);
         let todo = todo_service.get_todo_by_index(task_id, todo_index)?;
         todo_service.delete_todo(todo.id)?;
@@ -110,7 +123,7 @@ mod tests {
     #[test]
     fn delete_prompt_view_formats_confirmation() {
         let prompt = DeleteTodoPrompt {
-            task_index: 2,
+            task_index: crate::models::TodoIndex::from_i64(2),
             content: "Ship it".to_string(),
         };
         let view = prompt.view();
@@ -131,7 +144,9 @@ mod tests {
             .add_todo(task.id, "Remove me", false)
             .unwrap();
 
-        let step = DeleteTodoUseCase::new(&db).run(task.id, 1, true).unwrap();
+        let step = DeleteTodoUseCase::new(&db)
+            .run(task.id, crate::models::TodoIndex::from_i64(1), true)
+            .unwrap();
         match step {
             DeleteTodoStep::Completed(outcome) => assert_eq!(outcome.task_index, 1),
             DeleteTodoStep::NeedsConfirmation(_) => panic!("expected immediate delete"),
@@ -153,7 +168,9 @@ mod tests {
             .add_todo(task.id, "Keep for now", false)
             .unwrap();
 
-        let step = DeleteTodoUseCase::new(&db).run(task.id, 1, false).unwrap();
+        let step = DeleteTodoUseCase::new(&db)
+            .run(task.id, crate::models::TodoIndex::from_i64(1), false)
+            .unwrap();
         match step {
             DeleteTodoStep::NeedsConfirmation(prompt) => {
                 assert_eq!(prompt.task_index, 1);
@@ -174,7 +191,7 @@ mod tests {
             .unwrap();
 
         let outcome = DeleteTodoUseCase::new(&db)
-            .confirm_and_run(task.id, 1)
+            .confirm_and_run(task.id, crate::models::TodoIndex::from_i64(1))
             .unwrap();
         assert_eq!(outcome.completion_view().summary, "Deleted TODO #1");
         assert!(TodoService::new(&db)

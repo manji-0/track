@@ -17,7 +17,7 @@ impl<'a> RepoService<'a> {
     /// Register a repository to a task
     pub fn add_repo(
         &self,
-        task_id: i64,
+        task_id: crate::models::TaskId,
         repo_path: &str,
         base_branch: Option<String>,
         base_commit_hash: Option<String>,
@@ -78,7 +78,7 @@ impl<'a> RepoService<'a> {
     }
 
     /// List all repositories for a task
-    pub fn list_repos(&self, task_id: i64) -> Result<Vec<TaskRepo>> {
+    pub fn list_repos(&self, task_id: crate::models::TaskId) -> Result<Vec<TaskRepo>> {
         let mut stmt = self.db.get_connection().prepare(
             "SELECT id, task_id, task_index, repo_path, base_branch, base_commit_hash, created_at FROM task_repos WHERE task_id = ?1 ORDER BY task_index"
         )?;

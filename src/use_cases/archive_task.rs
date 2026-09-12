@@ -68,7 +68,7 @@ pub enum ArchiveTaskStep {
 /// Confirmation required before forcing archive.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ArchivePrompt {
-    pub task_id: i64,
+    pub task_id: crate::models::TaskId,
     pub kind: ArchivePromptKind,
 }
 
@@ -134,7 +134,7 @@ impl<'a> ArchiveTaskUseCase<'a> {
         Self { db }
     }
 
-    pub fn resolve_task_id(&self, task_ref: Option<&str>) -> Result<i64> {
+    pub fn resolve_task_id(&self, task_ref: Option<&str>) -> Result<crate::models::TaskId> {
         let task_service = TaskService::new(self.db);
         match task_ref {
             Some(r) => task_service.resolve_task_id(r),
@@ -145,7 +145,7 @@ impl<'a> ArchiveTaskUseCase<'a> {
         }
     }
 
-    pub fn find_archive_blockers(&self, task_id: i64) -> Result<ArchiveBlockers> {
+    pub fn find_archive_blockers(&self, task_id: crate::models::TaskId) -> Result<ArchiveBlockers> {
         let worktree_service = WorktreeService::new(self.db);
         let mut blockers = ArchiveBlockers {
             dirty_workspaces: self.find_dirty_track_workspaces(task_id, &worktree_service)?,
@@ -191,7 +191,7 @@ impl<'a> ArchiveTaskUseCase<'a> {
 
     fn find_dirty_track_workspaces(
         &self,
-        task_id: i64,
+        task_id: crate::models::TaskId,
         worktree_service: &WorktreeService<'_>,
     ) -> Result<Vec<DirtyWorkspace>> {
         let worktrees = worktree_service.list_worktrees(task_id)?;
@@ -214,7 +214,7 @@ impl<'a> ArchiveTaskUseCase<'a> {
     /// Runs archive, returning either completion or a confirmation prompt.
     ///
     /// When `force` is true, blockers are ignored and archive proceeds immediately.
-    pub fn run(&self, task_id: i64, force: bool) -> Result<ArchiveTaskStep> {
+    pub fn run(&self, task_id: crate::models::TaskId, force: bool) -> Result<ArchiveTaskStep> {
         match self.execute(task_id, force) {
             Ok(outcome) => Ok(ArchiveTaskStep::Completed(outcome)),
             Err(TrackError::UncommittedWorkspaces(workspaces)) => {
@@ -234,7 +234,7 @@ impl<'a> ArchiveTaskUseCase<'a> {
     }
 
     /// Archives after the user confirmed a [`ArchivePrompt`].
-    pub fn confirm_and_run(&self, task_id: i64) -> Result<ArchiveTaskOutcome> {
+    pub fn confirm_and_run(&self, task_id: crate::models::TaskId) -> Result<ArchiveTaskOutcome> {
         self.execute(task_id, true)
     }
 
@@ -242,7 +242,11 @@ impl<'a> ArchiveTaskUseCase<'a> {
     ///
     /// When `force` is false, returns [`TrackError::UncommittedWorkspaces`] or
     /// [`TrackError::JjTaskNotCompleted`]. Prefer [`Self::run`] for interactive flows.
-    pub fn execute(&self, task_id: i64, force: bool) -> Result<ArchiveTaskOutcome> {
+    pub fn execute(
+        &self,
+        task_id: crate::models::TaskId,
+        force: bool,
+    ) -> Result<ArchiveTaskOutcome> {
         let task_service = TaskService::new(self.db);
         let worktree_service = WorktreeService::new(self.db);
 
@@ -312,7 +316,7 @@ mod tests {
         LOCK.get_or_init(|| Mutex::new(())).lock().unwrap()
     }
 
-    fn insert_repo(db: &Database, task_id: i64, repo_path: &str) {
+    fn insert_repo(db: &Database, task_id: crate::models::TaskId, repo_path: &str) {
         db.get_connection()
             .execute(
                 "INSERT INTO task_repos (task_id, task_index, repo_path, created_at) VALUES (?1, 1, ?2, datetime('now'))",
@@ -545,7 +549,7 @@ mod tests {
     #[test]
     fn archive_prompt_view_for_dirty_workspaces() {
         let prompt = ArchivePrompt {
-            task_id: 1,
+            task_id: crate::models::TaskId::from_i64(1),
             kind: ArchivePromptKind::UncommittedWorkspaces(vec!["#1 /path".to_string()]),
         };
         let view = prompt.view();

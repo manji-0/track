@@ -1,6 +1,6 @@
 use crate::db::row_mapping::row_to_task;
 use crate::db::Database;
-use crate::models::{Task, TaskStatus};
+use crate::models::{Task, TaskId, TaskStatus, TicketId};
 use crate::utils::{Result, TrackError};
 use chrono::Utc;
 use rusqlite::{params, OptionalExtension};
@@ -49,13 +49,13 @@ impl<'a> TaskService<'a> {
             return Err(TrackError::EmptyTaskName);
         }
 
-        // Validate ticket ID format if provided
-        if let Some(ticket) = ticket_id {
-            self.validate_ticket_format(ticket)?;
-
-            // Check for duplicate ticket
-            if let Some(existing_id) = self.find_task_by_ticket(ticket)? {
-                return Err(TrackError::DuplicateTicket(ticket.to_string(), existing_id));
+        let ticket = ticket_id.map(TicketId::parse).transpose()?;
+        if let Some(ticket) = ticket.as_ref() {
+            if let Some(existing_id) = self.find_task_by_ticket(ticket.as_str())? {
+                return Err(TrackError::DuplicateTicket(
+                    ticket.to_string(),
+                    existing_id.as_i64(),
+                ));
             }
         }
 
@@ -64,10 +64,10 @@ impl<'a> TaskService<'a> {
 
         conn.execute(
             "INSERT INTO tasks (name, description, status, ticket_id, ticket_url, is_today_task, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-            params![name, description, TaskStatus::Active.as_str(), ticket_id, ticket_url, 0, now],
+            params![name, description, TaskStatus::Active.as_str(), ticket.as_ref().map(|t| t.as_str()), ticket_url, 0, now],
         )?;
 
-        let task_id = conn.last_insert_rowid();
+        let task_id = TaskId::from_i64(conn.last_insert_rowid());
 
         // Set as current task
         self.db.set_current_task_id(task_id)?;
@@ -84,7 +84,7 @@ impl<'a> TaskService<'a> {
     /// # Errors
     ///
     /// Returns `TrackError::TaskNotFound` if the task does not exist.
-    pub fn get_task(&self, task_id: i64) -> Result<Task> {
+    pub fn get_task(&self, task_id: crate::models::TaskId) -> Result<Task> {
         let conn = self.db.get_connection();
         let mut stmt = conn.prepare(
             "SELECT id, name, description, status, ticket_id, ticket_url, alias, is_today_task, created_at FROM tasks WHERE id = ?1"
@@ -92,7 +92,7 @@ impl<'a> TaskService<'a> {
 
         let task = stmt
             .query_row(params![task_id], row_to_task)
-            .map_err(|_| TrackError::TaskNotFound(task_id))?;
+            .map_err(|_| TrackError::TaskNotFound(task_id.as_i64()))?;
 
         Ok(task)
     }
@@ -136,11 +136,11 @@ impl<'a> TaskService<'a> {
     /// Returns an error if:
     /// - The task does not exist
     /// - The task is archived
-    pub fn switch_task(&self, task_id: i64) -> Result<Task> {
+    pub fn switch_task(&self, task_id: crate::models::TaskId) -> Result<Task> {
         let task = self.get_task(task_id)?;
 
         if task.status == TaskStatus::Archived {
-            return Err(TrackError::TaskArchived(task_id));
+            return Err(TrackError::TaskArchived(task_id.as_i64()));
         }
 
         self.db.set_current_task_id(task_id)?;
@@ -154,7 +154,7 @@ impl<'a> TaskService<'a> {
     /// # Arguments
     ///
     /// * `task_id` - The ID of the task to archive
-    pub fn archive_task(&self, task_id: i64) -> Result<()> {
+    pub fn archive_task(&self, task_id: crate::models::TaskId) -> Result<()> {
         let task = self.get_task(task_id)?;
         task.status.archive()?;
 
@@ -189,15 +189,19 @@ impl<'a> TaskService<'a> {
     /// Returns an error if:
     /// - The ticket ID format is invalid
     /// - Another task is already linked to this ticket
-    pub fn link_ticket(&self, task_id: i64, ticket_id: &str, url: &str) -> Result<()> {
-        self.validate_ticket_format(ticket_id)?;
+    pub fn link_ticket(
+        &self,
+        task_id: crate::models::TaskId,
+        ticket_id: &str,
+        url: &str,
+    ) -> Result<()> {
+        let ticket = TicketId::parse(ticket_id)?;
 
-        // Check for duplicate ticket (excluding current task)
-        if let Some(existing_id) = self.find_task_by_ticket(ticket_id)? {
+        if let Some(existing_id) = self.find_task_by_ticket(ticket.as_str())? {
             if existing_id != task_id {
                 return Err(TrackError::DuplicateTicket(
-                    ticket_id.to_string(),
-                    existing_id,
+                    ticket.to_string(),
+                    existing_id.as_i64(),
                 ));
             }
         }
@@ -205,7 +209,7 @@ impl<'a> TaskService<'a> {
         let conn = self.db.get_connection();
         conn.execute(
             "UPDATE tasks SET ticket_id = ?1, ticket_url = ?2 WHERE id = ?3",
-            params![ticket_id, url, task_id],
+            params![ticket.as_str(), url, task_id],
         )?;
 
         self.db.increment_rev("task")?;
@@ -224,11 +228,11 @@ impl<'a> TaskService<'a> {
     /// Returns an error if:
     /// - The task does not exist
     /// - The task is archived
-    pub fn set_description(&self, task_id: i64, description: &str) -> Result<()> {
+    pub fn set_description(&self, task_id: crate::models::TaskId, description: &str) -> Result<()> {
         // Validate task exists and is active
         let task = self.get_task(task_id)?;
         if task.status == TaskStatus::Archived {
-            return Err(TrackError::TaskArchived(task_id));
+            return Err(TrackError::TaskArchived(task_id.as_i64()));
         }
 
         let conn = self.db.get_connection();
@@ -256,20 +260,17 @@ impl<'a> TaskService<'a> {
     /// # Errors
     ///
     /// Returns an error if the reference is invalid or no matching task is found.
-    pub fn resolve_task_id(&self, reference: &str) -> Result<i64> {
-        // Priority 1: If it starts with "t:", it's a ticket reference
+    pub fn resolve_task_id(&self, reference: &str) -> Result<TaskId> {
         if let Some(ticket_id) = reference.strip_prefix("t:") {
             return self
                 .find_task_by_ticket(ticket_id)?
                 .ok_or_else(|| TrackError::TaskReferenceNotFound(format!("t:{ticket_id}")));
         }
 
-        // Priority 2: Try to parse as numeric task ID
         if let Ok(task_id) = reference.parse::<i64>() {
-            return Ok(task_id);
+            return Ok(TaskId::from_i64(task_id));
         }
 
-        // Priority 3: Try to find by alias
         if let Some(task_id) = self.get_task_by_alias(reference)? {
             return Ok(task_id);
         }
@@ -291,7 +292,12 @@ impl<'a> TaskService<'a> {
     /// - The alias format is invalid
     /// - The alias is already in use by another task (when force is false)
     /// - The task does not exist
-    pub fn set_alias(&self, task_id: i64, alias: &str, force: bool) -> Result<()> {
+    pub fn set_alias(
+        &self,
+        task_id: crate::models::TaskId,
+        alias: &str,
+        force: bool,
+    ) -> Result<()> {
         self.validate_alias(alias)?;
 
         // Check if alias is already in use
@@ -307,7 +313,7 @@ impl<'a> TaskService<'a> {
                 } else {
                     return Err(TrackError::AliasInUse {
                         alias: alias.to_string(),
-                        task_id: existing_id,
+                        task_id: existing_id.as_i64(),
                     });
                 }
             }
@@ -328,7 +334,7 @@ impl<'a> TaskService<'a> {
     /// # Arguments
     ///
     /// * `task_id` - The ID of the task to remove the alias from
-    pub fn remove_alias(&self, task_id: i64) -> Result<()> {
+    pub fn remove_alias(&self, task_id: crate::models::TaskId) -> Result<()> {
         let conn = self.db.get_connection();
         conn.execute(
             "UPDATE tasks SET alias = NULL WHERE id = ?1",
@@ -346,7 +352,7 @@ impl<'a> TaskService<'a> {
     /// # Returns
     ///
     /// `Some(task_id)` if a task with the alias exists, `None` otherwise.
-    fn get_task_by_alias(&self, alias: &str) -> Result<Option<i64>> {
+    fn get_task_by_alias(&self, alias: &str) -> Result<Option<TaskId>> {
         let conn = self.db.get_connection();
         let mut stmt = conn.prepare("SELECT id FROM tasks WHERE alias = ?1")?;
         let result = stmt
@@ -400,28 +406,13 @@ impl<'a> TaskService<'a> {
         Ok(())
     }
 
-    fn find_task_by_ticket(&self, ticket_id: &str) -> Result<Option<i64>> {
+    fn find_task_by_ticket(&self, ticket_id: &str) -> Result<Option<TaskId>> {
         let conn = self.db.get_connection();
         let mut stmt = conn.prepare("SELECT id FROM tasks WHERE ticket_id = ?1")?;
         let result = stmt
             .query_row(params![ticket_id], |row| row.get(0))
             .optional()?;
         Ok(result)
-    }
-
-    fn validate_ticket_format(&self, ticket_id: &str) -> Result<()> {
-        // Jira format: PROJECT-123
-        if ticket_id.contains('-') && ticket_id.chars().any(|c| c.is_ascii_uppercase()) {
-            return Ok(());
-        }
-
-        // GitHub/GitLab format: owner/repo/123
-        let parts: Vec<&str> = ticket_id.split('/').collect();
-        if parts.len() == 3 && parts[2].chars().all(|c| c.is_ascii_digit()) {
-            return Ok(());
-        }
-
-        Err(TrackError::InvalidTicketFormat(ticket_id.to_string()))
     }
 }
 
@@ -458,7 +449,7 @@ mod tests {
                 Some("https://example.com"),
             )
             .unwrap();
-        assert_eq!(task.ticket_id, Some("PROJ-123".to_string()));
+        assert_eq!(task.ticket_id.as_deref(), Some("PROJ-123"));
         assert_eq!(task.ticket_url, Some("https://example.com".to_string()));
     }
 
@@ -499,7 +490,7 @@ mod tests {
         let db = setup_db();
         let service = TaskService::new(&db);
 
-        let result = service.get_task(999);
+        let result = service.get_task(TaskId::from_i64(999));
         assert!(matches!(result, Err(TrackError::TaskNotFound(999))));
     }
 
@@ -583,7 +574,7 @@ mod tests {
             .unwrap();
 
         let retrieved = service.get_task(task.id).unwrap();
-        assert_eq!(retrieved.ticket_id, Some("PROJ-456".to_string()));
+        assert_eq!(retrieved.ticket_id.as_deref(), Some("PROJ-456"));
     }
 
     #[test]
@@ -624,28 +615,19 @@ mod tests {
 
     #[test]
     fn test_validate_ticket_format_jira() {
-        let db = setup_db();
-        let service = TaskService::new(&db);
-
-        assert!(service.validate_ticket_format("PROJ-123").is_ok());
-        assert!(service.validate_ticket_format("ABC-999").is_ok());
+        assert!(TicketId::parse("PROJ-123").is_ok());
+        assert!(TicketId::parse("ABC-999").is_ok());
     }
 
     #[test]
     fn test_validate_ticket_format_github() {
-        let db = setup_db();
-        let service = TaskService::new(&db);
-
-        assert!(service.validate_ticket_format("owner/repo/123").is_ok());
+        assert!(TicketId::parse("owner/repo/123").is_ok());
     }
 
     #[test]
     fn test_validate_ticket_format_invalid() {
-        let db = setup_db();
-        let service = TaskService::new(&db);
-
         assert!(matches!(
-            service.validate_ticket_format("invalid"),
+            TicketId::parse("invalid"),
             Err(TrackError::InvalidTicketFormat(_))
         ));
     }
@@ -716,7 +698,7 @@ mod tests {
         let task2 = service.create_task("Task 2", None, None, None).unwrap();
 
         // Ensure ID is not 1
-        assert_ne!(task2.id, 1);
+        assert_ne!(task2.id, TaskId::from_i64(1));
 
         let resolved = service.resolve_task_id(&task2.id.to_string()).unwrap();
         assert_eq!(resolved, task2.id);
@@ -724,18 +706,12 @@ mod tests {
 
     #[test]
     fn test_validate_ticket_format_edge_cases() {
-        let db = setup_db();
-        let service = TaskService::new(&db);
-
-        // Contains dash but no uppercase (should fail)
         assert!(matches!(
-            service.validate_ticket_format("proj-123"),
+            TicketId::parse("proj-123"),
             Err(TrackError::InvalidTicketFormat(_))
         ));
-
-        // Contains uppercase but no dash (should fail)
         assert!(matches!(
-            service.validate_ticket_format("PROJ123"),
+            TicketId::parse("PROJ123"),
             Err(TrackError::InvalidTicketFormat(_))
         ));
     }

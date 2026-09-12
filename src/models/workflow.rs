@@ -66,7 +66,7 @@ pub enum WorkspaceLifecycle {
 /// Agent-oriented view of a TODO item.
 #[derive(Debug, Clone, Serialize)]
 pub struct TodoAgentView {
-    pub todo_id: i64,
+    pub todo_id: crate::models::TodoIndex,
     pub content: String,
     pub status: TodoStatus,
     pub is_next: bool,
@@ -594,11 +594,11 @@ mod tests {
 
     fn sample_task(status: TaskStatus) -> Task {
         Task {
-            id: 1,
+            id: crate::models::TaskId::from_i64(1),
             name: "Task".to_string(),
             description: None,
             status,
-            ticket_id: Some("PROJ-1".to_string()),
+            ticket_id: Some(crate::models::TicketId::from_stored("PROJ-1".to_string())),
             ticket_url: None,
             alias: None,
             is_today_task: false,
@@ -608,9 +608,9 @@ mod tests {
 
     fn sample_todo(index: i64, worktree_requested: bool) -> Todo {
         Todo {
-            id: index,
-            task_id: 1,
-            task_index: index,
+            id: crate::models::TodoId::from_i64(index),
+            task_id: crate::models::TaskId::from_i64(1),
+            task_index: crate::models::TodoIndex::from_i64(index),
             content: format!("Todo {}", index),
             status: TodoStatus::Pending,
             worktree_requested,
@@ -622,9 +622,9 @@ mod tests {
 
     fn sample_research_todo(index: i64) -> Todo {
         Todo {
-            id: index,
-            task_id: 1,
-            task_index: index,
+            id: crate::models::TodoId::from_i64(index),
+            task_id: crate::models::TaskId::from_i64(1),
+            task_index: crate::models::TodoIndex::from_i64(index),
             content: format!("Research {}", index),
             status: TodoStatus::Pending,
             worktree_requested: false,
@@ -637,7 +637,7 @@ mod tests {
     fn sample_repo() -> TaskRepo {
         TaskRepo {
             id: 1,
-            task_id: 1,
+            task_id: crate::models::TaskId::from_i64(1),
             task_index: 1,
             repo_path: "/repo".to_string(),
             base_branch: None,

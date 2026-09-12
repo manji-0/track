@@ -33,11 +33,11 @@ impl<'a> WorktreeService<'a> {
 
     pub fn add_worktree(
         &self,
-        task_id: i64,
+        task_id: crate::models::TaskId,
         repo_path: &str,
         branch: Option<&str>,
         ticket_id: Option<&str>,
-        todo_id: Option<i64>,
+        todo_id: Option<crate::models::TodoId>,
         is_base: bool,
     ) -> Result<Worktree> {
         if !jj::is_jj_repository(repo_path) {
@@ -53,10 +53,10 @@ impl<'a> WorktreeService<'a> {
                     |row| row.get(0),
                 )
                 .map_err(|e| match e {
-                    rusqlite::Error::QueryReturnedNoRows => TrackError::TodoNotFound(t_id),
+                    rusqlite::Error::QueryReturnedNoRows => TrackError::TodoNotFound(t_id.as_i64()),
                     _ => TrackError::Database(e),
                 })?;
-            Some(idx)
+            Some(crate::models::TodoIndex::from_i64(idx))
         } else {
             None
         };
@@ -85,11 +85,11 @@ impl<'a> WorktreeService<'a> {
 
     fn insert_worktree_record(
         &self,
-        task_id: i64,
+        task_id: crate::models::TaskId,
         worktree_path: &str,
         branch_name: &str,
         repo_path: &str,
-        todo_id: Option<i64>,
+        todo_id: Option<crate::models::TodoId>,
         is_base: bool,
     ) -> Result<Worktree> {
         let now = Utc::now().to_rfc3339();
@@ -107,10 +107,10 @@ impl<'a> WorktreeService<'a> {
 
     pub fn add_existing_worktree(
         &self,
-        task_id: i64,
+        task_id: crate::models::TaskId,
         repo_path: &str,
         branch: &str,
-        todo_id: Option<i64>,
+        todo_id: Option<crate::models::TodoId>,
         is_base: bool,
         worktree_path: Option<&str>,
     ) -> Result<Worktree> {
@@ -171,7 +171,7 @@ impl<'a> WorktreeService<'a> {
             .map_err(|_| TrackError::WorktreeNotFound(worktree_id))
     }
 
-    pub fn list_worktrees(&self, task_id: i64) -> Result<Vec<Worktree>> {
+    pub fn list_worktrees(&self, task_id: crate::models::TaskId) -> Result<Vec<Worktree>> {
         let conn = self.db.get_connection();
         let mut stmt = conn.prepare(
             "SELECT id, task_id, path, branch, base_repo, status, created_at, todo_id, is_base FROM worktrees WHERE task_id = ?1 ORDER BY created_at ASC"
@@ -225,7 +225,7 @@ impl<'a> WorktreeService<'a> {
     /// Removes legacy track-managed workspaces (base + per-TODO) for jj-task migration.
     pub fn cleanup_legacy_worktrees(
         &self,
-        task_id: i64,
+        task_id: crate::models::TaskId,
         force: bool,
     ) -> Result<LegacyWorktreeCleanupOutcome> {
         let mut outcome = LegacyWorktreeCleanupOutcome::default();
@@ -249,7 +249,7 @@ impl<'a> WorktreeService<'a> {
     }
 
     /// Lists legacy worktrees registered for a task.
-    pub fn list_legacy_worktrees(&self, task_id: i64) -> Result<Vec<Worktree>> {
+    pub fn list_legacy_worktrees(&self, task_id: crate::models::TaskId) -> Result<Vec<Worktree>> {
         Ok(self
             .list_worktrees(task_id)?
             .into_iter()
@@ -275,20 +275,27 @@ impl<'a> WorktreeService<'a> {
         jj::bookmark_exists(repo_path, bookmark)
     }
 
-    pub fn task_bookmark_name(&self, task_id: i64, ticket_id: Option<&str>) -> String {
+    pub fn task_bookmark_name(
+        &self,
+        task_id: crate::models::TaskId,
+        ticket_id: Option<&str>,
+    ) -> String {
         naming::task_bookmark_name(task_id, ticket_id)
     }
 
     pub fn get_todo_branch_name(
         &self,
-        task_id: i64,
+        task_id: crate::models::TaskId,
         ticket_id: Option<&str>,
-        todo_index: i64,
+        todo_index: crate::models::TodoIndex,
     ) -> Result<String> {
         naming::determine_branch_name(None, ticket_id, task_id, Some(todo_index))
     }
 
-    pub fn complete_worktree_for_todo(&self, todo_id: i64) -> Result<Option<String>> {
+    pub fn complete_worktree_for_todo(
+        &self,
+        todo_id: crate::models::TodoId,
+    ) -> Result<Option<String>> {
         let wt = match self.get_worktree_by_todo(todo_id)? {
             Some(wt) => wt,
             None => return Ok(None),
@@ -321,7 +328,7 @@ impl<'a> WorktreeService<'a> {
         jj::has_uncommitted_changes(path)
     }
 
-    fn get_task_ticket_id(&self, task_id: i64) -> Result<Option<String>> {
+    fn get_task_ticket_id(&self, task_id: crate::models::TaskId) -> Result<Option<String>> {
         let conn = self.db.get_connection();
         let mut stmt = conn.prepare("SELECT ticket_id FROM tasks WHERE id = ?1")?;
         let ticket_id = stmt
@@ -330,7 +337,7 @@ impl<'a> WorktreeService<'a> {
         Ok(ticket_id.flatten())
     }
 
-    fn get_worktree_by_todo(&self, todo_id: i64) -> Result<Option<Worktree>> {
+    fn get_worktree_by_todo(&self, todo_id: crate::models::TodoId) -> Result<Option<Worktree>> {
         let conn = self.db.get_connection();
         let mut stmt = conn.prepare(
             "SELECT id, task_id, path, branch, base_repo, status, created_at, todo_id, is_base FROM worktrees WHERE todo_id = ?1"
@@ -341,7 +348,7 @@ impl<'a> WorktreeService<'a> {
             .map_err(TrackError::from)
     }
 
-    fn get_base_worktree(&self, task_id: i64) -> Result<Option<Worktree>> {
+    fn get_base_worktree(&self, task_id: crate::models::TaskId) -> Result<Option<Worktree>> {
         let conn = self.db.get_connection();
         let mut stmt = conn.prepare(
             "SELECT id, task_id, path, branch, base_repo, status, created_at, todo_id, is_base FROM worktrees WHERE task_id = ?1 AND is_base = 1"
@@ -645,7 +652,10 @@ mod tests {
     fn test_get_worktree_by_todo_not_found() {
         let db = setup_db();
         let service = WorktreeService::new(&db);
-        assert!(service.get_worktree_by_todo(999).unwrap().is_none());
+        assert!(service
+            .get_worktree_by_todo(crate::models::TodoId::from_i64(999))
+            .unwrap()
+            .is_none());
     }
 
     #[test]
@@ -701,7 +711,14 @@ mod tests {
         let repo_path = temp_dir.path().to_str().unwrap();
         init_jj_repo(repo_path);
 
-        let result = service.add_worktree(1, repo_path, None, Some("PROJ-999"), Some(999), false);
+        let result = service.add_worktree(
+            crate::models::TaskId::from_i64(1),
+            repo_path,
+            None,
+            Some("PROJ-999"),
+            Some(crate::models::TodoId::from_i64(999)),
+            false,
+        );
         assert!(matches!(result, Err(TrackError::TodoNotFound(999))));
     }
 
@@ -715,7 +732,14 @@ mod tests {
         } else {
             "/nonexistent/path"
         };
-        let result = service.add_worktree(1, path, Some("b"), None, None, false);
+        let result = service.add_worktree(
+            crate::models::TaskId::from_i64(1),
+            path,
+            Some("b"),
+            None,
+            None,
+            false,
+        );
         assert!(matches!(result, Err(TrackError::NotJjRepository(_))));
 
         if !require_jj() {
@@ -729,7 +753,14 @@ mod tests {
         describe_change(repo_path, "Initial commit");
         create_bookmark(repo_path, "existing-branch");
 
-        let result = service.add_worktree(1, repo_path, Some("existing-branch"), None, None, false);
+        let result = service.add_worktree(
+            crate::models::TaskId::from_i64(1),
+            repo_path,
+            Some("existing-branch"),
+            None,
+            None,
+            false,
+        );
         assert!(matches!(result, Err(TrackError::BookmarkExists(_))));
     }
 }

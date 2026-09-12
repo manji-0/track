@@ -214,17 +214,17 @@ pub fn build_agent_extensions(
 mod tests {
     use super::*;
     use crate::db::Database;
-    use crate::models::{TaskStatus, WorkflowPhase};
+    use crate::models::{TaskId, TaskStatus, TicketId, WorkflowPhase};
     use crate::services::{TaskService, TodoService};
     use chrono::Utc;
 
     fn sample_task() -> Task {
         Task {
-            id: 1,
+            id: TaskId::from_i64(1),
             name: "Task".to_string(),
             description: None,
             status: TaskStatus::Active,
-            ticket_id: Some("PROJ-1".to_string()),
+            ticket_id: Some(TicketId::from_stored("PROJ-1".to_string())),
             ticket_url: None,
             alias: None,
             is_today_task: false,
@@ -235,7 +235,7 @@ mod tests {
     fn sample_repo() -> TaskRepo {
         TaskRepo {
             id: 1,
-            task_id: 1,
+            task_id: TaskId::from_i64(1),
             task_index: 1,
             repo_path: "/repo".to_string(),
             base_branch: None,

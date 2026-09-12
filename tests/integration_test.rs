@@ -174,10 +174,14 @@ fn test_todo_task_index_independence() {
     assert_eq!(t2_todo2.task_index, 2);
 
     // Get TODO by task index
-    let retrieved_t1_todo1 = todo_service.get_todo_by_index(task1.id, 1).unwrap();
+    let retrieved_t1_todo1 = todo_service
+        .get_todo_by_index(task1.id, track::models::TodoIndex::from_i64(1))
+        .unwrap();
     assert_eq!(retrieved_t1_todo1.id, t1_todo1.id);
 
-    let retrieved_t2_todo1 = todo_service.get_todo_by_index(task2.id, 1).unwrap();
+    let retrieved_t2_todo1 = todo_service
+        .get_todo_by_index(task2.id, track::models::TodoIndex::from_i64(1))
+        .unwrap();
     assert_eq!(retrieved_t2_todo1.id, t2_todo1.id);
 
     // Verify they are different TODOs
@@ -192,11 +196,11 @@ fn test_error_handling() {
     let todo_service = TodoService::new(&db);
 
     // Try to get non-existent task
-    let result = task_service.get_task(999);
+    let result = task_service.get_task(track::models::TaskId::from_i64(999));
     assert!(result.is_err());
 
     // Try to get non-existent TODO
-    let result = todo_service.get_todo(999);
+    let result = todo_service.get_todo(track::models::TodoId::from_i64(999));
     assert!(result.is_err());
 
     // Try to switch to archived task
@@ -208,11 +212,11 @@ fn test_error_handling() {
     assert!(result.is_err());
 
     // Try to update non-existent TODO
-    let result = todo_service.update_status(999, TodoStatus::Done);
+    let result = todo_service.update_status(track::models::TodoId::from_i64(999), TodoStatus::Done);
     assert!(result.is_err());
 
     // Try to delete non-existent TODO
-    let result = todo_service.delete_todo(999);
+    let result = todo_service.delete_todo(track::models::TodoId::from_i64(999));
     assert!(result.is_err());
 }
 

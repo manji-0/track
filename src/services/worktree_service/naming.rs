@@ -5,8 +5,8 @@ use std::path::Path;
 pub fn determine_branch_name(
     branch: Option<&str>,
     ticket_id: Option<&str>,
-    task_id: i64,
-    todo_index: Option<i64>,
+    task_id: crate::models::TaskId,
+    todo_index: Option<crate::models::TodoIndex>,
 ) -> Result<String> {
     match (branch, ticket_id, todo_index) {
         (Some(b), Some(t), _) => Ok(format!("{}/{}", t, b)),
@@ -21,7 +21,7 @@ pub fn determine_branch_name(
     }
 }
 
-pub fn task_bookmark_name(task_id: i64, ticket_id: Option<&str>) -> String {
+pub fn task_bookmark_name(task_id: crate::models::TaskId, ticket_id: Option<&str>) -> String {
     if let Some(ticket) = ticket_id {
         format!("task/{}", ticket)
     } else {
@@ -41,37 +41,68 @@ mod tests {
 
     #[test]
     fn determine_branch_name_with_explicit_branch_and_ticket() {
-        let result = determine_branch_name(Some("feature-x"), Some("PROJ-123"), 1, None).unwrap();
+        let result = determine_branch_name(
+            Some("feature-x"),
+            Some("PROJ-123"),
+            crate::models::TaskId::from_i64(1),
+            None,
+        )
+        .unwrap();
         assert_eq!(result, "PROJ-123/feature-x");
     }
 
     #[test]
     fn determine_branch_name_with_explicit_branch_only() {
-        let result = determine_branch_name(Some("feature-y"), None, 1, None).unwrap();
+        let result = determine_branch_name(
+            Some("feature-y"),
+            None,
+            crate::models::TaskId::from_i64(1),
+            None,
+        )
+        .unwrap();
         assert_eq!(result, "feature-y");
     }
 
     #[test]
     fn determine_branch_name_with_ticket_and_todo() {
-        let result = determine_branch_name(None, Some("PROJ-456"), 1, Some(5)).unwrap();
+        let result = determine_branch_name(
+            None,
+            Some("PROJ-456"),
+            crate::models::TaskId::from_i64(1),
+            Some(crate::models::TodoIndex::from_i64(5)),
+        )
+        .unwrap();
         assert_eq!(result, "PROJ-456-todo-5");
     }
 
     #[test]
     fn determine_branch_name_with_todo_only() {
-        let result = determine_branch_name(None, None, 2, Some(7)).unwrap();
+        let result = determine_branch_name(
+            None,
+            None,
+            crate::models::TaskId::from_i64(2),
+            Some(crate::models::TodoIndex::from_i64(7)),
+        )
+        .unwrap();
         assert_eq!(result, "task-2-todo-7");
     }
 
     #[test]
     fn determine_branch_name_base_with_ticket() {
-        let result = determine_branch_name(None, Some("PROJ-789"), 3, None).unwrap();
+        let result = determine_branch_name(
+            None,
+            Some("PROJ-789"),
+            crate::models::TaskId::from_i64(3),
+            None,
+        )
+        .unwrap();
         assert_eq!(result, "task/PROJ-789");
     }
 
     #[test]
     fn determine_branch_name_base_without_ticket() {
-        let result = determine_branch_name(None, None, 4, None).unwrap();
+        let result =
+            determine_branch_name(None, None, crate::models::TaskId::from_i64(4), None).unwrap();
         assert!(result.starts_with("task-4-"));
     }
 

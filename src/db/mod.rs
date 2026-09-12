@@ -4,7 +4,7 @@
 //! and application state management. The database stores all task, TODO, link, scrap,
 //! and Git repository information.
 
-use crate::models::{TaskStatus, TodoStatus, VcsMode};
+use crate::models::{TaskId, TaskStatus, TodoStatus, VcsMode};
 use crate::utils::Result;
 use directories::ProjectDirs;
 use rusqlite::{params, Connection, OptionalExtension};
@@ -13,6 +13,7 @@ use std::time::Duration;
 
 pub mod migrate;
 pub mod row_mapping;
+mod sql_types;
 
 /// Revision numbers for each section, used for change detection.
 ///
@@ -289,14 +290,18 @@ impl Database {
     /// # Returns
     ///
     /// `Some(task_id)` if a task is currently active, `None` otherwise.
-    pub fn get_current_task_id(&self) -> Result<Option<i64>> {
+    pub fn get_current_task_id(&self) -> Result<Option<TaskId>> {
         match self.get_app_state("current_task_id")? {
-            Some(id_str) => Ok(Some(id_str.parse().map_err(|_| {
-                crate::utils::TrackError::InvalidAppStateValue {
-                    key: "current_task_id".to_string(),
-                    detail: "expected integer".to_string(),
-                }
-            })?)),
+            Some(id_str) => {
+                let raw: i64 =
+                    id_str
+                        .parse()
+                        .map_err(|_| crate::utils::TrackError::InvalidAppStateValue {
+                            key: "current_task_id".to_string(),
+                            detail: "expected integer".to_string(),
+                        })?;
+                Ok(Some(TaskId::from_i64(raw)))
+            }
             None => Ok(None),
         }
     }
@@ -306,7 +311,7 @@ impl Database {
     /// # Arguments
     ///
     /// * `task_id` - The ID of the task to set as current
-    pub fn set_current_task_id(&self, task_id: i64) -> Result<()> {
+    pub fn set_current_task_id(&self, task_id: TaskId) -> Result<()> {
         self.set_app_state("current_task_id", &task_id.to_string())
     }
 
@@ -360,11 +365,11 @@ impl Database {
 }
 
 impl crate::ports::AppStateStore for Database {
-    fn get_current_task_id(&self) -> Result<Option<i64>> {
+    fn get_current_task_id(&self) -> Result<Option<TaskId>> {
         <Database>::get_current_task_id(self)
     }
 
-    fn set_current_task_id(&self, task_id: i64) -> Result<()> {
+    fn set_current_task_id(&self, task_id: TaskId) -> Result<()> {
         <Database>::set_current_task_id(self, task_id)
     }
 
@@ -510,11 +515,12 @@ mod tests {
         assert!(task_id.is_none());
 
         // Set a task ID
-        db.set_current_task_id(42).unwrap();
+        db.set_current_task_id(crate::models::TaskId::from_i64(42))
+            .unwrap();
 
         // Get the task ID back
         let task_id = db.get_current_task_id().unwrap();
-        assert_eq!(task_id, Some(42));
+        assert_eq!(task_id, Some(crate::models::TaskId::from_i64(42)));
 
         // Clear the task ID
         db.clear_current_task_id().unwrap();

@@ -28,7 +28,7 @@ impl<'a> GetTaskInfoUseCase<'a> {
         Self { db }
     }
 
-    pub fn load(&self, task_id: i64) -> Result<TaskInfoSnapshot> {
+    pub fn load(&self, task_id: crate::models::TaskId) -> Result<TaskInfoSnapshot> {
         let task_service = TaskService::new(self.db);
         let task = task_service.get_task(task_id)?;
 

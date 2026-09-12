@@ -2,7 +2,7 @@
 
 use crate::cli::handlers::CommandCtx;
 use crate::db::Database;
-use crate::models::Task;
+use crate::models::{Task, TaskId};
 use crate::services::TaskService;
 use crate::use_cases::GetTaskInfoUseCase;
 use crate::utils::{Result, TrackError};
@@ -34,7 +34,7 @@ pub struct Mutation {
 }
 
 /// Builds status JSON for `task_id`, or an empty snapshot when the id is missing.
-pub fn status_json(db: &Database, task_id: Option<i64>) -> Result<Value> {
+pub fn status_json(db: &Database, task_id: Option<TaskId>) -> Result<Value> {
     match task_id {
         Some(id) => {
             let info = GetTaskInfoUseCase::new(db);
@@ -57,7 +57,7 @@ pub fn mutation_json(
     db: &Database,
     kind: MutationKind,
     id: Option<i64>,
-    task_id: Option<i64>,
+    task_id: Option<TaskId>,
 ) -> Result<Value> {
     let resolved = match task_id {
         Some(id) => Some(id),
@@ -85,7 +85,7 @@ pub fn emit_mutation(
     json: bool,
     kind: MutationKind,
     id: Option<i64>,
-    task_id: Option<i64>,
+    task_id: Option<TaskId>,
     human: impl FnOnce(),
 ) -> Result<()> {
     if json {
@@ -156,8 +156,13 @@ mod tests {
         task_service.archive_task(task.id).unwrap();
         assert!(db.get_current_task_id().unwrap().is_none());
 
-        let value =
-            mutation_json(&db, MutationKind::Archive, Some(task.id), Some(task.id)).unwrap();
+        let value = mutation_json(
+            &db,
+            MutationKind::Archive,
+            Some(task.id.as_i64()),
+            Some(task.id),
+        )
+        .unwrap();
         assert_eq!(value["mutation"]["kind"], "archive");
         assert_eq!(value["task"]["status"], "archived");
         assert_eq!(value["workflow"]["phase"], "archived");
@@ -173,11 +178,17 @@ mod tests {
         let value = list_json(&db, false).unwrap();
         assert!(value.get("ok").is_none());
         assert!(value.get("mutation").is_none());
-        assert_eq!(value["current_task_id"], second.id);
+        assert_eq!(value["current_task_id"], second.id.as_i64());
         let tasks = value["tasks"].as_array().unwrap();
         assert_eq!(tasks.len(), 2);
-        let one = tasks.iter().find(|row| row["id"] == first.id).unwrap();
-        let two = tasks.iter().find(|row| row["id"] == second.id).unwrap();
+        let one = tasks
+            .iter()
+            .find(|row| row["id"] == first.id.as_i64())
+            .unwrap();
+        let two = tasks
+            .iter()
+            .find(|row| row["id"] == second.id.as_i64())
+            .unwrap();
         assert_eq!(one["is_current"], false);
         assert_eq!(two["is_current"], true);
         assert_eq!(two["name"], "Two");

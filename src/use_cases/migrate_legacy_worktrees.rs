@@ -6,7 +6,7 @@ use crate::utils::Result;
 /// Per-task summary for legacy worktree migration.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LegacyWorktreeTaskReport {
-    pub task_id: i64,
+    pub task_id: crate::models::TaskId,
     pub task_name: String,
     pub jj_slug: String,
     pub flagged_todos: usize,
@@ -37,7 +37,7 @@ impl<'a> MigrateLegacyWorktreesUseCase<'a> {
 
     pub fn execute(
         &self,
-        task_id: Option<i64>,
+        task_id: Option<crate::models::TaskId>,
         dry_run: bool,
         force: bool,
     ) -> Result<MigrateLegacyWorktreesOutcome> {
@@ -108,7 +108,7 @@ impl<'a> MigrateLegacyWorktreesUseCase<'a> {
         })
     }
 
-    pub fn resolve_task_id(&self, task_ref: Option<&str>) -> Result<Option<i64>> {
+    pub fn resolve_task_id(&self, task_ref: Option<&str>) -> Result<Option<crate::models::TaskId>> {
         let task_service = TaskService::new(self.db);
         match task_ref {
             Some(reference) => Ok(Some(task_service.resolve_task_id(reference)?)),

@@ -9,7 +9,7 @@ pub fn handle_alias(ctx: &CommandCtx, command: AliasCommands) -> Result<()> {
     match command {
         AliasCommands::Set { alias, task, force } => {
             let task_id = match task {
-                Some(id) => id,
+                Some(id) => crate::models::TaskId::from_i64(id),
                 None => ctx
                     .db
                     .get_current_task_id()?
@@ -22,7 +22,7 @@ pub fn handle_alias(ctx: &CommandCtx, command: AliasCommands) -> Result<()> {
         }
         AliasCommands::Remove { task } => {
             let task_id = match task {
-                Some(id) => id,
+                Some(id) => crate::models::TaskId::from_i64(id),
                 None => ctx
                     .db
                     .get_current_task_id()?

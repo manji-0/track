@@ -33,7 +33,7 @@ impl<'a> CreateTodayTaskUseCase<'a> {
             .query_row(params![task_name], |row| row.get::<_, i64>(0))
             .optional()?
         {
-            return TaskService::new(self.db).get_task(task_id);
+            return TaskService::new(self.db).get_task(crate::models::TaskId::from_i64(task_id));
         }
 
         self.create_with_inheritance(&task_name)
@@ -63,7 +63,7 @@ impl<'a> CreateTodayTaskUseCase<'a> {
                 ],
             )?;
 
-            let task_id = conn.last_insert_rowid();
+            let task_id = crate::models::TaskId::from_i64(conn.last_insert_rowid());
 
             if let Some(from_task_id) = inherit_from {
                 let todo_service = TodoService::new(self.db);
@@ -79,7 +79,7 @@ impl<'a> CreateTodayTaskUseCase<'a> {
         })
     }
 
-    fn find_today_task_to_inherit_from(&self) -> Result<Option<i64>> {
+    fn find_today_task_to_inherit_from(&self) -> Result<Option<crate::models::TaskId>> {
         let conn = self.db.get_connection();
         let active_query = format!(
             "SELECT id FROM tasks WHERE is_today_task = 1 AND status = '{}' ORDER BY created_at DESC LIMIT 1",

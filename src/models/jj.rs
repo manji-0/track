@@ -96,16 +96,16 @@ pub fn sanitize_jj_slug(input: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::TaskStatus;
+    use crate::models::{Task, TaskId, TaskStatus, TicketId};
     use chrono::Utc;
 
     fn sample_task(id: i64, ticket: Option<&str>, alias: Option<&str>) -> Task {
         Task {
-            id,
+            id: TaskId::from_i64(id),
             name: "Test".to_string(),
             description: None,
             status: TaskStatus::Active,
-            ticket_id: ticket.map(str::to_string),
+            ticket_id: ticket.map(|t| TicketId::from_stored(t.to_string())),
             ticket_url: None,
             alias: alias.map(str::to_string),
             is_today_task: false,

@@ -36,7 +36,7 @@ pub enum RepoSyncOutcome {
 /// A TODO workspace created during sync.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WorkspaceCreated {
-    pub todo_index: i64,
+    pub todo_index: crate::models::TodoIndex,
     pub todo_content: String,
     pub repo_path: String,
     pub workspace_path: String,
@@ -46,7 +46,7 @@ pub struct WorkspaceCreated {
 /// A workspace creation failure during sync (non-fatal).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WorkspaceCreateError {
-    pub todo_index: i64,
+    pub todo_index: crate::models::TodoIndex,
     pub repo_path: String,
     pub detail: String,
 }
@@ -72,7 +72,7 @@ impl<'a> SyncTaskUseCase<'a> {
         Self { db }
     }
 
-    pub fn execute(&self, task_id: i64, legacy: bool) -> Result<SyncTaskOutcome> {
+    pub fn execute(&self, task_id: crate::models::TaskId, legacy: bool) -> Result<SyncTaskOutcome> {
         let vcs_mode = self.db.get_vcs_mode()?;
         let task_service = TaskService::new(self.db);
         let task = task_service.get_task(task_id)?;

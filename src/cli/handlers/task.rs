@@ -52,7 +52,7 @@ pub fn handle_new(
         ctx,
         json,
         MutationKind::TaskNew,
-        Some(task.id),
+        Some(task.id.as_i64()),
         Some(task.id),
         || {
             println!("Created task #{}: {}", task.id, task.name);
@@ -127,7 +127,7 @@ pub fn handle_switch(ctx: &CommandCtx, task_ref: &str, json: bool) -> Result<()>
             ctx,
             json,
             MutationKind::Switch,
-            Some(task.id),
+            Some(task.id.as_i64()),
             Some(task.id),
             || println!("Switched to today's task: {}", task.name),
         );
@@ -140,7 +140,7 @@ pub fn handle_switch(ctx: &CommandCtx, task_ref: &str, json: bool) -> Result<()>
         ctx,
         json,
         MutationKind::Switch,
-        Some(task.id),
+        Some(task.id.as_i64()),
         Some(task.id),
         || println!("Switched to task #{}: {}", task.id, task.name),
     )
@@ -354,7 +354,7 @@ pub fn handle_info(
 
 pub fn handle_desc(ctx: &CommandCtx, description: Option<&str>, task: Option<i64>) -> Result<()> {
     let task_id = match task {
-        Some(id) => id,
+        Some(id) => crate::models::TaskId::from_i64(id),
         None => ctx
             .db
             .get_current_task_id()?
@@ -394,7 +394,7 @@ pub fn handle_ticket(
     task: Option<i64>,
 ) -> Result<()> {
     let task_id = match task {
-        Some(id) => id,
+        Some(id) => crate::models::TaskId::from_i64(id),
         None => ctx
             .db
             .get_current_task_id()?
@@ -439,7 +439,7 @@ pub fn handle_archive(
         ctx,
         json,
         MutationKind::Archive,
-        Some(outcome.task.id),
+        Some(outcome.task.id.as_i64()),
         Some(outcome.task.id),
         || {
             let view = outcome.completion_view();

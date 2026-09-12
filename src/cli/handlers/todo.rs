@@ -2,7 +2,7 @@ use crate::cli::handlers::confirm::confirm_from_tty;
 use crate::cli::handlers::json_out::{emit_mutation, MutationKind};
 use crate::cli::handlers::CommandCtx;
 use crate::cli::TodoCommands;
-use crate::models::{TodoAction, TodoAddOptions};
+use crate::models::{TodoAction, TodoAddOptions, TodoIndex};
 use crate::services::TodoService;
 use crate::use_cases::{
     ApplyTodoActionUseCase, CompleteTodoUseCase, DeleteTodoStep, DeleteTodoUseCase,
@@ -34,7 +34,7 @@ pub fn handle_todo(ctx: &CommandCtx, command: TodoCommands) -> Result<()> {
                 ctx,
                 json,
                 MutationKind::TodoAdd,
-                Some(todo.task_index),
+                Some(todo.task_index.as_i64()),
                 Some(current_task_id),
                 || {
                     println!("Added TODO #{}: {}", todo.task_index, todo.content);
@@ -67,7 +67,8 @@ pub fn handle_todo(ctx: &CommandCtx, command: TodoCommands) -> Result<()> {
         }
         TodoCommands::Update { id, status, json } => {
             let action = TodoAction::from_cli_update_status(status)?;
-            ApplyTodoActionUseCase::new(ctx.db).execute(current_task_id, id, action)?;
+            let index = TodoIndex::from_i64(id);
+            ApplyTodoActionUseCase::new(ctx.db).execute(current_task_id, index, action)?;
             emit_mutation(
                 ctx,
                 json,
@@ -78,7 +79,8 @@ pub fn handle_todo(ctx: &CommandCtx, command: TodoCommands) -> Result<()> {
             )
         }
         TodoCommands::Done { id, json } => {
-            let outcome = CompleteTodoUseCase::new(ctx.db).execute(current_task_id, id)?;
+            let index = TodoIndex::from_i64(id);
+            let outcome = CompleteTodoUseCase::new(ctx.db).execute(current_task_id, index)?;
             emit_mutation(
                 ctx,
                 json,
@@ -101,9 +103,10 @@ pub fn handle_todo(ctx: &CommandCtx, command: TodoCommands) -> Result<()> {
             force,
             all,
         } => {
+            let index = TodoIndex::from_i64(id);
             let outcome = TodoWorkspaceUseCase::new(ctx.db).execute(
                 current_task_id,
-                id,
+                index,
                 TodoWorkspaceRequest {
                     recreate,
                     force,
@@ -132,7 +135,8 @@ pub fn handle_todo(ctx: &CommandCtx, command: TodoCommands) -> Result<()> {
         }
         TodoCommands::Delete { id, force, json } => {
             let use_case = DeleteTodoUseCase::new(ctx.db);
-            let outcome = match use_case.run(current_task_id, id, force)? {
+            let index = TodoIndex::from_i64(id);
+            let outcome = match use_case.run(current_task_id, index, force)? {
                 DeleteTodoStep::Completed(outcome) => outcome,
                 DeleteTodoStep::NeedsConfirmation(prompt) => {
                     let view = prompt.view();
@@ -141,20 +145,21 @@ pub fn handle_todo(ctx: &CommandCtx, command: TodoCommands) -> Result<()> {
                         return Ok(());
                     }
 
-                    use_case.confirm_and_run(current_task_id, id)?
+                    use_case.confirm_and_run(current_task_id, index)?
                 }
             };
             emit_mutation(
                 ctx,
                 json,
                 MutationKind::TodoDelete,
-                Some(outcome.task_index),
+                Some(outcome.task_index.as_i64()),
                 Some(current_task_id),
                 || println!("{}", outcome.completion_view().summary),
             )
         }
         TodoCommands::Next { id, json } => {
-            todo_service.move_to_next(current_task_id, id)?;
+            let index = TodoIndex::from_i64(id);
+            todo_service.move_to_next(current_task_id, index)?;
             emit_mutation(
                 ctx,
                 json,

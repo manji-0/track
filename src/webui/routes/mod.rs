@@ -1,6 +1,6 @@
 //! HTTP route handlers for the WebUI.
 
-use crate::models::{TodoAction, TodoStatus};
+use crate::models::{TodoAction, TodoAddOptions, TodoIndex, TodoStatus};
 use crate::services::{LinkService, RepoService, ScrapService, TaskService, TodoService};
 use crate::use_cases::{ApplyTodoActionUseCase, GetTaskInfoUseCase};
 use crate::utils::TrackError;
@@ -93,7 +93,7 @@ fn render_ticket_mutation_html(
 fn render_todo_list_html(
     templates: &crate::webui::templates::Templates,
     db: &crate::db::Database,
-    task_id: i64,
+    task_id: crate::models::TaskId,
 ) -> Result<String, AppError> {
     let snapshot = GetTaskInfoUseCase::new(db).load(task_id)?;
     let todos = format_todos(&snapshot.todos, &snapshot.worktrees, &snapshot.scraps)?;
@@ -282,7 +282,7 @@ pub async fn add_todo(
     let _todo = todo_service.add_todo(
         current_task_id,
         &form.content,
-        crate::models::TodoAddOptions::from_flags(false, form.no_workspace),
+        TodoAddOptions::from_flags(false, form.no_workspace),
     )?;
 
     // Broadcast SSE event
@@ -304,7 +304,11 @@ pub async fn update_todo_status(
     let status = TodoStatus::from_str(&new_status)
         .map_err(|_| TrackError::InvalidStatus(new_status.clone()))?;
     let action = TodoAction::from_web_route(status)?;
-    ApplyTodoActionUseCase::new(&db).execute(current_task_id, todo_index, action)?;
+    ApplyTodoActionUseCase::new(&db).execute(
+        current_task_id,
+        TodoIndex::from_i64(todo_index),
+        action,
+    )?;
 
     // Broadcast SSE event
     state.app.broadcast(SseEvent::Todos);
@@ -323,7 +327,7 @@ pub async fn delete_todo(
     let current_task_id = db.get_current_task_id()?.ok_or(TrackError::NoActiveTask)?;
 
     let todo_service = TodoService::new(&db);
-    let todo = todo_service.get_todo_by_index(current_task_id, todo_index)?;
+    let todo = todo_service.get_todo_by_index(current_task_id, TodoIndex::from_i64(todo_index))?;
     todo_service.delete_todo(todo.id)?;
 
     // Broadcast SSE event
@@ -343,7 +347,7 @@ pub async fn move_todo_to_next(
     let current_task_id = db.get_current_task_id()?.ok_or(TrackError::NoActiveTask)?;
 
     let todo_service = TodoService::new(&db);
-    todo_service.move_to_next(current_task_id, todo_index)?;
+    todo_service.move_to_next(current_task_id, TodoIndex::from_i64(todo_index))?;
 
     // Broadcast SSE event
     state.app.broadcast(SseEvent::Todos);
