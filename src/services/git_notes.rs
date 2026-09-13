@@ -108,10 +108,14 @@ pub fn read_todo_notes(
 
 /// Commits that have a `refs/notes/track` note.
 pub fn list_noted_commits(repo_or_workspace: &str) -> Result<Vec<String>> {
+    list_noted_commits_on(repo_or_workspace, NOTES_REF)
+}
+
+fn list_noted_commits_on(repo_or_workspace: &str, notes_ref: &str) -> Result<Vec<String>> {
     let Some(mut cmd) = git_notes_command(repo_or_workspace) else {
         return Ok(Vec::new());
     };
-    let output = cmd.args(["notes", "--ref", NOTES_REF, "list"]).output()?;
+    let output = cmd.args(["notes", "--ref", notes_ref, "list"]).output()?;
     if !output.status.success() {
         return Ok(Vec::new());
     }
@@ -126,6 +130,25 @@ pub fn list_noted_commits(repo_or_workspace: &str) -> Result<Vec<String>> {
         .collect())
 }
 
+fn read_notes_on(
+    repo_or_workspace: &str,
+    notes_ref: &str,
+    git_commit: &str,
+) -> Result<Option<String>> {
+    let Some(mut cmd) = git_notes_command(repo_or_workspace) else {
+        return Ok(None);
+    };
+    let output = cmd
+        .args(["notes", "--ref", notes_ref, "show", git_commit])
+        .output()?;
+    if !output.status.success() {
+        return Ok(None);
+    }
+    Ok(Some(
+        String::from_utf8_lossy(&output.stdout).trim().to_string(),
+    ))
+}
+
 pub fn is_ancestor(repo_or_workspace: &str, commit: &str, descendant: &str) -> bool {
     let Some(mut cmd) = git_notes_command(repo_or_workspace) else {
         return false;
@@ -135,7 +158,48 @@ pub fn is_ancestor(repo_or_workspace: &str, commit: &str, descendant: &str) -> b
         .is_ok_and(|o| o.status.success())
 }
 
+pub fn trunk_commit(repo_or_workspace: &str) -> Option<String> {
+    for spec in [
+        "refs/heads/main",
+        "refs/heads/master",
+        "refs/remotes/origin/main",
+        "refs/remotes/origin/master",
+    ] {
+        let mut cmd = git_notes_command(repo_or_workspace)?;
+        let output = cmd
+            .args(["rev-parse", "--verify", "--quiet", spec])
+            .output()
+            .ok()?;
+        if output.status.success() {
+            let sha = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            if !sha.is_empty() {
+                return Some(sha);
+            }
+        }
+    }
+    None
+}
+
+fn oldest_snapshot(
+    repo_or_workspace: &str,
+    mut found: Vec<(String, TaskNotesDto)>,
+) -> Option<(String, TaskNotesDto)> {
+    if found.len() <= 1 {
+        return found.into_iter().next();
+    }
+    found.sort_by(|a, b| {
+        let a_first = is_ancestor(repo_or_workspace, &a.0, &b.0);
+        let b_first = is_ancestor(repo_or_workspace, &b.0, &a.0);
+        b_first.cmp(&a_first)
+    });
+    found.into_iter().next()
+}
+
 /// Snapshot attached to a noted commit that is an ancestor of the task tip.
+///
+/// After merging another task into `main`, this line may contain two markers.
+/// Prefer the marker that is **not** already on trunk — that is this task's
+/// identity. Fall back to the oldest ancestor when importing from main itself.
 pub fn find_snapshot_on_head(repo_or_workspace: &str) -> Result<Option<(String, TaskNotesDto)>> {
     let tip = git_worktree::history_tip(repo_or_workspace)?;
     let mut found = Vec::new();
@@ -150,13 +214,17 @@ pub fn find_snapshot_on_head(repo_or_workspace: &str) -> Result<Option<(String, 
     if found.len() <= 1 {
         return Ok(found.into_iter().next());
     }
-    // Prefer the oldest ancestor (the immutable marker).
-    found.sort_by(|a, b| {
-        let a_first = is_ancestor(repo_or_workspace, &a.0, &b.0);
-        let b_first = is_ancestor(repo_or_workspace, &b.0, &a.0);
-        b_first.cmp(&a_first)
-    });
-    Ok(found.into_iter().next())
+    if let Some(trunk) = trunk_commit(repo_or_workspace) {
+        let unique: Vec<_> = found
+            .iter()
+            .filter(|(sha, _)| sha != &trunk && !is_ancestor(repo_or_workspace, sha, &trunk))
+            .cloned()
+            .collect();
+        if !unique.is_empty() {
+            return Ok(oldest_snapshot(repo_or_workspace, unique));
+        }
+    }
+    Ok(oldest_snapshot(repo_or_workspace, found))
 }
 
 pub fn fetch_notes(repo_or_workspace: &str, remote: &str) -> Result<()> {
@@ -175,6 +243,7 @@ pub fn fetch_notes(repo_or_workspace: &str, remote: &str) -> Result<()> {
 }
 
 pub fn push_notes(repo_or_workspace: &str, remote: &str) -> Result<()> {
+    refuse_rewriting_origin_notes(repo_or_workspace, remote)?;
     let Some(mut cmd) = git_notes_command(repo_or_workspace) else {
         return Err(TrackError::NotGitRepository(repo_or_workspace.to_string()));
     };
@@ -184,6 +253,30 @@ pub fn push_notes(repo_or_workspace: &str, remote: &str) -> Result<()> {
         return Err(TrackError::Git(format!(
             "git push {NOTES_REF} failed: {stderr}"
         )));
+    }
+    Ok(())
+}
+
+const ORIGIN_NOTES_CHECK: &str = "refs/notes/track-origin-check";
+
+fn refuse_rewriting_origin_notes(repo_or_workspace: &str, remote: &str) -> Result<()> {
+    let Some(mut cmd) = git_notes_command(repo_or_workspace) else {
+        return Ok(());
+    };
+    let spec = format!("{NOTES_REF}:{ORIGIN_NOTES_CHECK}");
+    let fetched = cmd.args(["fetch", remote, &spec]).output()?;
+    if !fetched.status.success() {
+        return Ok(());
+    }
+    for sha in list_noted_commits_on(repo_or_workspace, ORIGIN_NOTES_CHECK)? {
+        let remote_body = read_notes_on(repo_or_workspace, ORIGIN_NOTES_CHECK, &sha)?;
+        let local_body = read_notes(repo_or_workspace, &sha)?;
+        if remote_body != local_body {
+            return Err(TrackError::CannotRewriteOriginNotes {
+                remote: remote.to_string(),
+                commit: sha,
+            });
+        }
     }
     Ok(())
 }

@@ -86,6 +86,12 @@ pub fn list_todo_commits(workspace: &str, marker: &str) -> Result<Vec<TodoCommit
             });
         }
     }
+    if let Some(trunk) = git_notes::trunk_commit(workspace)
+        && tip != trunk
+        && !git_notes::is_ancestor(workspace, &tip, &trunk)
+    {
+        commits.retain(|c| c.sha != trunk && !git_notes::is_ancestor(workspace, &c.sha, &trunk));
+    }
     Ok(commits)
 }
 

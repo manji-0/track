@@ -289,6 +289,95 @@ def unique_from_main(ctx: Ctx, tip: str) -> list[str]:
     return [ln.strip() for ln in r.stdout.splitlines() if ln.strip()]
 
 
+def task_todo_indexes(ctx: Ctx) -> list[int]:
+    indexes: list[int] = []
+    for ln in log_oneline(ctx, todo_range(ctx)):
+        body = trailers(ctx, ln.split()[0])
+        for line in body.splitlines():
+            if line.startswith("Task-Todo:"):
+                try:
+                    indexes.append(int(line.split(":", 1)[1].strip()))
+                except ValueError:
+                    pass
+    return indexes
+
+
+def task_todo_shas(ctx: Ctx) -> dict[int, str]:
+    found: dict[int, str] = {}
+    for ln in log_oneline(ctx, todo_range(ctx)):
+        sha = ln.split()[0]
+        body = trailers(ctx, sha)
+        for line in body.splitlines():
+            if line.startswith("Task-Todo:"):
+                try:
+                    found[int(line.split(":", 1)[1].strip())] = sha
+                except ValueError:
+                    pass
+    return found
+
+
+def write_ws(ctx: Ctx, rel: str, text: str) -> None:
+    ws = ctx.worktree
+    assert ws is not None
+    path = ws / rel
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text)
+
+
+def merge_task_to_main(ctx: Ctx, slug: str) -> subprocess.CompletedProcess:
+    git(ctx, ["fetch", "origin"], cwd=ctx.repo, ok=False)
+    branch = f"track/{slug}"
+    if ctx.mode == "git":
+        r = git(
+            ctx,
+            ["merge", "--no-ff", "-m", f"Merge {branch}", branch],
+            cwd=ctx.repo,
+            ok=False,
+        )
+        git(ctx, ["push", "origin", "main"], cwd=ctx.repo, ok=False)
+        return r
+    r = jj(
+        ctx,
+        ["new", "-m", f"Merge {branch}", "main", branch],
+        cwd=ctx.repo,
+        ok=False,
+    )
+    jj(ctx, ["bookmark", "set", "main", "-r", "@"], cwd=ctx.repo, ok=False)
+    jj(ctx, ["git", "push", "--remote", "origin", "--bookmark", "main"], cwd=ctx.repo, ok=False)
+    git(ctx, ["fetch", "origin"], cwd=ctx.repo, ok=False)
+    return r
+
+
+def merge_main_into_task(ctx: Ctx) -> subprocess.CompletedProcess:
+    ws = ctx.worktree
+    assert ws is not None
+    git(ctx, ["fetch", "origin"], cwd=ctx.repo, ok=False)
+    if ctx.mode == "git":
+        return git(ctx, ["merge", "--no-edit", "origin/main"], cwd=ws, ok=False)
+    jj(ctx, ["git", "fetch", "--remote", "origin"], cwd=ws, ok=False)
+    r = jj(ctx, ["new", "-m", "Merge main into task", "@", "main"], cwd=ws, ok=False)
+    jj(ctx, ["bookmark", "set", f"track/{ctx.slug}", "-r", "@"], cwd=ws, ok=False)
+    return r
+
+
+def jj_conflicted(ctx: Ctx) -> bool:
+    if ctx.mode != "jj":
+        return False
+    text = jj(
+        ctx,
+        ["log", "-r", "@", "--no-graph", "-T", "conflict"],
+        ok=False,
+    ).stdout.lower()
+    return "true" in text
+
+
+def bind_status(ctx: Ctx, status: dict) -> None:
+    g = status.get("git") or status.get("jj") or {}
+    ctx.worktree = Path(g["workspace_path"])
+    ctx.slug = g["slug"]
+    ctx.marker = marker_sha(ctx)
+
+
 def init_product(ctx: Ctx) -> None:
     ctx.origin.mkdir(parents=True)
     run(
@@ -1760,6 +1849,445 @@ def family_jj_fold_gap(ctx: Ctx, checks: list[Check]) -> None:
     )
 
 
+def family_many_todos(ctx: Ctx, checks: list[Check]) -> None:
+    status = setup_task(
+        ctx,
+        "Many TODOs",
+        "SIM-MT",
+        [
+            ("One", False),
+            ("Two cancel", False),
+            ("Three", False),
+            ("Four delete", False),
+            ("Five", False),
+        ],
+    )
+    bind_status(ctx, status)
+    write_ws(ctx, "one.txt", "one\n")
+    track(ctx, ["todo", "done", "1"], cwd=ctx.worktree)
+    cancel = track(ctx, ["todo", "update", "2", "cancelled"], cwd=ctx.worktree, ok=False)
+    deleted = track(ctx, ["todo", "delete", "4", "--force"], cwd=ctx.worktree, ok=False)
+    write_ws(ctx, "three.txt", "three\n")
+    track(ctx, ["todo", "done", "3"], cwd=ctx.worktree)
+    write_ws(ctx, "five.txt", "five\n")
+    track(ctx, ["todo", "done", "5"], cwd=ctx.worktree)
+    indexes = task_todo_indexes(ctx)
+    add(
+        checks,
+        cid="MT1",
+        ctx=ctx,
+        family="many-todos",
+        title="Sequential done TODOs are one commit each, same order",
+        expected="[1, 3, 5]",
+        actual=str(indexes),
+        ok=indexes == [1, 3, 5],
+    )
+    add(
+        checks,
+        cid="MT2",
+        ctx=ctx,
+        family="many-todos",
+        title="Cancelled TODO does not get a Task-Todo commit",
+        expected="no Task-Todo: 2; update exit 0",
+        actual=f"rc={cancel.returncode} indexes={indexes}",
+        ok=cancel.returncode == 0 and 2 not in indexes,
+    )
+    add(
+        checks,
+        cid="MT3",
+        ctx=ctx,
+        family="many-todos",
+        title="Deleted pending TODO does not get a Task-Todo commit",
+        expected="no Task-Todo: 4; delete --force exit 0",
+        actual=f"rc={deleted.returncode} indexes={indexes}",
+        ok=deleted.returncode == 0 and 4 not in indexes,
+    )
+
+    extra = setup_task(
+        ctx,
+        "Add after done",
+        "SIM-MT2",
+        [("First", False), ("Second", False)],
+    )
+    bind_status(ctx, extra)
+    write_ws(ctx, "first.txt", "first\n")
+    track(ctx, ["todo", "done", "1"], cwd=ctx.worktree)
+    track_json(ctx, ["todo", "add", "Late addition", "--json"])
+    write_ws(ctx, "late.txt", "late\n")
+    track(ctx, ["todo", "done", "3"], cwd=ctx.worktree)
+    indexes2 = task_todo_indexes(ctx)
+    add(
+        checks,
+        cid="MT4",
+        ctx=ctx,
+        family="many-todos",
+        title="TODO added after earlier dones appends a new Task-Todo index",
+        expected="[1, 3]",
+        actual=str(indexes2),
+        ok=indexes2 == [1, 3],
+    )
+
+    mixed = setup_task(
+        ctx,
+        "Mixed research",
+        "SIM-MT3",
+        [("Code", False), ("Read papers", True), ("More code", False)],
+    )
+    bind_status(ctx, mixed)
+    write_ws(ctx, "code.txt", "code\n")
+    track(ctx, ["todo", "done", "1"], cwd=ctx.worktree)
+    track(ctx, ["todo", "done", "2"], cwd=ctx.worktree)
+    write_ws(ctx, "more.txt", "more\n")
+    track(ctx, ["todo", "done", "3"], cwd=ctx.worktree)
+    mixed_idx = task_todo_indexes(ctx)
+    add(
+        checks,
+        cid="MT5",
+        ctx=ctx,
+        family="many-todos",
+        title="Research TODOs still get a Task-Todo commit when a workspace exists",
+        expected="[1, 2, 3]",
+        actual=str(mixed_idx),
+        ok=mixed_idx == [1, 2, 3],
+    )
+
+    nxt = setup_task(
+        ctx,
+        "Next reorder",
+        "SIM-MT4",
+        [("Alpha", False), ("Bravo", False), ("Charlie", False)],
+    )
+    bind_status(ctx, nxt)
+    track(ctx, ["todo", "next", "3"], cwd=ctx.worktree)
+    write_ws(ctx, "charlie.txt", "charlie first\n")
+    track(ctx, ["todo", "done", "1"], cwd=ctx.worktree)
+    shas = task_todo_shas(ctx)
+    body = trailers(ctx, shas[1]) if 1 in shas else ""
+    add(
+        checks,
+        cid="MT6",
+        ctx=ctx,
+        family="many-todos",
+        title="todo next then done 1 records the moved TODO as Task-Todo: 1",
+        expected="Charlie in Task-Todo: 1 body",
+        actual=body[:200],
+        ok=1 in shas and "Charlie" in body,
+    )
+
+
+def family_notes_ops(ctx: Ctx, checks: list[Check]) -> None:
+    status = setup_task(ctx, "Notes ops", "SIM-N", [("Ship notes", False)])
+    bind_status(ctx, status)
+    ws = ctx.worktree
+    assert ws is not None
+    track(ctx, ["desc", "first draft"], cwd=ws)
+    marker_v1 = notes_show(ctx, ctx.marker) or ""
+    write_ws(ctx, "n.txt", "notes work\n")
+    track(ctx, ["scrap", "add", "--share", "secret sauce"], cwd=ws)
+    track(ctx, ["todo", "done", "1"], cwd=ws)
+    shas = task_todo_shas(ctx)
+    todo_sha = shas.get(1, "")
+    before_unshare = notes_show(ctx, todo_sha) or ""
+    unshare = track(ctx, ["scrap", "unshare", "1"], cwd=ws, ok=False)
+    after_unshare = notes_show(ctx, todo_sha) or ""
+    add(
+        checks,
+        cid="N5",
+        ctx=ctx,
+        family="notes-ops",
+        title="Unshare on an unpublished TODO commit removes the scrap from notes",
+        expected="secret sauce gone after unshare",
+        actual=f"rc={unshare.returncode} before={('secret sauce' in before_unshare)} after={('secret sauce' in after_unshare)}",
+        ok=unshare.returncode == 0
+        and "secret sauce" in before_unshare
+        and "secret sauce" not in after_unshare,
+    )
+    track(ctx, ["desc", "second draft"], cwd=ws)
+    marker_v2 = notes_show(ctx, ctx.marker) or ""
+    push_task_branch(ctx)
+    notes_push = track(ctx, ["notes", "push"], cwd=ws, ok=False)
+    track(ctx, ["desc", "third draft"], cwd=ws)
+    marker_v3 = notes_show(ctx, ctx.marker) or ""
+    add(
+        checks,
+        cid="N4",
+        ctx=ctx,
+        family="notes-ops",
+        title="Marker notes update while unpublished; freeze after origin",
+        expected="v2 on marker after push; v3 does not rewrite",
+        actual=f"v1={('first draft' in marker_v1)} v2={('second draft' in marker_v2)} v3={('third draft' in marker_v3)}",
+        ok="first draft" in marker_v1
+        and "second draft" in marker_v2
+        and "second draft" in marker_v3
+        and "third draft" not in marker_v3
+        and notes_push.returncode == 0,
+    )
+
+    clone = ROOT / f"{ctx.mode}-notes-clone"
+    if clone.exists():
+        shutil.rmtree(clone)
+    imp_home = ctx.home.parent / f"{ctx.mode}-notes-home"
+    if imp_home.exists():
+        shutil.rmtree(imp_home)
+    imp_home.mkdir(parents=True)
+    write_gitconfig(imp_home)
+    imp_env = make_env(imp_home)
+    run(["git", "clone", str(ctx.origin), str(clone)], cwd=ROOT, env=imp_env)
+    run(
+        ["git", "checkout", f"track/{ctx.slug}"],
+        cwd=clone,
+        env=imp_env,
+        check=False,
+    )
+    before_fetch = run(
+        ["git", "notes", "--ref", "refs/notes/track", "show", todo_sha],
+        cwd=clone,
+        env=imp_env,
+        check=False,
+    )
+    fetched = run(
+        [str(TRACK), "notes", "fetch"],
+        cwd=clone,
+        env=imp_env,
+        check=False,
+    )
+    after_fetch = run(
+        ["git", "notes", "--ref", "refs/notes/track", "show", ctx.marker or "HEAD"],
+        cwd=clone,
+        env=imp_env,
+        check=False,
+    )
+    add(
+        checks,
+        cid="N1",
+        ctx=ctx,
+        family="notes-ops",
+        title="notes fetch on a clone restores refs/notes/track",
+        expected="fetch exit 0; marker notes present; were missing before",
+        actual=f"before_rc={before_fetch.returncode} fetch_rc={fetched.returncode} after={after_fetch.stdout[:80]!r}",
+        ok=before_fetch.returncode != 0
+        and fetched.returncode == 0
+        and after_fetch.returncode == 0
+        and "second draft" in after_fetch.stdout,
+    )
+
+    hijack = run(
+        [
+            "git",
+            "notes",
+            "--ref",
+            "refs/notes/track",
+            "add",
+            "-f",
+            "-m",
+            "hijacked notes",
+            ctx.marker or "HEAD",
+        ],
+        cwd=clone,
+        env=imp_env,
+        check=False,
+    )
+    push_div = run(
+        [str(TRACK), "notes", "push"],
+        cwd=clone,
+        env=imp_env,
+        check=False,
+    )
+    add(
+        checks,
+        cid="N2",
+        ctx=ctx,
+        family="notes-ops",
+        title="Diverged notes push is rejected (no force)",
+        expected="nonzero push",
+        actual=f"hijack_rc={hijack.returncode} push_rc={push_div.returncode} {push_div.stderr[-180:]}",
+        ok=hijack.returncode == 0 and push_div.returncode != 0,
+    )
+    fetch_div = run(
+        [str(TRACK), "notes", "fetch"],
+        cwd=clone,
+        env=imp_env,
+        check=False,
+    )
+    still = run(
+        ["git", "notes", "--ref", "refs/notes/track", "show", ctx.marker or "HEAD"],
+        cwd=clone,
+        env=imp_env,
+        check=False,
+    )
+    add(
+        checks,
+        cid="N3",
+        ctx=ctx,
+        family="notes-ops",
+        title="notes fetch does not replace diverged local notes with origin",
+        expected="local hijack remains",
+        actual=f"fetch_rc={fetch_div.returncode} notes={still.stdout[:80]!r}",
+        ok="hijacked notes" in still.stdout,
+    )
+
+
+def family_merge_two_tasks(ctx: Ctx, checks: list[Check]) -> None:
+    a = setup_task(ctx, "Merge Alpha", "SIM-MA", [("Do A", False)])
+    bind_status(ctx, a)
+    ws_a = ctx.worktree
+    slug_a = ctx.slug
+    marker_a = ctx.marker
+    write_ws(ctx, "a.txt", "alpha\n")
+    track(ctx, ["scrap", "add", "--share", "A decision"], cwd=ws_a)
+    track(ctx, ["todo", "done", "1"], cwd=ws_a)
+    sha_a = task_todo_shas(ctx).get(1, "")
+    notes_a = notes_show(ctx, sha_a) or ""
+    push_task_branch(ctx)
+    track(ctx, ["notes", "push"], cwd=ws_a, ok=False)
+
+    b = setup_task(ctx, "Merge Beta", "SIM-MB", [("Do B", False)])
+    bind_status(ctx, b)
+    ws_b = ctx.worktree
+    slug_b = ctx.slug
+    write_ws(ctx, "b.txt", "beta\n")
+    track(ctx, ["scrap", "add", "--share", "B decision"], cwd=ws_b)
+    track(ctx, ["todo", "done", "1"], cwd=ws_b)
+    sha_b = task_todo_shas(ctx).get(1, "")
+    notes_b = notes_show(ctx, sha_b) or ""
+    push_task_branch(ctx)
+    track(ctx, ["notes", "push"], cwd=ws_b, ok=False)
+
+    merged = merge_task_to_main(ctx, slug_a)
+    notes_a_after = notes_show(ctx, sha_a) or ""
+    add(
+        checks,
+        cid="MG1",
+        ctx=ctx,
+        family="merge-tasks",
+        title="Merging task A into main keeps A's TODO SHA and notes",
+        expected="merge ok; A notes still on A SHA",
+        actual=f"merge_rc={merged.returncode} sha={sha_a[:12]} notes={('A decision' in notes_a_after)}",
+        ok=merged.returncode == 0
+        and bool(sha_a)
+        and "A decision" in notes_a
+        and notes_a_after == notes_a,
+    )
+
+    ctx.worktree = ws_b
+    ctx.slug = slug_b
+    into_b = merge_main_into_task(ctx)
+    sha_b_after = sha_b if git(ctx, ["cat-file", "-t", sha_b], cwd=ctx.repo, ok=False).stdout.strip() == "commit" else ""
+    add(
+        checks,
+        cid="MG2",
+        ctx=ctx,
+        family="merge-tasks",
+        title="Merging main into B does not rewrite B's unpublished-at-birth unique TODO SHA",
+        expected="B TODO SHA still a commit; merge clean or conflict-free",
+        actual=f"merge_rc={into_b.returncode} still={sha_b_after[:12]} err={into_b.stderr[-120:]}",
+        ok=into_b.returncode == 0 and sha_b_after == sha_b,
+    )
+    notes_b_after = notes_show(ctx, sha_b) or ""
+    add(
+        checks,
+        cid="MG3",
+        ctx=ctx,
+        family="merge-tasks",
+        title="After merging main, A and B notes stay on their own SHAs",
+        expected="A decision on A; B decision on B",
+        actual=f"A={('A decision' in (notes_show(ctx, sha_a) or ''))} B={('B decision' in notes_b_after)}",
+        ok="A decision" in (notes_show(ctx, sha_a) or "")
+        and "B decision" in notes_b_after
+        and notes_b_after == notes_b,
+    )
+
+    imp_home = ctx.home.parent / f"{ctx.mode}-merge-importer"
+    if imp_home.exists():
+        shutil.rmtree(imp_home)
+    imp_home.mkdir(parents=True)
+    write_gitconfig(imp_home)
+    imp_env = make_env(imp_home)
+    imp = run(
+        [str(TRACK), "notes", "fetch"],
+        cwd=ws_b,
+        env=imp_env,
+        check=False,
+    )
+    imported = run(
+        [str(TRACK), "import", "--json"],
+        cwd=ws_b,
+        env=imp_env,
+        check=False,
+    )
+    names: list[str] = []
+    todos: list[str] = []
+    if imported.returncode == 0:
+        try:
+            data = json.loads(imported.stdout)
+        except json.JSONDecodeError:
+            data = {}
+        task = data.get("task") or {}
+        names = [str(task.get("name") or data.get("name") or "")]
+        todos = [
+            str(t.get("content") or t.get("text") or "")
+            for t in (data.get("todos") or data.get("todos_agent") or [])
+        ]
+    add(
+        checks,
+        cid="MG4",
+        ctx=ctx,
+        family="merge-tasks",
+        title="import on B after merging main restores B, not merged sibling A",
+        expected="Merge Beta / Do B; not Do A",
+        actual=f"fetch_rc={imp.returncode} import_rc={imported.returncode} names={names} todos={todos} {imported.stderr[-120:]}",
+        ok=imported.returncode == 0
+        and any("Beta" in n for n in names)
+        and any("Do B" in t for t in todos)
+        and not any("Do A" in t for t in todos),
+    )
+    _ = marker_a
+
+    c = setup_task(ctx, "Conflict Charlie", "SIM-MC", [("Do C", False)])
+    bind_status(ctx, c)
+    slug_c = ctx.slug
+    write_ws(ctx, "conflict.txt", "from C\n")
+    track(ctx, ["todo", "done", "1"], cwd=ctx.worktree)
+    push_task_branch(ctx)
+
+    d = setup_task(ctx, "Conflict Delta", "SIM-MD", [("Do D", False)])
+    bind_status(ctx, d)
+    sha_d = ""
+    write_ws(ctx, "conflict.txt", "from D\n")
+    track(ctx, ["todo", "done", "1"], cwd=ctx.worktree)
+    sha_d = task_todo_shas(ctx).get(1, "")
+    notes_d = notes_show(ctx, sha_d) or ""
+    push_task_branch(ctx)
+    merge_task_to_main(ctx, slug_c)
+    conflicted = merge_main_into_task(ctx)
+    is_conflict = conflicted.returncode != 0 or jj_conflicted(ctx)
+    add(
+        checks,
+        cid="MG5",
+        ctx=ctx,
+        family="merge-tasks",
+        title="Same-file edits from two tasks conflict when merging main into D",
+        expected="merge conflict",
+        actual=f"rc={conflicted.returncode} jj_conflict={jj_conflicted(ctx)} {conflicted.stderr[-150:]}",
+        ok=is_conflict,
+    )
+    still_d = (
+        git(ctx, ["cat-file", "-t", sha_d], cwd=ctx.repo, ok=False).stdout.strip() == "commit"
+        if sha_d
+        else False
+    )
+    add(
+        checks,
+        cid="MG6",
+        ctx=ctx,
+        family="merge-tasks",
+        title="Conflict does not drop D's TODO commit or its notes",
+        expected="D SHA exists; notes readable",
+        actual=f"sha={sha_d[:12]} still={still_d} notes={('Do D' in notes_d) or bool(notes_show(ctx, sha_d))}",
+        ok=still_d and (notes_show(ctx, sha_d) is not None or bool(notes_d)),
+    )
+
+
 def family_root_mistake(ctx: Ctx, checks: list[Check]) -> None:
     """Working in repo root instead of the worktree — a common agent mistake."""
     # Use current happy-path task? might not be current. Switch to SIM-1 if exists.
@@ -1830,6 +2358,9 @@ def run_mode(mode: str) -> list[Check]:
         family_two_repo_task(ctx, checks)
         family_vcs_switch(ctx, checks)
         family_jj_fold_gap(ctx, checks)
+        family_many_todos(ctx, checks)
+        family_notes_ops(ctx, checks)
+        family_merge_two_tasks(ctx, checks)
         family_archive_pr_head(ctx, checks)
     except Exception as e:
         checks.append(

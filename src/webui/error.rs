@@ -48,6 +48,7 @@ impl WebError {
             | TrackError::NoTaskNotes
             | TrackError::TaskNotesParse(_)
             | TrackError::CannotRewritePublishedHistory { .. }
+            | TrackError::CannotRewriteOriginNotes { .. }
             | TrackError::HistoryDiverged { .. }
             | TrackError::InvalidVcsMode(_)
             | TrackError::WorkspaceVcsMismatch { .. }

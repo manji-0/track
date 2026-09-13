@@ -54,6 +54,9 @@ pub enum TrackError {
     )]
     CannotRewritePublishedHistory { branch: String },
 
+    #[error("Refusing to push notes: would rewrite notes already on {remote} for {commit}")]
+    CannotRewriteOriginNotes { remote: String, commit: String },
+
     #[error("Task branch {branch} has diverged from the published tip")]
     HistoryDiverged { branch: String },
 

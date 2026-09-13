@@ -750,3 +750,96 @@ fn follow_up_does_not_fold_published_wip() {
         published_wip
     );
 }
+
+#[test]
+fn import_after_merging_sibling_restores_this_task() {
+    if !git_available() {
+        return;
+    }
+    let tmp = TempDir::new().unwrap();
+    let repo = tmp.path().join("repo");
+    init_git_repo(&repo);
+    let repo_str = repo.to_str().unwrap();
+
+    let db = Database::new_in_memory().unwrap();
+    db.set_vcs_mode(VcsMode::Git).unwrap();
+    db.set_aggressive_mode(AggressiveMode::On).unwrap();
+
+    let task_a = TaskService::new(&db)
+        .create_task("Alpha", None, Some("MA-1"), None)
+        .unwrap();
+    TodoService::new(&db)
+        .add_todo(task_a.id, "Do A", false)
+        .unwrap();
+    RepoService::new(&db)
+        .add_repo(task_a.id, repo_str, Some("main".into()), None)
+        .unwrap();
+    SyncTaskUseCase::new(&db).execute(task_a.id, false).unwrap();
+    let path_a = git_worktree::git_worktree_path(repo_str, "ma-1");
+    std::fs::write(std::path::Path::new(&path_a).join("a.txt"), "alpha\n").unwrap();
+    ScrapService::new(&db)
+        .add_scrap_with(
+            task_a.id,
+            "A decision",
+            track::models::ScrapVisibility::Shared,
+        )
+        .unwrap();
+    track::use_cases::CompleteTodoUseCase::new(&db)
+        .execute(task_a.id, track::models::TodoIndex::from_i64(1))
+        .unwrap();
+    track::use_cases::ProjectTaskNotesUseCase::new(&db)
+        .execute(task_a.id)
+        .unwrap();
+
+    let task_b = TaskService::new(&db)
+        .create_task("Beta", None, Some("MB-1"), None)
+        .unwrap();
+    TodoService::new(&db)
+        .add_todo(task_b.id, "Do B", false)
+        .unwrap();
+    RepoService::new(&db)
+        .add_repo(task_b.id, repo_str, Some("main".into()), None)
+        .unwrap();
+    SyncTaskUseCase::new(&db).execute(task_b.id, false).unwrap();
+    let path_b = git_worktree::git_worktree_path(repo_str, "mb-1");
+    std::fs::write(std::path::Path::new(&path_b).join("b.txt"), "beta\n").unwrap();
+    ScrapService::new(&db)
+        .add_scrap_with(
+            task_b.id,
+            "B decision",
+            track::models::ScrapVisibility::Shared,
+        )
+        .unwrap();
+    track::use_cases::CompleteTodoUseCase::new(&db)
+        .execute(task_b.id, track::models::TodoIndex::from_i64(1))
+        .unwrap();
+    track::use_cases::ProjectTaskNotesUseCase::new(&db)
+        .execute(task_b.id)
+        .unwrap();
+
+    git_in(&repo, &["merge", "--no-ff", "-m", "Merge A", "track/ma-1"]);
+    git_in(
+        std::path::Path::new(&path_b),
+        &["merge", "--no-edit", "main"],
+    );
+
+    let importer = Database::new_in_memory().unwrap();
+    let outcome = track::use_cases::ImportTaskNotesUseCase::new(&importer)
+        .execute(std::path::Path::new(&path_b))
+        .unwrap();
+    assert_eq!(
+        outcome.task.name, "Beta",
+        "import must not restore merged sibling Alpha"
+    );
+    let todos = TodoService::new(&importer)
+        .list_todos(outcome.task.id)
+        .unwrap();
+    assert!(
+        todos.iter().any(|t| t.content.contains("Do B")),
+        "B TODO missing: {todos:?}"
+    );
+    assert!(
+        !todos.iter().any(|t| t.content.contains("Do A")),
+        "A TODO leaked into B import: {todos:?}"
+    );
+}
