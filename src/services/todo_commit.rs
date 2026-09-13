@@ -1,4 +1,4 @@
-//! Fold unpublished WIP into one git commit per completed TODO.
+//! Fold unpublished WIP into one git/jj commit per completed TODO.
 
 use crate::services::git_notes;
 use crate::services::git_worktree;
@@ -19,15 +19,32 @@ pub fn remote_tracking_ref(branch: &str) -> String {
 
 pub fn published_tip(workspace: &str, branch: &str) -> Option<String> {
     let spec = remote_tracking_ref(branch);
-    let output = Command::new("git")
-        .args(["-C", workspace, "rev-parse", "--verify", "--quiet", &spec])
-        .output()
-        .ok()?;
-    if !output.status.success() {
-        return None;
+    if let Some(mut cmd) = git_worktree::git_store_command(workspace) {
+        let output = cmd
+            .args(["rev-parse", "--verify", "--quiet", &spec])
+            .output()
+            .ok();
+        if let Some(output) = output
+            && output.status.success()
+        {
+            let sha = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            if !sha.is_empty() {
+                return Some(sha);
+            }
+        }
     }
-    let sha = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    if sha.is_empty() { None } else { Some(sha) }
+    // `jj git push` updates `track/<slug>@origin` even when git remote-tracking
+    // refs are missing from a workspace that has no local `.git`.
+    // Do not use `{branch}@git`: that is the local colocated export, not origin.
+    if std::path::Path::new(workspace).join(".jj").exists() {
+        let remote = format!("{branch}@origin");
+        if let Ok(sha) = jj_ws::commit_id(workspace, &remote)
+            && !sha.is_empty()
+        {
+            return Some(sha);
+        }
+    }
+    None
 }
 
 pub fn is_published(workspace: &str, commit: &str, branch: &str) -> bool {
@@ -39,16 +56,13 @@ pub fn list_todo_commits(workspace: &str, marker: &str) -> Result<Vec<TodoCommit
     if !git_worktree::is_git_repository(workspace) && git_worktree::git_dir(workspace).is_none() {
         return Ok(Vec::new());
     }
-    let range = format!("{marker}..HEAD");
-    let output = Command::new("git")
-        .args([
-            "-C",
-            workspace,
-            "log",
-            "--reverse",
-            "--format=%H%x1f%B%x1e",
-            &range,
-        ])
+    let tip = git_worktree::history_tip(workspace)?;
+    let range = format!("{marker}..{tip}");
+    let Some(mut cmd) = git_worktree::git_store_command(workspace) else {
+        return Ok(Vec::new());
+    };
+    let output = cmd
+        .args(["log", "--reverse", "--format=%H%x1f%B%x1e", &range])
         .output()?;
     if !output.status.success() {
         return Ok(Vec::new());
@@ -83,6 +97,28 @@ fn fold_base<'a>(marker: &'a str, last_todo: Option<&'a TodoCommit>) -> &'a str 
     last_todo.map(|c| c.sha.as_str()).unwrap_or(marker)
 }
 
+fn refuse_published_range(workspace: &str, branch: &str, base: &str, tip: &str) -> Result<()> {
+    if let Some(published) = published_tip(workspace, branch)
+        && !git_notes::is_ancestor(workspace, &published, tip)
+        && published != tip
+    {
+        return Err(TrackError::HistoryDiverged {
+            branch: branch.to_string(),
+        });
+    }
+    if tip == base {
+        return Ok(());
+    }
+    for sha in rev_list_store(workspace, &format!("{base}..{tip}"))? {
+        if is_published(workspace, &sha, branch) {
+            return Err(TrackError::CannotRewritePublishedHistory {
+                branch: branch.to_string(),
+            });
+        }
+    }
+    Ok(())
+}
+
 /// Create (or fold unpublished WIP into) one commit for `todo_index`.
 pub fn commit_todo_git(
     workspace: &str,
@@ -93,26 +129,11 @@ pub fn commit_todo_git(
     slug: &str,
 ) -> Result<String> {
     let head = git_worktree::current_commit(workspace)?;
-    if let Some(published) = published_tip(workspace, branch)
-        && !git_notes::is_ancestor(workspace, &published, &head)
-        && published != head
-    {
-        return Err(TrackError::HistoryDiverged {
-            branch: branch.to_string(),
-        });
-    }
-
     let last = last_todo_commit(workspace, marker)?;
     let base = fold_base(marker, last.as_ref()).to_string();
+    refuse_published_range(workspace, branch, &base, &head)?;
 
     if head != base {
-        for sha in rev_list(workspace, &format!("{base}..HEAD"))? {
-            if is_published(workspace, &sha, branch) {
-                return Err(TrackError::CannotRewritePublishedHistory {
-                    branch: branch.to_string(),
-                });
-            }
-        }
         git_run(workspace, &["reset", "--soft", &base], "git reset --soft")?;
     }
 
@@ -126,10 +147,11 @@ pub fn commit_todo_git(
     git_worktree::current_commit(workspace)
 }
 
-fn rev_list(workspace: &str, range: &str) -> Result<Vec<String>> {
-    let output = Command::new("git")
-        .args(["-C", workspace, "rev-list", range])
-        .output()?;
+fn rev_list_store(workspace: &str, range: &str) -> Result<Vec<String>> {
+    let Some(mut cmd) = git_worktree::git_store_command(workspace) else {
+        return Ok(Vec::new());
+    };
+    let output = cmd.args(["rev-list", range]).output()?;
     if !output.status.success() {
         return Ok(Vec::new());
     }
@@ -153,21 +175,38 @@ fn git_run(workspace: &str, args: &[&str], label: &str) -> Result<()> {
     Ok(())
 }
 
-/// JJ: describe the working copy as this TODO, bookmark the result, then `jj new`.
+/// Fold unpublished changes after `base` into one described TODO, then `jj new`.
 pub fn commit_todo_jj(
     workspace: &str,
     branch: &str,
+    marker: &str,
     todo_index: i64,
     content: &str,
     slug: &str,
 ) -> Result<String> {
+    let tip = git_worktree::history_tip(workspace)?;
+    let last = last_todo_commit(workspace, marker)?;
+    let base = fold_base(marker, last.as_ref()).to_string();
+    refuse_published_range(workspace, branch, &base, &tip)?;
+
     let message = todo_commit_message(todo_index, content, slug);
-    jj_ws::describe_current(workspace, &message)?;
+    if tip != base {
+        jj_ws::new_change_on(workspace, &base, &message)?;
+        jj_ws::restore_from(workspace, &tip)?;
+        let range = format!("{base}..{tip}");
+        jj_ws::abandon(workspace, &range)?;
+    } else {
+        jj_ws::new_change_on(workspace, &base, &message)?;
+    }
     let sha = jj_ws::current_commit_id(workspace)?;
     jj_ws::set_bookmark(workspace, branch, "@")?;
-    jj_ws::new_empty_change(workspace)?;
+    jj_ws::new_change_with_message(workspace, &wip_message(slug))?;
     jj_ws::set_bookmark(workspace, branch, "@-")?;
     Ok(sha)
+}
+
+fn wip_message(slug: &str) -> String {
+    format!("[track:{slug}] wip")
 }
 
 pub fn commit_todo(
@@ -182,6 +221,6 @@ pub fn commit_todo(
     if vcs_git {
         commit_todo_git(workspace, branch, marker, todo_index, content, slug)
     } else {
-        commit_todo_jj(workspace, branch, todo_index, content, slug)
+        commit_todo_jj(workspace, branch, marker, todo_index, content, slug)
     }
 }

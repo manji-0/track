@@ -9,15 +9,7 @@ use std::process::{Command, Stdio};
 pub const NOTES_REF: &str = "refs/notes/track";
 
 fn git_notes_command(repo_or_workspace: &str) -> Option<Command> {
-    if crate::services::git_worktree::is_git_repository(repo_or_workspace) {
-        let mut cmd = Command::new("git");
-        cmd.args(["-C", repo_or_workspace]);
-        return Some(cmd);
-    }
-    let git_dir = git_worktree::git_dir(repo_or_workspace)?;
-    let mut cmd = Command::new("git");
-    cmd.arg("--git-dir").arg(git_dir);
-    Some(cmd)
+    git_worktree::git_store_command(repo_or_workspace)
 }
 
 /// Rewrite git notes for the task revision. No-op when git is unavailable.
@@ -143,11 +135,12 @@ pub fn is_ancestor(repo_or_workspace: &str, commit: &str, descendant: &str) -> b
         .is_ok_and(|o| o.status.success())
 }
 
-/// Snapshot attached to a noted commit that is an ancestor of `HEAD` (the marker).
+/// Snapshot attached to a noted commit that is an ancestor of the task tip.
 pub fn find_snapshot_on_head(repo_or_workspace: &str) -> Result<Option<(String, TaskNotesDto)>> {
+    let tip = git_worktree::history_tip(repo_or_workspace)?;
     let mut found = Vec::new();
     for commit in list_noted_commits(repo_or_workspace)? {
-        if !is_ancestor(repo_or_workspace, &commit, "HEAD") {
+        if !is_ancestor(repo_or_workspace, &commit, &tip) {
             continue;
         }
         if let Some(snapshot) = read_snapshot(repo_or_workspace, &commit)? {

@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Isolated mock-repo scenario harness at `scripts/track-sim.py` (git + jj; throwaway HOME under `/tmp/track-sim`)
+- `track archive --force` still **deletes** workspace directories (`--force` only skips dirty checks, it does not keep files)
 - `track config set vcs-mode git|jj` — git is the default on new databases; track owns `.worktrees/<slug>` on `track/<slug>` in both modes (git worktree or colocated jj workspace)
 - `track config set aggressive-mode on|off` — per-task empty marker revision and a published task snapshot as git notes (`refs/notes/track`)
 - Command hints: stderr footer (`hint:` / `next:`) after human output; `hint` on `--json` snapshots (`TRACK_HINTS=0` to hide)
@@ -17,7 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `track sync` / `track repo add` create the task workspace in **jj** mode as well as git; agents follow `hint` / `workflow.next_action` instead of `jj-task`
 - Existing databases that already had tasks and never set `vcs-mode` stay on **jj** so current jj users are not flipped
 - Track no longer reads `~/.config/jj/task-workspaces.json`
-- Aggressive marker SHA is insert-once; `track sync` backfills a marker when aggressive is turned on after the workspace exists
+- Aggressive marker SHA is insert-once; `track sync` backfills a marker **under** unpublished work (rebase onto an empty parent). Published unique commits are not rewritten. JJ published tip reads `track/<slug>@origin` when git remote-tracking refs are missing — not `{bookmark}@git`, which is the local colocated export.
+- JJ: `todo done` folds unpublished `jj new` experiments into one TODO commit (parity with git `reset --soft`); git helpers use `jj git root` so they do not mistake repo `main` for the task tip; marker birth/backfill leaves no undescribed ancestors on `track/<slug>` so `jj git push` is not rejected; backfill inserts the marker under this workspace's line only
 - `.worktrees/` is ignored via `.git/info/exclude` so the first sync does not dirty `.gitignore`
 - Switching `vcs-mode` against an existing workspace of the other backend is an error
 

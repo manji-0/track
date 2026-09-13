@@ -279,6 +279,186 @@ fn aggressive_backfill_and_marker_is_immutable() {
 }
 
 #[test]
+fn aggressive_backfill_inserts_marker_under_unpublished_work() {
+    if !git_available() {
+        return;
+    }
+    let tmp = TempDir::new().unwrap();
+    let repo = tmp.path().join("repo");
+    init_git_repo(&repo);
+    let repo_str = repo.to_str().unwrap();
+
+    let db = Database::new_in_memory().unwrap();
+    db.set_vcs_mode(VcsMode::Git).unwrap();
+    db.set_aggressive_mode(AggressiveMode::Off).unwrap();
+
+    let task = TaskService::new(&db)
+        .create_task("Late work", None, Some("LW-1"), None)
+        .unwrap();
+    TodoService::new(&db)
+        .add_todo(task.id, "Implement", false)
+        .unwrap();
+    RepoService::new(&db)
+        .add_repo(task.id, repo_str, Some("main".into()), None)
+        .unwrap();
+    SyncTaskUseCase::new(&db).execute(task.id, false).unwrap();
+
+    let path = git_worktree::git_worktree_path(repo_str, "lw-1");
+    std::fs::write(std::path::Path::new(&path).join("work.txt"), "w\n").unwrap();
+    git_in(std::path::Path::new(&path), &["add", "work.txt"]);
+    git_in(std::path::Path::new(&path), &["commit", "-m", "real work"]);
+    let work = git_worktree::current_commit(&path).unwrap();
+
+    db.set_aggressive_mode(AggressiveMode::On).unwrap();
+    SyncTaskUseCase::new(&db).execute(task.id, false).unwrap();
+    let marker = TaskRevisionService::new(&db)
+        .get(task.id, repo_str)
+        .unwrap()
+        .expect("backfilled marker");
+
+    let head = git_worktree::current_commit(&path).unwrap();
+    assert_ne!(
+        marker.git_commit, work,
+        "inserting a parent rewrites work SHA"
+    );
+    assert_ne!(head, marker.git_commit);
+    assert!(
+        git_notes::is_ancestor(&path, &marker.git_commit, &head),
+        "marker must sit under the existing work, not on top"
+    );
+    assert!(std::path::Path::new(&path).join("work.txt").exists());
+}
+
+#[test]
+fn aggressive_backfill_does_not_rewrite_published_unique_commits() {
+    if !git_available() {
+        return;
+    }
+    let tmp = TempDir::new().unwrap();
+    let repo = tmp.path().join("repo");
+    let origin = tmp.path().join("origin.git");
+    init_git_repo(&repo);
+    let origin_init = Command::new("git")
+        .args(["init", "--bare", "-b", "main"])
+        .arg(&origin)
+        .output()
+        .unwrap();
+    assert!(
+        origin_init.status.success(),
+        "git init --bare failed: {}",
+        String::from_utf8_lossy(&origin_init.stderr)
+    );
+    let repo_str = repo.to_str().unwrap();
+    git_in(
+        &repo,
+        &["remote", "add", "origin", origin.to_str().unwrap()],
+    );
+    git_in(&repo, &["push", "-u", "origin", "main"]);
+
+    let db = Database::new_in_memory().unwrap();
+    db.set_vcs_mode(VcsMode::Git).unwrap();
+    db.set_aggressive_mode(AggressiveMode::Off).unwrap();
+    let task = TaskService::new(&db)
+        .create_task("Published late", None, Some("PB-1"), None)
+        .unwrap();
+    TodoService::new(&db)
+        .add_todo(task.id, "Implement", false)
+        .unwrap();
+    RepoService::new(&db)
+        .add_repo(task.id, repo_str, Some("main".into()), None)
+        .unwrap();
+    SyncTaskUseCase::new(&db).execute(task.id, false).unwrap();
+
+    let path = git_worktree::git_worktree_path(repo_str, "pb-1");
+    std::fs::write(std::path::Path::new(&path).join("work.txt"), "w\n").unwrap();
+    git_in(std::path::Path::new(&path), &["add", "work.txt"]);
+    git_in(std::path::Path::new(&path), &["commit", "-m", "real work"]);
+    git_in(
+        std::path::Path::new(&path),
+        &["commit", "--allow-empty", "-m", "second unique"],
+    );
+    let unique = git_worktree::rev_list(&path, "main..HEAD").unwrap();
+    git_in(
+        std::path::Path::new(&path),
+        &["push", "-u", "origin", "track/pb-1"],
+    );
+
+    db.set_aggressive_mode(AggressiveMode::On).unwrap();
+    SyncTaskUseCase::new(&db).execute(task.id, false).unwrap();
+    let marker = TaskRevisionService::new(&db)
+        .get(task.id, repo_str)
+        .unwrap()
+        .expect("marker");
+    for sha in &unique {
+        git_in(std::path::Path::new(&path), &["rev-parse", "--verify", sha]);
+    }
+    assert_eq!(
+        marker.git_commit, unique[0],
+        "published unique commits must not be rebased under a new marker"
+    );
+}
+
+#[test]
+fn aggressive_backfill_does_not_reparent_sibling_task() {
+    if !git_available() {
+        return;
+    }
+    let tmp = TempDir::new().unwrap();
+    let repo = tmp.path().join("repo");
+    init_git_repo(&repo);
+    let repo_str = repo.to_str().unwrap();
+
+    let db = Database::new_in_memory().unwrap();
+    db.set_vcs_mode(VcsMode::Git).unwrap();
+    db.set_aggressive_mode(AggressiveMode::Off).unwrap();
+
+    let task_a = TaskService::new(&db)
+        .create_task("Sibling A", None, Some("SA-1"), None)
+        .unwrap();
+    TodoService::new(&db)
+        .add_todo(task_a.id, "Do A", false)
+        .unwrap();
+    RepoService::new(&db)
+        .add_repo(task_a.id, repo_str, Some("main".into()), None)
+        .unwrap();
+    SyncTaskUseCase::new(&db).execute(task_a.id, false).unwrap();
+    let path_a = git_worktree::git_worktree_path(repo_str, "sa-1");
+    std::fs::write(std::path::Path::new(&path_a).join("a.txt"), "a\n").unwrap();
+    git_in(std::path::Path::new(&path_a), &["add", "a.txt"]);
+    git_in(
+        std::path::Path::new(&path_a),
+        &["commit", "-m", "work on A"],
+    );
+    let tip_a = git_worktree::current_commit(&path_a).unwrap();
+
+    let task_b = TaskService::new(&db)
+        .create_task("Sibling B", None, Some("SB-1"), None)
+        .unwrap();
+    TodoService::new(&db)
+        .add_todo(task_b.id, "Do B", false)
+        .unwrap();
+    RepoService::new(&db)
+        .add_repo(task_b.id, repo_str, Some("main".into()), None)
+        .unwrap();
+    SyncTaskUseCase::new(&db).execute(task_b.id, false).unwrap();
+    let path_b = git_worktree::git_worktree_path(repo_str, "sb-1");
+    std::fs::write(std::path::Path::new(&path_b).join("b.txt"), "b\n").unwrap();
+    git_in(std::path::Path::new(&path_b), &["add", "b.txt"]);
+    git_in(
+        std::path::Path::new(&path_b),
+        &["commit", "-m", "work on B"],
+    );
+
+    db.set_aggressive_mode(AggressiveMode::On).unwrap();
+    SyncTaskUseCase::new(&db).execute(task_b.id, false).unwrap();
+    assert_eq!(
+        git_worktree::current_commit(&path_a).unwrap(),
+        tip_a,
+        "backfilling B must not rewrite A"
+    );
+}
+
+#[test]
 fn git_workspace_rejects_jj_mode() {
     if !git_available() {
         return;

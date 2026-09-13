@@ -148,6 +148,11 @@ pub fn init_clean_jj_repo(repo_path: &Path) {
     std::fs::write(repo_path.join("README.md"), "track test repo\n").expect("write README");
     run_jj(repo_path, &["describe", "-m", "init"], "jj describe");
     run_jj(repo_path, &["new"], "jj new");
+    run_jj(
+        repo_path,
+        &["bookmark", "create", "main", "-r", "@-"],
+        "jj bookmark create main",
+    );
     assert_base_clean(repo_path);
 }
 

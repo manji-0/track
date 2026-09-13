@@ -44,7 +44,105 @@ pub fn current_change_id(repo_path: &str) -> Result<String> {
 }
 
 pub fn current_commit_id(repo_path: &str) -> Result<String> {
-    jj_template(repo_path, "@", "commit_id")
+    commit_id(repo_path, "@")
+}
+
+pub fn commit_id(repo_path: &str, rev: &str) -> Result<String> {
+    jj_template(repo_path, rev, "commit_id")
+}
+
+pub fn is_empty(repo_path: &str, rev: &str) -> Result<bool> {
+    Ok(jj_template(repo_path, rev, r#"if(empty, "true", "false")"#)? == "true")
+}
+
+pub fn has_description(repo_path: &str, rev: &str) -> Result<bool> {
+    Ok(jj_template(repo_path, rev, r#"if(description, "true", "false")"#)? == "true")
+}
+
+/// Insert a described empty commit under `child` without touching siblings.
+///
+/// `jj new --insert-after trunk` reparents **every** child of trunk (other
+/// task workspaces). Create a sibling on trunk, then rebase only this line.
+pub fn insert_described_between(
+    repo_path: &str,
+    parent: &str,
+    child: &str,
+    message: &str,
+) -> Result<String> {
+    let child_change = jj_template(repo_path, child, "change_id")?;
+    let before = children_commit_ids(repo_path, parent)?;
+    let output = Command::new("jj")
+        .current_dir(repo_path)
+        .args([
+            "-R",
+            repo_path,
+            "new",
+            "--no-edit",
+            "-m",
+            message,
+            "-r",
+            parent,
+        ])
+        .output()?;
+    if !output.status.success() {
+        let error = String::from_utf8_lossy(&output.stderr);
+        return Err(TrackError::Jj(error.to_string()));
+    }
+    let after = children_commit_ids(repo_path, parent)?;
+    let marker = after
+        .into_iter()
+        .find(|sha| !before.contains(sha))
+        .ok_or_else(|| TrackError::Jj("jj new --no-edit did not create a child".into()))?;
+    let rebase = Command::new("jj")
+        .current_dir(repo_path)
+        .args([
+            "-R",
+            repo_path,
+            "rebase",
+            "-s",
+            &child_change,
+            "-d",
+            &marker,
+        ])
+        .output()?;
+    if !rebase.status.success() {
+        let error = String::from_utf8_lossy(&rebase.stderr);
+        return Err(TrackError::Jj(error.to_string()));
+    }
+    Ok(marker)
+}
+
+fn children_commit_ids(repo_path: &str, rev: &str) -> Result<Vec<String>> {
+    Ok(log_commit_ids(repo_path, &format!("children({rev})")).unwrap_or_default())
+}
+
+/// Oldest-first commit ids for a revset. Prefer this over `git rev-list` from a
+/// jj workspace: colocated git refs can lag until `jj git export`.
+pub fn log_commit_ids(repo_path: &str, revset: &str) -> Result<Vec<String>> {
+    let output = Command::new("jj")
+        .current_dir(repo_path)
+        .args([
+            "-R",
+            repo_path,
+            "log",
+            "--no-graph",
+            "--reversed",
+            "-r",
+            revset,
+            "-T",
+            "commit_id ++ \"\\n\"",
+        ])
+        .output()?;
+    if !output.status.success() {
+        let error = String::from_utf8_lossy(&output.stderr);
+        return Err(TrackError::Jj(error.to_string()));
+    }
+    Ok(String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(ToOwned::to_owned)
+        .collect())
 }
 
 pub fn describe_current(repo_path: &str, message: &str) -> Result<()> {
@@ -59,10 +157,10 @@ pub fn describe_current(repo_path: &str, message: &str) -> Result<()> {
     Ok(())
 }
 
-pub fn new_empty_change(repo_path: &str) -> Result<()> {
+pub fn new_change_with_message(repo_path: &str, message: &str) -> Result<()> {
     let output = Command::new("jj")
         .current_dir(repo_path)
-        .args(["-R", repo_path, "new"])
+        .args(["-R", repo_path, "new", "-m", message])
         .output()?;
     if !output.status.success() {
         let error = String::from_utf8_lossy(&output.stderr);
@@ -71,10 +169,34 @@ pub fn new_empty_change(repo_path: &str) -> Result<()> {
     Ok(())
 }
 
-pub fn new_change_with_message(repo_path: &str, message: &str) -> Result<()> {
+pub fn new_change_on(repo_path: &str, parent: &str, message: &str) -> Result<()> {
     let output = Command::new("jj")
         .current_dir(repo_path)
-        .args(["-R", repo_path, "new", "-m", message])
+        .args(["-R", repo_path, "new", "-m", message, "-r", parent])
+        .output()?;
+    if !output.status.success() {
+        let error = String::from_utf8_lossy(&output.stderr);
+        return Err(TrackError::Jj(error.to_string()));
+    }
+    Ok(())
+}
+
+pub fn restore_from(repo_path: &str, from: &str) -> Result<()> {
+    let output = Command::new("jj")
+        .current_dir(repo_path)
+        .args(["-R", repo_path, "restore", "--from", from])
+        .output()?;
+    if !output.status.success() {
+        let error = String::from_utf8_lossy(&output.stderr);
+        return Err(TrackError::Jj(error.to_string()));
+    }
+    Ok(())
+}
+
+pub fn abandon(repo_path: &str, revset: &str) -> Result<()> {
+    let output = Command::new("jj")
+        .current_dir(repo_path)
+        .args(["-R", repo_path, "abandon", revset])
         .output()?;
     if !output.status.success() {
         let error = String::from_utf8_lossy(&output.stderr);

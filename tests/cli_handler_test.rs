@@ -550,6 +550,320 @@ fn jj_aggressive_marker_is_not_the_pr_bookmark() {
         "PR bookmark must not sit on the notes marker"
     );
     assert_eq!(bookmark_commit, wc_commit);
+    let desc = jj_template(&workspace, "@", "description.first_line()");
+    assert!(
+        desc.contains("wip") || !desc.trim().is_empty(),
+        "working copy must have a description so jj git push is not rejected: {desc:?}"
+    );
+    let undescribed = jj_log(
+        &workspace,
+        r#"ancestors(track/agr-1) & description(exact:"") & ~root()"#,
+        "commit_id.short() ++ \"\\n\"",
+    );
+    assert!(
+        undescribed.trim().is_empty(),
+        "jj git push rejects undescribed ancestors of the bookmark: {undescribed}"
+    );
+}
+
+#[test]
+fn jj_aggressive_backfill_inserts_marker_under_unpublished_work() {
+    let Some(ws) = JjWorkspace::new() else {
+        return;
+    };
+    let db = Database::new_in_memory().unwrap();
+    db.set_vcs_mode(track::models::VcsMode::Jj).unwrap();
+    db.set_aggressive_mode(track::models::AggressiveMode::Off)
+        .unwrap();
+    let repo_path = ws.repo_path_string();
+    let task = TaskService::new(&db)
+        .create_task("Late JJ", None, Some("LJ-1"), None)
+        .unwrap();
+    RepoService::new(&db)
+        .add_repo(task.id, &repo_path, None, None)
+        .unwrap();
+    TodoService::new(&db)
+        .add_todo(task.id, "Implement", false)
+        .unwrap();
+    track::use_cases::SyncTaskUseCase::new(&db)
+        .execute(task.id, false)
+        .unwrap();
+
+    let workspace = worktrees_path(&repo_path, "lj-1");
+    std::fs::write(std::path::Path::new(&workspace).join("work.txt"), "w\n").unwrap();
+    assert!(
+        std::process::Command::new("jj")
+            .args(["-R", &workspace, "describe", "-m", "real work"])
+            .status()
+            .unwrap()
+            .success()
+    );
+    assert!(
+        std::process::Command::new("jj")
+            .args(["-R", &workspace, "new"])
+            .status()
+            .unwrap()
+            .success()
+    );
+
+    db.set_aggressive_mode(track::models::AggressiveMode::On)
+        .unwrap();
+    track::use_cases::SyncTaskUseCase::new(&db)
+        .execute(task.id, false)
+        .unwrap();
+    let marker = TaskRevisionService::new(&db)
+        .get(task.id, &repo_path)
+        .unwrap()
+        .expect("backfilled marker")
+        .git_commit;
+    let tip = jj_template(&workspace, "@", "commit_id");
+    assert_ne!(marker, tip, "marker must sit under the existing work");
+    let is_ancestor = jj_log(
+        &workspace,
+        &format!("{marker} & ancestors({tip})"),
+        "commit_id",
+    );
+    assert_eq!(is_ancestor, marker, "marker must be an ancestor of @");
+    assert!(std::path::Path::new(&workspace).join("work.txt").exists());
+    let undescribed = jj_log(
+        &workspace,
+        r#"ancestors(@) & description(exact:"") & ~root()"#,
+        "commit_id.short() ++ \"\\n\"",
+    );
+    assert!(
+        undescribed.trim().is_empty(),
+        "backfill must not leave undescribed ancestors: {undescribed}"
+    );
+}
+
+#[test]
+fn jj_backfill_does_not_reparent_sibling_workspace() {
+    let Some(ws) = JjWorkspace::new() else {
+        return;
+    };
+    let db = Database::new_in_memory().unwrap();
+    db.set_vcs_mode(track::models::VcsMode::Jj).unwrap();
+    db.set_aggressive_mode(track::models::AggressiveMode::Off)
+        .unwrap();
+    let repo_path = ws.repo_path_string();
+    let task_a = TaskService::new(&db)
+        .create_task("Sibling A", None, Some("SA-1"), None)
+        .unwrap();
+    RepoService::new(&db)
+        .add_repo(task_a.id, &repo_path, None, None)
+        .unwrap();
+    TodoService::new(&db)
+        .add_todo(task_a.id, "Do A", false)
+        .unwrap();
+    track::use_cases::SyncTaskUseCase::new(&db)
+        .execute(task_a.id, false)
+        .unwrap();
+    let ws_a = worktrees_path(&repo_path, "sa-1");
+    std::fs::write(std::path::Path::new(&ws_a).join("a.txt"), "a\n").unwrap();
+    assert!(
+        std::process::Command::new("jj")
+            .args(["-R", &ws_a, "describe", "-m", "work on A"])
+            .status()
+            .unwrap()
+            .success()
+    );
+    let tip_a = jj_template(&ws_a, "@", "commit_id");
+
+    let task_b = TaskService::new(&db)
+        .create_task("Sibling B", None, Some("SB-1"), None)
+        .unwrap();
+    RepoService::new(&db)
+        .add_repo(task_b.id, &repo_path, None, None)
+        .unwrap();
+    TodoService::new(&db)
+        .add_todo(task_b.id, "Do B", false)
+        .unwrap();
+    track::use_cases::SyncTaskUseCase::new(&db)
+        .execute(task_b.id, false)
+        .unwrap();
+    let ws_b = worktrees_path(&repo_path, "sb-1");
+    let tip_a_after_b_create = jj_template(&ws_a, "@", "commit_id");
+    std::fs::write(std::path::Path::new(&ws_b).join("b.txt"), "b\n").unwrap();
+    assert!(
+        std::process::Command::new("jj")
+            .args(["-R", &ws_b, "describe", "-m", "work on B"])
+            .status()
+            .unwrap()
+            .success()
+    );
+    let tip_a_after_b_work = jj_template(&ws_a, "@", "commit_id");
+
+    db.set_aggressive_mode(track::models::AggressiveMode::On)
+        .unwrap();
+    track::use_cases::SyncTaskUseCase::new(&db)
+        .execute(task_b.id, false)
+        .unwrap();
+    let tip_a_after = jj_template(&ws_a, "@", "commit_id");
+    assert_eq!(
+        tip_a, tip_a_after_b_create,
+        "creating B must not rewrite A (before B work): {tip_a} vs {tip_a_after_b_create}"
+    );
+    assert_eq!(
+        tip_a, tip_a_after_b_work,
+        "describing B must not rewrite A: {tip_a} vs {tip_a_after_b_work}"
+    );
+    assert_eq!(tip_a, tip_a_after, "backfilling B must not rewrite A");
+}
+
+#[test]
+fn jj_backfill_does_not_rewrite_published_unique_commits() {
+    let Some(ws) = JjWorkspace::new() else {
+        return;
+    };
+    let origin = ws.root().path().join("origin.git");
+    let origin_init = std::process::Command::new("git")
+        .args(["init", "--bare", "-b", "main"])
+        .arg(&origin)
+        .output()
+        .unwrap();
+    assert!(
+        origin_init.status.success(),
+        "git init --bare failed: {}",
+        String::from_utf8_lossy(&origin_init.stderr)
+    );
+    let repo_path = ws.repo_path_string();
+    git_ok(
+        &repo_path,
+        &["remote", "add", "origin", origin.to_str().unwrap()],
+    );
+    jj_ok(&repo_path, &["git", "export"]);
+    git_ok(&repo_path, &["push", "-u", "origin", "main"]);
+
+    let db = Database::new_in_memory().unwrap();
+    db.set_vcs_mode(track::models::VcsMode::Jj).unwrap();
+    db.set_aggressive_mode(track::models::AggressiveMode::Off)
+        .unwrap();
+    let task = TaskService::new(&db)
+        .create_task("Published late", None, Some("PB-1"), None)
+        .unwrap();
+    RepoService::new(&db)
+        .add_repo(task.id, &repo_path, None, None)
+        .unwrap();
+    TodoService::new(&db)
+        .add_todo(task.id, "Implement", false)
+        .unwrap();
+    track::use_cases::SyncTaskUseCase::new(&db)
+        .execute(task.id, false)
+        .unwrap();
+
+    let workspace = worktrees_path(&repo_path, "pb-1");
+    assert!(
+        track::services::todo_commit::published_tip(&workspace, "track/pb-1").is_none(),
+        "local @git export must not count as origin"
+    );
+
+    std::fs::write(std::path::Path::new(&workspace).join("work.txt"), "w\n").unwrap();
+    jj_ok(&workspace, &["describe", "-m", "real work"]);
+    jj_ok(&workspace, &["new", "-m", "second unique"]);
+    jj_ok(&workspace, &["bookmark", "set", "track/pb-1", "-r", "@"]);
+    jj_ok(&workspace, &["git", "export"]);
+    let unique = jj_commit_ids_oldest_first(&workspace, "main..@");
+    assert!(
+        unique.len() >= 2,
+        "expected unpublished unique commits before push, got {unique:?}"
+    );
+    git_ok(&repo_path, &["push", "-u", "origin", "track/pb-1"]);
+    git_ok(&repo_path, &["fetch", "origin"]);
+    jj_ok(&workspace, &["git", "fetch", "--remote", "origin"]);
+    assert!(
+        track::services::todo_commit::published_tip(&workspace, "track/pb-1").is_some(),
+        "origin/track/pb-1 or track/pb-1@origin must exist after push"
+    );
+
+    db.set_aggressive_mode(track::models::AggressiveMode::On)
+        .unwrap();
+    track::use_cases::SyncTaskUseCase::new(&db)
+        .execute(task.id, false)
+        .unwrap();
+    let marker = TaskRevisionService::new(&db)
+        .get(task.id, &repo_path)
+        .unwrap()
+        .expect("marker")
+        .git_commit;
+    for sha in &unique {
+        let still = jj_template(&workspace, sha, "commit_id");
+        assert_eq!(&still, sha, "published unique SHA {sha} must still resolve");
+    }
+    assert_eq!(
+        marker, unique[0],
+        "published unique commits must not be rebased under a new marker"
+    );
+}
+
+#[test]
+fn jj_todo_done_folds_experiments_and_lists_from_workspace() {
+    let Some(ws) = JjWorkspace::new() else {
+        return;
+    };
+    let db = Database::new_in_memory().unwrap();
+    db.set_vcs_mode(track::models::VcsMode::Jj).unwrap();
+    db.set_aggressive_mode(track::models::AggressiveMode::On)
+        .unwrap();
+    let repo_path = ws.repo_path_string();
+    let task = TaskService::new(&db)
+        .create_task("Fold", None, Some("FLD-1"), None)
+        .unwrap();
+    RepoService::new(&db)
+        .add_repo(task.id, &repo_path, None, None)
+        .unwrap();
+    TodoService::new(&db)
+        .add_todo(task.id, "Implement", false)
+        .unwrap();
+    track::use_cases::SyncTaskUseCase::new(&db)
+        .execute(task.id, false)
+        .unwrap();
+
+    let workspace = worktrees_path(&repo_path, "fld-1");
+    let marker = TaskRevisionService::new(&db)
+        .get(task.id, &repo_path)
+        .unwrap()
+        .expect("marker")
+        .git_commit;
+    std::fs::write(std::path::Path::new(&workspace).join("a.txt"), "one\n").unwrap();
+    assert!(
+        std::process::Command::new("jj")
+            .args(["-R", &workspace, "new", "-m", "experiment 1"])
+            .status()
+            .unwrap()
+            .success()
+    );
+    std::fs::write(std::path::Path::new(&workspace).join("b.txt"), "two\n").unwrap();
+
+    track::use_cases::CompleteTodoUseCase::new(&db)
+        .execute(task.id, track::models::TodoIndex::from_i64(1))
+        .unwrap();
+
+    let commits = track::services::todo_commit::list_todo_commits(&workspace, &marker).unwrap();
+    assert_eq!(
+        commits.len(),
+        1,
+        "jj workspace must see Task-Todo via git store, not main HEAD"
+    );
+    let log = std::process::Command::new("jj")
+        .args([
+            "-R",
+            &workspace,
+            "log",
+            "--no-graph",
+            "-r",
+            &format!("{marker}..{}", commits[0].sha),
+            "-T",
+            r#"description.first_line() ++ "\n""#,
+        ])
+        .output()
+        .unwrap();
+    let text = String::from_utf8_lossy(&log.stdout);
+    assert!(
+        !text.contains("experiment"),
+        "unpublished jj new commits must be folded: {text}"
+    );
+    assert!(std::path::Path::new(&workspace).join("a.txt").exists());
+    assert!(std::path::Path::new(&workspace).join("b.txt").exists());
 }
 
 fn worktrees_path(repo_path: &str, slug: &str) -> String {
@@ -560,14 +874,75 @@ fn worktrees_path(repo_path: &str, slug: &str) -> String {
         .into_owned()
 }
 
+fn git_ok(cwd: impl AsRef<std::path::Path>, args: &[&str]) {
+    let cwd = cwd.as_ref();
+    let output = std::process::Command::new("git")
+        .current_dir(cwd)
+        .args(["-c", "commit.gpgsign=false"])
+        .args(args)
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "git {args:?} in {} failed: {}",
+        cwd.display(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+fn jj_ok(repo_path: &str, args: &[&str]) {
+    let output = std::process::Command::new("jj")
+        .args(["-R", repo_path])
+        .args(args)
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "jj {args:?} failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+fn jj_commit_ids_oldest_first(repo_path: &str, revset: &str) -> Vec<String> {
+    let output = std::process::Command::new("jj")
+        .args([
+            "-R",
+            repo_path,
+            "log",
+            "--no-graph",
+            "--reversed",
+            "-r",
+            revset,
+            "-T",
+            "commit_id ++ \"\\n\"",
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "jj log {revset} failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .map(ToOwned::to_owned)
+        .collect()
+}
+
 fn jj_template(repo_path: &str, rev: &str, template: &str) -> String {
+    jj_log(repo_path, rev, template)
+}
+
+fn jj_log(repo_path: &str, revset: &str, template: &str) -> String {
     let output = std::process::Command::new("jj")
         .args([
             "-R",
             repo_path,
             "log",
             "-r",
-            rev,
+            revset,
             "--no-graph",
             "-T",
             template,
@@ -576,7 +951,7 @@ fn jj_template(repo_path: &str, rev: &str, template: &str) -> String {
         .unwrap();
     assert!(
         output.status.success(),
-        "jj log failed: {}",
+        "jj log {revset} failed: {}",
         String::from_utf8_lossy(&output.stderr)
     );
     String::from_utf8_lossy(&output.stdout).trim().to_string()

@@ -209,7 +209,7 @@ impl<'a> ArchiveTaskUseCase<'a> {
         let mut workspace_errors = Vec::new();
 
         for worktree in worktrees {
-            let result = worktree_service.remove_worktree(worktree.id, force);
+            let result = worktree_service.remove_worktree(worktree.id, false);
             match result {
                 Ok(()) => removed_workspaces.push((worktree.id, worktree.path)),
                 Err(err) => workspace_errors.push(format!("#{}: {}", worktree.id, err)),

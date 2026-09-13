@@ -145,7 +145,8 @@ pub fn create_marker(
 ) -> Result<(String, Option<String>)> {
     match vcs_mode {
         VcsMode::Git => {
-            let sha = create_git_marker(workspace_path, slug, &task.name)?;
+            let sha =
+                create_git_backfill_marker(workspace_path, slug, &task.name, &branch_name(slug))?;
             Ok((sha, None))
         }
         VcsMode::Jj => {
@@ -161,41 +162,160 @@ fn marker_message(slug: &str, task_name: &str) -> String {
     format!("[track:{slug}] {task_name}")
 }
 
+fn wip_message(slug: &str) -> String {
+    format!("[track:{slug}] wip")
+}
+
 fn create_git_marker(worktree_path: &str, slug: &str, task_name: &str) -> Result<String> {
     git_worktree::create_empty_task_commit(worktree_path, slug, task_name)
 }
 
-/// Fresh jj workspace: the empty working-copy change becomes the marker, then
-/// `@` moves to a child so work does not rewrite the notes target. Bookmark
-/// `track/<slug>` follows `@` (the GitHub PR head), not the marker.
+/// Insert an empty marker as the first unique commit on the task branch.
+///
+/// No unique commits yet: empty commit on HEAD (same as workspace birth).
+/// Unpublished unique commits: empty marker after upstream, rebase work onto it.
+/// Published unique commits: cannot rewrite; use the oldest unique commit.
+fn create_git_backfill_marker(
+    worktree_path: &str,
+    slug: &str,
+    task_name: &str,
+    branch: &str,
+) -> Result<String> {
+    let head = git_worktree::current_commit(worktree_path)?;
+    let Some(upstream) = git_upstream_sha(worktree_path) else {
+        return create_git_marker(worktree_path, slug, task_name);
+    };
+    if upstream == head {
+        return create_git_marker(worktree_path, slug, task_name);
+    }
+    let unique = git_worktree::rev_list(worktree_path, &format!("{upstream}..HEAD"))?;
+    if unique.is_empty() {
+        return create_git_marker(worktree_path, slug, task_name);
+    }
+    let published = unique
+        .iter()
+        .any(|sha| crate::services::todo_commit::is_published(worktree_path, sha, branch));
+    if published {
+        return Ok(unique[0].clone());
+    }
+    let message = format!("track: {task_name}\n\nTask-Slug: {slug}");
+    let marker = git_worktree::create_empty_commit_with_parent(worktree_path, &upstream, &message)?;
+    git_worktree::rebase_onto(worktree_path, &marker, &upstream)?;
+    Ok(marker)
+}
+
+fn git_upstream_sha(worktree_path: &str) -> Option<String> {
+    for cand in ["main", "master", "origin/main", "origin/master"] {
+        if git_worktree::rev_parse(worktree_path, cand).is_ok()
+            && let Ok(base) = git_worktree::merge_base(worktree_path, "HEAD", cand)
+        {
+            return Some(base);
+        }
+    }
+    None
+}
+
+/// Fresh jj workspace: the marker is a described empty child of trunk, then
+/// `@` sits on a described wip child. `jj workspace add` often leaves an
+/// undescribed empty working copy; using that as the marker would keep its
+/// undescribed parent in `jj git push`.
 fn create_jj_birth_marker(
     workspace_path: &str,
     branch: &str,
     slug: &str,
     task_name: &str,
 ) -> Result<(String, String)> {
-    jj_ws::describe_current(workspace_path, &marker_message(slug, task_name))?;
+    let message = marker_message(slug, task_name);
+    if let Some(trunk) = jj_trunk_sha(workspace_path) {
+        let tip = jj_ws::current_commit_id(workspace_path)?;
+        if tip == trunk {
+            jj_ws::new_change_with_message(workspace_path, &message)?;
+        } else {
+            jj_ws::new_change_on(workspace_path, &trunk, &message)?;
+        }
+    } else if jj_ws::is_empty(workspace_path, "@")? {
+        jj_ws::describe_current(workspace_path, &message)?;
+    } else {
+        jj_ws::new_change_with_message(workspace_path, &message)?;
+    }
     let git_commit = jj_ws::current_commit_id(workspace_path)?;
     let jj_change_id = jj_ws::current_change_id(workspace_path)?;
-    jj_ws::new_empty_change(workspace_path)?;
+    jj_ws::new_change_with_message(workspace_path, &wip_message(slug))?;
     jj_ws::set_bookmark(workspace_path, branch, "@")?;
     Ok((git_commit, jj_change_id))
 }
 
-/// Existing jj workspace: insert an empty marker child without rewriting the
-/// user's current description, then sit on a new working-copy change.
+/// Existing jj workspace: insert the marker under this working-copy line only.
 fn create_jj_backfill_marker(
     workspace_path: &str,
     branch: &str,
     slug: &str,
     task_name: &str,
 ) -> Result<(String, String)> {
-    jj_ws::new_change_with_message(workspace_path, &marker_message(slug, task_name))?;
-    let git_commit = jj_ws::current_commit_id(workspace_path)?;
-    let jj_change_id = jj_ws::current_change_id(workspace_path)?;
-    jj_ws::new_empty_change(workspace_path)?;
+    let Some(trunk) = jj_trunk_sha(workspace_path) else {
+        return create_jj_birth_marker(workspace_path, branch, slug, task_name);
+    };
+    let tip = jj_ws::current_commit_id(workspace_path)?;
+    if trunk == tip {
+        return create_jj_birth_marker(workspace_path, branch, slug, task_name);
+    }
+
+    let unique =
+        jj_ws::log_commit_ids(workspace_path, &format!("{trunk}..{tip}")).unwrap_or_default();
+
+    if unique.is_empty() {
+        return create_jj_birth_marker(workspace_path, branch, slug, task_name);
+    }
+
+    let published = unique
+        .iter()
+        .any(|sha| crate::services::todo_commit::is_published(workspace_path, sha, branch));
+    if published {
+        let sha = unique.first().cloned().unwrap_or(tip);
+        let change = jj_ws::current_change_id(workspace_path).unwrap_or_default();
+        return Ok((sha, change));
+    }
+
+    let has_work = unique.iter().any(|sha| {
+        jj_ws::is_empty(workspace_path, sha)
+            .ok()
+            .is_some_and(|empty| !empty)
+    });
+    if !has_work {
+        return create_jj_birth_marker(workspace_path, branch, slug, task_name);
+    }
+
+    let first = unique.iter().find(|sha| {
+        let empty = jj_ws::is_empty(workspace_path, sha).unwrap_or(false);
+        let described = jj_ws::has_description(workspace_path, sha).unwrap_or(true);
+        !empty || described
+    });
+    let Some(first) = first else {
+        return create_jj_birth_marker(workspace_path, branch, slug, task_name);
+    };
+    let marker_sha = jj_ws::insert_described_between(
+        workspace_path,
+        &trunk,
+        first,
+        &marker_message(slug, task_name),
+    )?;
+    if jj_ws::is_empty(workspace_path, "@")? && !jj_ws::has_description(workspace_path, "@")? {
+        jj_ws::describe_current(workspace_path, &wip_message(slug))?;
+    }
     jj_ws::set_bookmark(workspace_path, branch, "@")?;
-    Ok((git_commit, jj_change_id))
+    let change = jj_ws::current_change_id(workspace_path)?;
+    Ok((marker_sha, change))
+}
+
+fn jj_trunk_sha(workspace_path: &str) -> Option<String> {
+    for name in ["main", "master"] {
+        if jj_ws::bookmark_exists(workspace_path, name).ok()? {
+            return jj_ws::bookmark_change_id(workspace_path, name).ok();
+        }
+    }
+    jj_ws::commit_id(workspace_path, "trunk()")
+        .ok()
+        .filter(|sha| !sha.is_empty())
 }
 
 pub fn remove_workspace(

@@ -19,10 +19,79 @@ pub fn git_worktree_path(repo_path: &str, slug: &str) -> String {
 }
 
 pub fn is_git_repository(repo_path: &str) -> bool {
-    Command::new("git")
-        .args(["-C", repo_path, "rev-parse", "--git-dir"])
+    Path::new(repo_path).join(".git").exists()
+}
+
+/// Git object store for notes / log by SHA. JJ workspaces have no `.git`;
+/// `git -C` would walk up to the colocated repo whose `HEAD` is usually `main`.
+pub fn git_dir(repo_path: &str) -> Option<PathBuf> {
+    if is_git_repository(repo_path) {
+        return Some(PathBuf::from(repo_path));
+    }
+    jj_git_root(repo_path).or_else(|| {
+        let jj_store = Path::new(repo_path).join(".jj/repo/store/git");
+        jj_store.exists().then_some(jj_store)
+    })
+}
+
+fn jj_git_root(path: &str) -> Option<PathBuf> {
+    if !Path::new(path).join(".jj").exists() {
+        return None;
+    }
+    let output = Command::new("jj")
+        .args(["-R", path, "git", "root"])
         .output()
-        .is_ok_and(|output| output.status.success())
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let root = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if root.is_empty() {
+        None
+    } else {
+        Some(PathBuf::from(root))
+    }
+}
+
+/// `git` command that addresses the object store without using a wrong `HEAD`.
+pub fn git_store_command(path: &str) -> Option<Command> {
+    if is_git_repository(path) {
+        let mut cmd = Command::new("git");
+        cmd.args(["-C", path]);
+        return Some(cmd);
+    }
+    let git_dir = git_dir(path)?;
+    let mut cmd = Command::new("git");
+    cmd.arg("--git-dir").arg(git_dir);
+    Some(cmd)
+}
+
+/// Tip of task history: worktree `HEAD`, or jj working-copy commit.
+pub fn history_tip(path: &str) -> Result<String> {
+    if Path::new(path).join(".jj").exists() {
+        let output = Command::new("jj")
+            .args([
+                "-R",
+                path,
+                "log",
+                "-r",
+                "@",
+                "--no-graph",
+                "-T",
+                "commit_id",
+            ])
+            .output()?;
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(TrackError::Jj(stderr.to_string()));
+        }
+        let sha = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        if sha.is_empty() {
+            return Err(TrackError::Git("jj working copy has no commit id".into()));
+        }
+        return Ok(sha);
+    }
+    current_commit(path)
 }
 
 pub fn git_worktree_exists(path: &str) -> bool {
@@ -219,17 +288,54 @@ pub fn rev_parse(repo_path: &str, rev: &str) -> Result<String> {
     Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
 }
 
-/// Directory git notes should run against (colocated `.git` or jj's git store).
-pub fn git_dir(repo_path: &str) -> Option<PathBuf> {
-    if is_git_repository(repo_path) {
-        return Some(PathBuf::from(repo_path));
+pub fn merge_base(repo_path: &str, a: &str, b: &str) -> Result<String> {
+    let output = git_ok(repo_path, &["merge-base", a, b])?;
+    Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+}
+
+pub fn rev_list(repo_path: &str, range: &str) -> Result<Vec<String>> {
+    let output = git(repo_path, &["rev-list", "--reverse", range])?;
+    if !output.status.success() {
+        return Ok(Vec::new());
     }
-    let jj_store = Path::new(repo_path).join(".jj/repo/store/git");
-    if jj_store.exists() {
-        Some(jj_store)
-    } else {
-        None
-    }
+    Ok(String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(ToOwned::to_owned)
+        .collect())
+}
+
+/// Empty commit with parent `parent` (same tree). Used to insert a marker below
+/// existing unpublished work.
+pub fn create_empty_commit_with_parent(
+    worktree_path: &str,
+    parent: &str,
+    message: &str,
+) -> Result<String> {
+    let tree = rev_parse(worktree_path, &format!("{parent}^{{tree}}"))?;
+    let output = git_ok(
+        worktree_path,
+        &[
+            "-c",
+            "user.email=track@localhost",
+            "-c",
+            "user.name=track",
+            "-c",
+            "commit.gpgsign=false",
+            "commit-tree",
+            &tree,
+            "-p",
+            parent,
+            "-m",
+            message,
+        ],
+    )?;
+    Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+}
+
+pub fn rebase_onto(worktree_path: &str, new_base: &str, old_base: &str) -> Result<()> {
+    git_ok(worktree_path, &["rebase", "--onto", new_base, old_base]).map(|_| ())
 }
 
 /// Ignore `.worktrees/` locally so track does not dirty the project's `.gitignore`.
