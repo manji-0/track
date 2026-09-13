@@ -94,7 +94,7 @@ pub struct RepoWorkspaceStatus {
     pub phase: Option<String>,
 }
 
-/// jj-task / agent-skill-jj context for the current task.
+/// Track-owned workspace context for the current task (jj or git).
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 pub struct JjAgentContext {
     pub slug: JjSlug,
@@ -124,7 +124,7 @@ pub struct GitAgentContext {
 /// Guardrails exposed to agents via JSON status output.
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 pub struct AgentGuardrails {
-    /// Commits, squash, push, and PR workflow belong to the `$jj` skill (jj mode only).
+    /// Historical field: track now owns workspaces; agents follow `hint` / `next_action`.
     pub must_use_jj_skill: bool,
     pub jj_skill_name: &'static str,
     pub reopen_forbidden: bool,
@@ -133,20 +133,12 @@ pub struct AgentGuardrails {
 }
 
 impl AgentGuardrails {
-    pub fn for_mode(vcs_mode: VcsMode, complete_requires_jj_merge: bool) -> Self {
-        match vcs_mode {
-            VcsMode::Jj => Self {
-                must_use_jj_skill: true,
-                jj_skill_name: "jj",
-                reopen_forbidden: true,
-                complete_requires_jj_merge,
-            },
-            VcsMode::Git => Self {
-                must_use_jj_skill: false,
-                jj_skill_name: "jj",
-                reopen_forbidden: true,
-                complete_requires_jj_merge: false,
-            },
+    pub fn for_mode(_vcs_mode: VcsMode, complete_requires_jj_merge: bool) -> Self {
+        Self {
+            must_use_jj_skill: false,
+            jj_skill_name: "jj",
+            reopen_forbidden: true,
+            complete_requires_jj_merge,
         }
     }
 }
@@ -157,7 +149,7 @@ impl Default for AgentGuardrails {
     }
 }
 
-/// Observed VCS workspace state. Built at the service boundary (filesystem / jj-task map);
+/// Observed VCS workspace state. Built at the service boundary (filesystem / worktree rows);
 /// workflow functions stay pure given these facts.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct WorkspaceFacts {
@@ -181,16 +173,11 @@ impl WorkspaceFacts {
     }
 }
 
-/// One repo's jj-task / git registration, already observed.
+/// One repo's workspace registration, already observed.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RepoRegistration {
     pub repo_path: String,
     pub registered: bool,
-}
-
-/// True when a jj-task map phase means the workspace is finished (`merged` or legacy `done`).
-pub fn jj_map_phase_is_complete(phase: Option<&str>) -> bool {
-    matches!(phase, Some("merged") | Some("done"))
 }
 
 fn pending_needs_workspace(todos: &[Todo]) -> bool {
@@ -289,13 +276,11 @@ pub fn build_workflow_context(
 pub fn build_workflow_checklist(
     vcs_mode: VcsMode,
     phase: WorkflowPhase,
-    task: &Task,
+    _task: &Task,
     todos: &[Todo],
     repos: &[TaskRepo],
     facts: &WorkspaceFacts,
 ) -> Vec<WorkflowStep> {
-    let slug = jj_slug(task);
-
     match phase {
         WorkflowPhase::Setup => {
             let mut steps = Vec::new();
@@ -306,14 +291,6 @@ pub fn build_workflow_checklist(
                     done: !repos.is_empty(),
                     command: Some("track repo add".to_string()),
                 });
-                if vcs_mode == VcsMode::Jj && !repos.is_empty() {
-                    steps.push(WorkflowStep {
-                        id: "jj_repo_init",
-                        label: "Initialize jj-task in each repo (once)".to_string(),
-                        done: facts.jj_repos_initialized,
-                        command: Some("jj-task repo init".to_string()),
-                    });
-                }
             }
             if todos.is_empty() {
                 steps.push(WorkflowStep {
@@ -326,25 +303,16 @@ pub fn build_workflow_checklist(
             steps
         }
         WorkflowPhase::SyncRequired => {
-            let mut steps = Vec::new();
-            if vcs_mode == VcsMode::Jj && !repos.is_empty() {
-                for status in &facts.repo_registrations {
-                    steps.push(WorkflowStep {
-                        id: "jj_task_start",
-                        label: format!("jj-task start in {}", status.repo_path),
-                        done: status.registered,
-                        command: Some(format!("jj-task start {slug}")),
-                    });
-                }
-            } else if vcs_mode == VcsMode::Git {
-                steps.push(WorkflowStep {
-                    id: "git_sync",
-                    label: "Create git worktree for this task".to_string(),
-                    done: facts.coding_workspace_ready,
-                    command: Some("track sync".to_string()),
-                });
-            }
-            steps
+            let label = match vcs_mode {
+                VcsMode::Git => "Create git worktree for this task",
+                VcsMode::Jj => "Create jj workspace for this task",
+            };
+            vec![WorkflowStep {
+                id: "sync",
+                label: label.to_string(),
+                done: facts.coding_workspace_ready,
+                command: Some("track sync".to_string()),
+            }]
         }
         _ => Vec::new(),
     }
@@ -373,138 +341,76 @@ pub fn build_next_action(
                 NextAction {
                     kind: NextActionKind::RunCommand,
                     command: Some("track repo add [path]".to_string()),
-                    reason: match vcs_mode {
-                        VcsMode::Jj => {
-                            "Register at least one repository, then run jj-task repo init from the main workspace".to_string()
-                        }
-                        VcsMode::Git => {
-                            "Register at least one git repository, then run track sync to create a worktree".to_string()
-                        }
-                    },
+                    reason: "Register at least one repository. Track creates the task workspace on `track repo add` / `track sync`.".to_string(),
                 }
             }
         }
-        WorkflowPhase::SyncRequired => match vcs_mode {
-            VcsMode::Jj => {
-                if legacy_worktree_sync_needed(todos, worktrees) {
-                    NextAction {
-                        kind: NextActionKind::RunCommand,
-                        command: Some("track sync".to_string()),
-                        reason: "Legacy per-TODO --worktree workspaces are pending (prefer jj-task for new tasks)".to_string(),
-                    }
-                } else {
-                    let missing = facts
-                        .total_repo_count
-                        .saturating_sub(facts.registered_repo_count);
-                    let reason = if missing > 1 {
-                        format!(
-                            "Start jj-task workspace in each repo ({}/{} ready). Run jj-task repo init once from each main workspace if needed.",
-                            facts.registered_repo_count, facts.total_repo_count
-                        )
-                    } else {
-                        format!(
-                            "Start a jj-task workspace at .worktrees/{slug}. Run jj-task repo init once from the main repo if needed. Load the $jj skill for commits and PR."
-                        )
-                    };
-                    NextAction {
-                        kind: NextActionKind::RunCommand,
-                        command: Some(format!("jj-task start {slug}")),
-                        reason,
-                    }
+        WorkflowPhase::SyncRequired => {
+            if vcs_mode == VcsMode::Jj && legacy_worktree_sync_needed(todos, worktrees) {
+                NextAction {
+                    kind: NextActionKind::RunCommand,
+                    command: Some("track sync --legacy".to_string()),
+                    reason: "Legacy per-TODO --worktree workspaces are pending".to_string(),
+                }
+            } else {
+                let tool = match vcs_mode {
+                    VcsMode::Git => "git worktree",
+                    VcsMode::Jj => "jj workspace",
+                };
+                NextAction {
+                    kind: NextActionKind::RunCommand,
+                    command: Some("track sync".to_string()),
+                    reason: format!(
+                        "Create {tool} at .worktrees/{slug} on branch/bookmark track/{slug}"
+                    ),
                 }
             }
-            VcsMode::Git => NextAction {
-                kind: NextActionKind::RunCommand,
-                command: Some("track sync".to_string()),
-                reason: format!("Create git worktree at .worktrees/{slug} on branch track/{slug}"),
-            },
-        },
+        }
         WorkflowPhase::Execute => {
             let next_todo = oldest_pending_todo(todos);
             if let Some(todo) = next_todo {
-                match vcs_mode {
-                    VcsMode::Jj => {
-                        if todo.requires_workspace {
-                            if facts.coding_workspace_ready {
-                                return NextAction {
-                                    kind: NextActionKind::RunCommand,
-                                    command: Some(format!("cd \"$(jj-task path {slug})\"")),
-                                    reason: format!(
-                                        "Work on TODO #{} in jj-task workspace. Use $jj skill for jj commit/squash/push — not jj describe alone.",
-                                        todo.task_index
-                                    ),
-                                };
+                if todo.requires_workspace {
+                    if facts.coding_workspace_ready
+                        && let Some(worktree_path) = facts.workspace_path.as_deref()
+                    {
+                        let how = match vcs_mode {
+                            VcsMode::Git => {
+                                "Commit and push with git from this worktree (branch track/{slug} is the PR head)."
                             }
-
-                            return NextAction {
-                                kind: NextActionKind::RunCommand,
-                                command: Some(format!("jj-task start {slug}")),
-                                reason: format!(
-                                    "Workspace required for TODO #{} — run jj-task start first",
-                                    todo.task_index
-                                ),
-                            };
-                        }
-
-                        if facts.slug_registered {
-                            return NextAction {
-                                kind: NextActionKind::RunCommand,
-                                command: Some(format!("cd \"$(jj-task path {slug})\"")),
-                                reason: format!(
-                                    "Optional: work in jj-task workspace for TODO #{}",
-                                    todo.task_index
-                                ),
-                            };
-                        }
-
-                        let has_workspace = worktrees.iter().any(|wt| wt.todo_id == Some(todo.id));
-                        if todo.worktree_requested && has_workspace {
-                            return NextAction {
-                                kind: NextActionKind::RunCommand,
-                                command: Some(format!("track todo workspace {}", todo.task_index)),
-                                reason: format!(
-                                    "Legacy TODO workspace for #{}: {}",
-                                    todo.task_index, todo.content
-                                ),
-                            };
-                        }
-                    }
-                    VcsMode::Git => {
-                        if todo.requires_workspace {
-                            if facts.coding_workspace_ready
-                                && let Some(worktree_path) = facts.workspace_path.as_deref()
-                            {
-                                return NextAction {
-                                    kind: NextActionKind::RunCommand,
-                                    command: Some(format!("cd \"{worktree_path}\"")),
-                                    reason: format!(
-                                        "Work on TODO #{} in git worktree. Commit and push with standard git commands.",
-                                        todo.task_index
-                                    ),
-                                };
+                            VcsMode::Jj => {
+                                "Commit with jj in this workspace. Bookmark track/{slug} is the GitHub PR head (`jj git push --named track/{slug}`)."
                             }
-                            return NextAction {
-                                kind: NextActionKind::RunCommand,
-                                command: Some("track sync".to_string()),
-                                reason: format!(
-                                    "Git worktree required for TODO #{} — run track sync first",
-                                    todo.task_index
-                                ),
-                            };
-                        }
-                        if let Some(worktree_path) = facts.workspace_path.as_deref()
-                            && facts.coding_workspace_ready
-                        {
-                            return NextAction {
-                                kind: NextActionKind::RunCommand,
-                                command: Some(format!("cd \"{worktree_path}\"")),
-                                reason: format!(
-                                    "Work on TODO #{} in git worktree. Commit and push with standard git commands.",
-                                    todo.task_index
-                                ),
-                            };
-                        }
+                        };
+                        return NextAction {
+                            kind: NextActionKind::RunCommand,
+                            command: Some(format!("cd \"{worktree_path}\"")),
+                            reason: format!(
+                                "Work on TODO #{} in the task workspace. {how}",
+                                todo.task_index
+                            )
+                            .replace("{slug}", slug.as_str()),
+                        };
                     }
+                    return NextAction {
+                        kind: NextActionKind::RunCommand,
+                        command: Some("track sync".to_string()),
+                        reason: format!(
+                            "Workspace required for TODO #{} — run track sync first",
+                            todo.task_index
+                        ),
+                    };
+                }
+
+                let has_workspace = worktrees.iter().any(|wt| wt.todo_id == Some(todo.id));
+                if todo.worktree_requested && has_workspace {
+                    return NextAction {
+                        kind: NextActionKind::RunCommand,
+                        command: Some(format!("track todo workspace {}", todo.task_index)),
+                        reason: format!(
+                            "Legacy TODO workspace for #{}: {}",
+                            todo.task_index, todo.content
+                        ),
+                    };
                 }
 
                 NextAction {
@@ -520,41 +426,21 @@ pub fn build_next_action(
                 }
             }
         }
-        WorkflowPhase::TaskComplete => match vcs_mode {
-            VcsMode::Jj => {
-                let had_workspace_todos = todos.iter().any(|t| t.requires_workspace);
-                if had_workspace_todos
-                    && facts.coding_workspace_ready
-                    && !facts.task_phase_completed
-                {
-                    NextAction {
-                        kind: NextActionKind::UseJjSkill,
-                        command: None,
-                        reason: format!(
-                            "All TODOs done — use $jj skill to push/merge PR, then `jj-task done {slug}` and `track archive`"
-                        ),
-                    }
-                } else if facts.task_phase_completed {
-                    NextAction {
-                        kind: NextActionKind::RunCommand,
-                        command: Some("track archive".to_string()),
-                        reason: "jj-task workspace is merged — archive the track task".to_string(),
-                    }
-                } else {
-                    NextAction {
-                        kind: NextActionKind::RunCommand,
-                        command: Some(format!("jj-task done {slug}; track archive")),
-                        reason: "All TODOs done — use $jj skill to push/merge PR, then jj-task done and track archive".to_string(),
-                    }
-                }
-            }
-            VcsMode::Git => NextAction {
+        WorkflowPhase::TaskComplete => {
+            let push = match vcs_mode {
+                VcsMode::Git => format!(
+                    "Push branch track/{slug} (`git push -u origin track/{slug}`) and open/merge the PR"
+                ),
+                VcsMode::Jj => format!(
+                    "Push bookmark track/{slug} (`jj git push --named track/{slug}`) and open/merge the PR"
+                ),
+            };
+            NextAction {
                 kind: NextActionKind::RunCommand,
                 command: Some("track archive".to_string()),
-                reason: "All TODOs done — push/merge your PR with git, then archive the task"
-                    .to_string(),
-            },
-        },
+                reason: format!("All TODOs done — {push}, then archive the task"),
+            }
+        }
         WorkflowPhase::Archived => NextAction {
             kind: NextActionKind::WaitHuman,
             command: None,
@@ -703,7 +589,7 @@ mod tests {
     }
 
     #[test]
-    fn sync_required_action_prefers_jj_task_start() {
+    fn sync_required_action_uses_track_sync_in_jj_mode() {
         let task = sample_task(TaskStatus::Active);
         let todos = vec![sample_todo(1, false)];
         let facts = WorkspaceFacts::missing_workspace(1);
@@ -716,7 +602,7 @@ mod tests {
             &[],
             &facts,
         );
-        assert_eq!(action.command.as_deref(), Some("jj-task start proj-1"));
+        assert_eq!(action.command.as_deref(), Some("track sync"));
     }
 
     #[test]
@@ -840,10 +726,12 @@ mod tests {
     }
 
     #[test]
-    fn guardrails_disable_jj_skill_in_git_mode() {
-        let guardrails = AgentGuardrails::for_mode(VcsMode::Git, false);
-        assert!(!guardrails.must_use_jj_skill);
-        assert!(guardrails.reopen_forbidden);
+    fn guardrails_never_require_jj_skill() {
+        let git = AgentGuardrails::for_mode(VcsMode::Git, false);
+        let jj = AgentGuardrails::for_mode(VcsMode::Jj, false);
+        assert!(!git.must_use_jj_skill);
+        assert!(!jj.must_use_jj_skill);
+        assert!(git.reopen_forbidden);
     }
 
     #[test]
@@ -917,16 +805,8 @@ mod tests {
         );
         assert_eq!(
             action.command.as_deref(),
-            Some("cd \"$(jj-task path proj-1)\"")
+            Some("cd \"/repo/.worktrees/proj-1\"")
         );
-    }
-
-    #[test]
-    fn jj_map_phase_is_complete_accepts_merged_and_legacy_done() {
-        assert!(jj_map_phase_is_complete(Some("merged")));
-        assert!(jj_map_phase_is_complete(Some("done")));
-        assert!(!jj_map_phase_is_complete(Some("draft")));
-        assert!(!jj_map_phase_is_complete(None));
     }
 
     #[test]

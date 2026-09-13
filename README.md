@@ -3,14 +3,15 @@
   <h1>Track</h1>
 </div>
 
-A personal work-context manager for humans and coding agents: one implicit current task in an XDG SQLite database (`$HOME/.local/share/track/track.db`). Track holds **what** you are doing (tasks, TODOs, scraps). [agent-skill-jj](https://github.com/manji-0/agent-skill-jj) (`$jj` + `jj-task`) holds **how** you commit. It is not a repo issue tracker or a multi-agent planner.
+A personal work-context manager for humans and coding agents: one implicit current task in an XDG SQLite database (`$HOME/.local/share/track/track.db`). Track holds **what** you are doing (tasks, TODOs, scraps) and **owns the coding workspace** (git worktree or colocated jj workspace). It is not a repo issue tracker or a multi-agent planner.
 
 ## Features
 
 - **Implicit current task**: `track new` / `track switch` then `todo` / `scrap` / `link` without repeating IDs
-- **Agent JSON**: `track status --json` and write commands with `--json` share `workflow`, `jj`, `todos_agent`, `guardrails`
+- **Agent JSON**: `track status --json` and write commands with `--json` share `workflow`, `hint`, `git`/`jj`, `todos_agent`, `guardrails`
 - **Tickets as labels**: optional Jira / GitHub / GitLab IDs on a personal task — not the source of truth
-- **Two-layer JJ**: `jj-task start <slug>` for workspaces; `$jj` for commits (see [docs/JJ_INTEGRATION.md](docs/JJ_INTEGRATION.md))
+- **Track-owned workspaces**: `.worktrees/<slug>` on `track/<slug>` (git branch or jj bookmark). Switch with `track config set vcs-mode git|jj`
+- **Hints**: every command ends with post-state + next action (stderr; also `hint` in `--json`)
 - **Web UI**: browser view with SSE, including [today task](docs/TODAY_TASK.md)
 
 
@@ -32,23 +33,21 @@ track new "Implement User Authentication" \
   --ticket AUTH-456 \
   --ticket-url https://jira.example.com/browse/AUTH-456
 
-# Register repo and add TODOs
+# Register repo and add TODOs (workspace is created by track)
 track repo add .
 track todo add "Design database schema"
-track todo add "Compare auth providers" --no-workspace   # research — no jj-task workspace
+track todo add "Compare auth providers" --no-workspace   # research — no coding workspace
 
-# Start jj-task workspace (from repo root; see docs/JJ_INTEGRATION.md)
-jj-task repo init    # once per repo
-jj-task start auth-456
-cd "$(jj-task path auth-456)"
+# The command footer / `hint.next_command` tells you where to work:
+#   next: cd "/path/to/repo/.worktrees/auth-456"
 
 # Record work notes
 track scrap add "Using bcrypt for password hashing"
 
-# Mark TODO complete (track DB only; use $jj skill for jj commits)
+# Mark TODO complete (track DB)
 track todo done 1
 
-# Agent-oriented status
+# Agent-oriented status (includes hint + next_action)
 track status --json
 ```
 
@@ -78,8 +77,10 @@ track status --json
 
 | Command | Description |
 |---------|-------------|
-| `track config set-calendar <calendar-id>` | Set Google Calendar ID for today task |
 | `track config show` | Show current configuration |
+| `track config set vcs-mode git\|jj` | Git worktrees (default) or colocated jj workspaces |
+| `track config set aggressive-mode on\|off` | Per-task empty revision + scraps as git notes |
+| `track config set-calendar <calendar-id>` | Set Google Calendar ID for today task |
 
 ### TODO Management
 
@@ -122,7 +123,7 @@ track status --json
 
 | Command | Description |
 |---------|-------------|
-| `track sync` | Git mode: create the task worktree. JJ mode: legacy per-TODO `--worktree` only (`jj-task start` is the default) |
+| `track sync` | Create/refresh the task workspace (`.worktrees/<slug>` on `track/<slug>`) |
 
 ### Web UI
 
@@ -197,8 +198,8 @@ For detailed information on the following features, see [docs/USAGE_EXAMPLES.md]
 - **Task Aliases**: Assign human-readable aliases to tasks
 - **Task Templates**: Create new tasks from existing task templates
 - **Ticket Reference**: Reference tasks by ticket ID
-- **jj-task slug**: alias, else ticket id, else `task-{id}` — see [docs/JJ_INTEGRATION.md](docs/JJ_INTEGRATION.md)
-- **JJ workflows**: two-layer track + `$jj` (not `track sync` before every edit)
+- **Workspace slug**: alias, else ticket id, else `task-{id}` — see [docs/JJ_INTEGRATION.md](docs/JJ_INTEGRATION.md)
+- **VCS modes**: `git` (default) or `jj`; `track sync` / `track repo add` create `.worktrees/<slug>`
 
 ## Database
 
@@ -229,7 +230,7 @@ See [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md) for details.
 
 - [docs/README.md](docs/README.md) — documentation index
 - [DESIGN.md](DESIGN.md) — product design (personal context, implicit current task)
-- [docs/JJ_INTEGRATION.md](docs/JJ_INTEGRATION.md) — track + `$jj` / jj-task
+- [docs/JJ_INTEGRATION.md](docs/JJ_INTEGRATION.md) — git / jj workspaces owned by track
 - [docs/LLM_INTEGRATION.md](docs/LLM_INTEGRATION.md) — agent skills and `track llm-help`
 - [docs/TODAY_TASK.md](docs/TODAY_TASK.md) — `track switch today`
 - [docs/FUNCTIONAL_SPEC.md](docs/FUNCTIONAL_SPEC.md) — command-level spec

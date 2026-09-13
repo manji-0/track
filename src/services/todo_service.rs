@@ -133,7 +133,7 @@ impl<'a> TodoService<'a> {
         Ok(())
     }
 
-    /// Clears legacy per-TODO `worktree_requested` flags (jj-task migration).
+    /// Clears legacy per-TODO `worktree_requested` flags.
     pub fn clear_legacy_worktree_flags(&self, task_id: Option<TaskId>) -> Result<usize> {
         let conn = self.db.get_connection();
         let affected = if let Some(task_id) = task_id {

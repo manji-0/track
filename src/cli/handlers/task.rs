@@ -1,5 +1,6 @@
 use crate::cli::handlers::CommandCtx;
 use crate::cli::handlers::confirm::confirm_from_tty;
+use crate::cli::handlers::hint::emit_hint;
 use crate::cli::handlers::json_out::{MutationKind, emit_mutation, list_json, print_json};
 use crate::models::TodoAddOptions;
 use crate::services::{TaskService, TodoService, WorktreeService};
@@ -135,6 +136,7 @@ pub fn handle_switch(ctx: &CommandCtx, task_ref: &str, json: bool) -> Result<()>
 
     let task_id = task_service.resolve_task_id(task_ref)?;
     let task = task_service.switch_task(task_id)?;
+    let _ = crate::use_cases::SyncTaskUseCase::new(ctx.db).execute(task.id, false);
 
     emit_mutation(
         ctx,
@@ -349,6 +351,7 @@ pub fn handle_info(
         }
     }
 
+    emit_hint(ctx, false, Some(task_id))?;
     Ok(())
 }
 

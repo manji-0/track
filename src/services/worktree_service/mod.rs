@@ -1,4 +1,4 @@
-mod jj;
+pub(crate) mod jj;
 mod naming;
 
 use crate::db::Database;
@@ -81,6 +81,31 @@ impl<'a> WorktreeService<'a> {
             todo_id,
             is_base,
         )
+    }
+
+    /// Record a track-owned task workspace (`.worktrees/<slug>`) if missing.
+    pub fn register_task_workspace(
+        &self,
+        task_id: crate::models::TaskId,
+        repo_path: &str,
+        workspace_path: &str,
+        branch: &str,
+    ) -> Result<Worktree> {
+        if let Some(existing) = self.find_task_workspace(task_id, repo_path)? {
+            return Ok(existing);
+        }
+        self.insert_worktree_record(task_id, workspace_path, branch, repo_path, None, false)
+    }
+
+    pub fn find_task_workspace(
+        &self,
+        task_id: crate::models::TaskId,
+        repo_path: &str,
+    ) -> Result<Option<Worktree>> {
+        Ok(self
+            .list_worktrees(task_id)?
+            .into_iter()
+            .find(|wt| !is_legacy_worktree(wt) && wt.base_repo.as_deref() == Some(repo_path)))
     }
 
     fn insert_worktree_record(
@@ -212,7 +237,13 @@ impl<'a> WorktreeService<'a> {
             && let Some(base_repo) = &worktree.base_repo
             && Path::new(&worktree.path).exists()
         {
-            jj::remove_workspace(base_repo, &worktree.path)?;
+            let vcs_mode = detect_workspace_vcs(&worktree.path, base_repo);
+            crate::services::task_workspace::remove_workspace(
+                vcs_mode,
+                base_repo,
+                &worktree.path,
+                true,
+            )?;
         }
 
         let conn = self.db.get_connection();
@@ -221,7 +252,7 @@ impl<'a> WorktreeService<'a> {
         Ok(())
     }
 
-    /// Removes legacy track-managed workspaces (base + per-TODO) for jj-task migration.
+    /// Removes legacy track-managed workspaces (base + per-TODO).
     pub fn cleanup_legacy_worktrees(
         &self,
         task_id: crate::models::TaskId,
@@ -325,7 +356,12 @@ impl<'a> WorktreeService<'a> {
     }
 
     pub fn has_uncommitted_changes(&self, path: &str) -> Result<bool> {
-        jj::has_uncommitted_changes(path)
+        let vcs_mode = if jj::is_jj_repository(path) {
+            crate::models::VcsMode::Jj
+        } else {
+            crate::models::VcsMode::Git
+        };
+        crate::services::task_workspace::has_uncommitted_changes(vcs_mode, path)
     }
 
     fn get_task_ticket_id(&self, task_id: crate::models::TaskId) -> Result<Option<String>> {
@@ -357,6 +393,14 @@ impl<'a> WorktreeService<'a> {
         stmt.query_row(params![task_id], map_worktree_row)
             .optional()
             .map_err(TrackError::from)
+    }
+}
+
+fn detect_workspace_vcs(path: &str, base_repo: &str) -> crate::models::VcsMode {
+    if jj::is_jj_repository(path) || jj::is_jj_repository(base_repo) {
+        crate::models::VcsMode::Jj
+    } else {
+        crate::models::VcsMode::Git
     }
 }
 

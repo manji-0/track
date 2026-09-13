@@ -1,71 +1,64 @@
 ---
 name: track
-description: Entry point for track CLI task management. Use when the user mentions track, todos, or task context. Assumes agent-skill-jj ($jj) for all JJ commits and PR work. Reads workflow.phase and routes to track-task-setup, track-task-execute, or track-advanced.
+description: Entry point for track CLI task management. Use when the user mentions track, todos, or task context. Track owns git/jj workspaces. Read workflow.phase, hint, and next_action; route to track-task-setup, track-task-execute, or track-advanced.
 license: MIT
-compatibility: Requires track CLI, jj, jj-task, and agent-skill-jj ($jj skill) on PATH
+compatibility: Requires track CLI on PATH (git and/or jj depending on vcs-mode)
 metadata:
   author: track
-  version: 3.1.0
+  version: 4.0.0
   tags: [track, router, task-management]
 ---
 
 # Track — Skill Router
 
-Track manages **what** to work on. **[agent-skill-jj](https://github.com/manji-0/agent-skill-jj) (`$jj`)** manages **how** to commit and open PRs.
+Track manages **what** to work on and **where** the coding workspace lives. Follow command output (`hint` / `workflow.next_action`) instead of running `git worktree`, `jj workspace`, or jj-task by hand.
 
 ## Prerequisites
 
 ```bash
-# Track skills
 npx skills add ./skills \
   -s track -s track-task-setup -s track-task-execute -s track-advanced \
   -g -a cursor -a claude-code -a codex -y
-
-# JJ / PR skill (required)
-npx skills add manji-0/agent-skill-jj -s jj -g -y
-
-# jj-task helper
-ln -s /path/to/agent-skill-jj/skills/jj/scripts/jj-task.sh ~/.local/bin/jj-task
 ```
 
 See [../../docs/JJ_INTEGRATION.md](../../docs/JJ_INTEGRATION.md) and [../INSTALL.md](../INSTALL.md).
 
-## Two-layer loop
+## Loop
 
 ```
-track status --json  →  jj.slug + workflow.next_action
-jj-task start <slug> →  cd "$(jj-task path <slug>)"
-$jj skill            →  prek, squash/commit, PR, push
-track scrap / todo done  →  track DB only
+track status --json  →  hint + workflow.next_action
+track repo add / track sync  →  .worktrees/<slug>/ on track/<slug>
+cd "<workspace_path>"  →  implement (not repo root)
+track scrap / todo done  →  track DB (git notes when aggressive-mode is on)
 ```
+
+Human commands print the same next step on stderr (`hint:` / `next:`). `--json` includes `hint`. `TRACK_HINTS=0` hides the footer.
 
 ## Which skill to use?
 
 | Phase / intent | Skill |
 |----------------|-------|
 | `setup` | **track-task-setup** |
-| `sync_required` | **track-task-execute** → `jj-task start` |
-| `execute` | **track-task-execute** → work TODO + `$jj` |
-| `task_complete` | **track-advanced** → `$jj` + `track archive` |
-| jj / PR / commit | **`$jj`** (agent-skill-jj) — not track |
+| `sync_required` | **track-task-execute** → `track sync` |
+| `execute` | **track-task-execute** → work TODO in the workspace |
+| `task_complete` | **track-advanced** → push `track/<slug>`, `track archive` |
 
 ## Universal guardrails
 
-1. **`track status --json` first** — follow `workflow.next_action`, `workflow.checklist`, and `jj.slug`
-2. **Never feature-work in main workspace** — use `jj-task path <slug>`
-3. **All jj commands via `$jj` skill** — squash, commit, push, PR phases
-4. **`track todo done`** — marks TODO in track DB (not a substitute for `$jj`)
+1. **`track status --json` first** — follow `hint`, `workflow.next_action`, `workflow.checklist`
+2. **Never feature-work in the main checkout** — use `.worktrees/<slug>/`
+3. **Do not invoke jj-task** — track creates workspaces
+4. **`track todo done`** — marks TODO in track DB (not a substitute for git/jj commit)
 5. **No reopen** — done/cancelled TODOs stay terminal
 6. **Never wait on confirmation prompts** — stdin is not a TTY; confirmation fails
 7. **`track todo delete N --force`** — always `--force` (do not prompt)
-8. **`track archive` without `--force`** — if it errors, follow the hint (`jj-task done`). `--force` only when the user explicitly skips checks
-9. **Prefer `--json` on writes** — `todo add/done`, `scrap add`, `new`, `switch` return the same snapshot as `status --json` plus `mutation`. Skip a second status call when you already have it
+8. **`track archive` without `--force`** — if it errors, follow the hint. `--force` only when the user explicitly skips dirty checks
+9. **Prefer `--json` on writes** — skip a second status call when you already have the snapshot
 
 ## Skill catalog
 
 | Skill | Responsibility |
 |-------|----------------|
 | [track-task-setup](../track-task-setup/SKILL.md) | Create task, repos, TODOs |
-| [track-task-execute](../track-task-execute/SKILL.md) | jj-task workspace + TODO loop |
+| [track-task-execute](../track-task-execute/SKILL.md) | Workspace + TODO loop |
 | [track-advanced](../track-advanced/SKILL.md) | Archive, handoff, multi-repo |
-| **`jj`** (external) | Commits, PR, prek, push |

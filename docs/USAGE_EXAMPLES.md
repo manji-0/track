@@ -2,9 +2,9 @@
 
 <!-- constrained-by ./JJ_INTEGRATION.md -->
 
-Copy-paste workflows for Track. JJ mode is the default: track stores **what** to do; **jj-task** + **`$jj`** create the workspace and commits. See [JJ_INTEGRATION.md](JJ_INTEGRATION.md).
+Copy-paste workflows for Track. **Git mode is the default**: track stores **what** to do and **creates** `.worktrees/<slug>` on `track/<slug>`. Switch with `track config set vcs-mode git|jj`. See [JJ_INTEGRATION.md](JJ_INTEGRATION.md).
 
-## Bug fix (JJ)
+## Bug fix (git, default)
 
 ```bash
 track new "Fix authentication timeout" \
@@ -15,19 +15,25 @@ track repo add .
 track todo add "Fix token refresh logic"
 track todo add "Compare expiry settings" --no-workspace
 
-track status --json   # read jj.slug and workflow.next_action
-jj-task repo init     # once per repo
-jj-task start bug-456
-cd "$(jj-task path bug-456)"
-# implement + test; use $jj skill for squash/commit/PR
+track status --json   # read hint / workflow.next_action
+# footer: next: cd "/path/to/repo/.worktrees/bug-456"
+# implement + test; commit in that worktree; git push -u origin track/bug-456
 
 track scrap add --json "Timeout was idle JWT, not server session"
 track todo done --json 1
 
 # when workflow.phase is task_complete:
-# $jj merge/PR, then:
-jj-task done bug-456
+# push/merge PR, then:
 track archive t:BUG-456
+```
+
+## Same flow in jj mode
+
+```bash
+track config set vcs-mode jj
+track repo add .          # colocates if needed; creates .worktrees/<slug>
+# commit with jj in the workspace; PR head is bookmark track/<slug>
+# jj git push --named track/<slug>
 ```
 
 ## Feature with several TODOs
@@ -41,8 +47,6 @@ track todo add "Create frontend components"
 track link add https://figma.com/design/profile --title "UI Design"
 
 track todo done --json 1          # research, no workspace
-jj-task start feat-789
-cd "$(jj-task path feat-789)"
 # one workspace for the whole task — not one per TODO
 
 track scrap add --json "Postgres for profile rows"
@@ -101,7 +105,7 @@ track todo next 3    # roadmap becomes #1
 
 ## Scraps
 
-Scraps attach to the oldest pending TODO at insert time.
+Scraps attach to the oldest pending TODO at insert time. With `track config set aggressive-mode on`, they are also written as git notes on the task revision.
 
 ```bash
 track todo add "Implement authentication"
@@ -110,9 +114,9 @@ track todo done 1
 track scrap list
 ```
 
-## jj-task slug
+## Workspace slug
 
-Not `task/PROJ-123` from legacy `track sync`. JSON `jj.slug` is:
+JSON `git.slug` / `jj.slug` is:
 
 1. `track alias` if set
 2. else sanitized ticket (`PROJ-123` → `proj-123`)
@@ -120,17 +124,18 @@ Not `task/PROJ-123` from legacy `track sync`. JSON `jj.slug` is:
 
 ```bash
 track alias set fix-oauth-refresh
-# jj.slug → fix-oauth-refresh
 ```
 
-## Git mode (optional)
+The directory is always `.worktrees/<slug>/` and the PR head is `track/<slug>`.
+
+## Aggressive mode
 
 ```bash
-track config set vcs-mode git
-track repo add .
-track sync    # creates .worktrees/<slug> on track/<slug>
+track config set aggressive-mode on
+track repo add .     # creates an empty task revision
+track scrap add "decision"   # also refs/notes/track
 ```
 
 ## Legacy per-TODO worktrees
 
-`--worktree` is removed. Existing DB rows: `track migrate legacy-worktrees`, then jj-task.
+`--worktree` is removed. Existing DB rows: `track migrate legacy-worktrees`, then `track sync`.

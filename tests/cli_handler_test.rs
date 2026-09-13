@@ -6,7 +6,8 @@ use track::cli::{Commands, LinkCommands, RepoCommands, ScrapCommands, TodoComman
 use track::db::Database;
 use track::models::{TaskStatus, TodoStatus};
 use track::services::{
-    LinkService, RepoService, ScrapService, TaskService, TodoService, WorktreeService,
+    LinkService, RepoService, ScrapService, TaskRevisionService, TaskService, TodoService,
+    WorktreeService,
 };
 use track::utils::TrackError;
 
@@ -192,6 +193,7 @@ fn test_handle_repo_add_remove() {
         return;
     };
     let db = Database::new_in_memory().unwrap();
+    db.set_vcs_mode(track::models::VcsMode::Jj).unwrap();
     let handler = CommandHandler::from_db(db);
     let db = handler.get_db();
     let task_service = TaskService::new(db);
@@ -447,6 +449,7 @@ fn test_handle_sync() {
         return;
     };
     let db = Database::new_in_memory().unwrap();
+    db.set_vcs_mode(track::models::VcsMode::Jj).unwrap();
     let handler = CommandHandler::from_db(db);
     let db = handler.get_db();
     let task_service = TaskService::new(db);
@@ -456,51 +459,103 @@ fn test_handle_sync() {
         .create_task("Task Sync", None, Some("SYNC-123"), None)
         .unwrap();
 
-    // Setup JJ repo
     let repo_path = ws.repo_path_string();
 
-    // Register repo
     repo_service
         .add_repo(task.id, &repo_path, None, None)
         .unwrap();
 
-    // Add TODO with worktree
     let todo_service = TodoService::new(db);
-    todo_service.add_todo(task.id, "Todo WT", true).unwrap();
+    todo_service.add_todo(task.id, "Todo WT", false).unwrap();
 
-    // Call Sync
     let cmd = Commands::Sync { legacy: false };
     handler.handle(cmd).unwrap();
 
-    // Verify bookmarks created
     let output = std::process::Command::new("jj")
-        .args(["-R", &repo_path, "bookmark", "list", "task/SYNC-123"])
+        .args(["-R", &repo_path, "bookmark", "list", "track/sync-123"])
         .output()
         .unwrap();
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("task/SYNC-123"));
+    assert!(
+        stdout.contains("track/sync-123"),
+        "expected track/sync-123 bookmark, got {stdout}"
+    );
 
-    let todo_output = std::process::Command::new("jj")
-        .args(["-R", &repo_path, "bookmark", "list", "SYNC-123-todo-1"])
-        .output()
-        .unwrap();
-    let todo_stdout = String::from_utf8_lossy(&todo_output.stdout);
-    assert!(todo_stdout.contains("SYNC-123-todo-1"));
-
-    // Verify worktrees created in DB
     let worktree_service = WorktreeService::new(db);
     let worktrees = worktree_service.list_worktrees(task.id).unwrap();
-    assert_eq!(worktrees.len(), 1); // Only the TODO worktree, specifically?
-    // Wait, sync creates base branch (task/SYNC-123) but does it create base WORKTREE?
-    // "Cycles through repos... creates task branch... checks out task branch."
-    // It creates branch, checks it out (which updates HEAD of repo_path).
-    // Then "for todo in todos... create worktree".
-    // It does NOT auto-create a worktree for the task base unless requested?
-    // Looking at sync code: `worktree_service.add_worktree` is only called inside todo loop.
-
-    // So 1 worktree expected (from todo).
     assert_eq!(worktrees.len(), 1);
-    assert!(worktrees[0].branch.contains("SYNC-123-todo-1"));
+    assert_eq!(worktrees[0].branch, "track/sync-123");
+    assert!(std::path::Path::new(&worktrees[0].path).exists());
+}
+
+#[test]
+fn jj_aggressive_marker_is_not_the_pr_bookmark() {
+    let Some(ws) = JjWorkspace::new() else {
+        return;
+    };
+    let db = Database::new_in_memory().unwrap();
+    db.set_vcs_mode(track::models::VcsMode::Jj).unwrap();
+    db.set_aggressive_mode(track::models::AggressiveMode::On)
+        .unwrap();
+    let task_service = TaskService::new(&db);
+    let repo_service = RepoService::new(&db);
+    let task = task_service
+        .create_task("Aggressive", None, Some("AGR-1"), None)
+        .unwrap();
+    let repo_path = ws.repo_path_string();
+    repo_service
+        .add_repo(task.id, &repo_path, None, None)
+        .unwrap();
+    TodoService::new(&db)
+        .add_todo(task.id, "Work", false)
+        .unwrap();
+
+    track::use_cases::SyncTaskUseCase::new(&db)
+        .execute(task.id, false)
+        .unwrap();
+
+    let rev = TaskRevisionService::new(&db)
+        .get(task.id, &repo_path)
+        .unwrap()
+        .expect("marker revision");
+    let workspace = worktrees_path(&repo_path, "agr-1");
+    let bookmark_commit = jj_template(&workspace, "track/agr-1", "commit_id");
+    let wc_commit = jj_template(&workspace, "@", "commit_id");
+    assert_ne!(
+        rev.git_commit, bookmark_commit,
+        "PR bookmark must not sit on the notes marker"
+    );
+    assert_eq!(bookmark_commit, wc_commit);
+}
+
+fn worktrees_path(repo_path: &str, slug: &str) -> String {
+    std::path::Path::new(repo_path)
+        .join(".worktrees")
+        .join(slug)
+        .to_string_lossy()
+        .into_owned()
+}
+
+fn jj_template(repo_path: &str, rev: &str, template: &str) -> String {
+    let output = std::process::Command::new("jj")
+        .args([
+            "-R",
+            repo_path,
+            "log",
+            "-r",
+            rev,
+            "--no-graph",
+            "-T",
+            template,
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "jj log failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    String::from_utf8_lossy(&output.stdout).trim().to_string()
 }
 
 #[test]
@@ -536,6 +591,7 @@ fn test_handle_sync_dirty_repo() {
         return;
     };
     let db = Database::new_in_memory().unwrap();
+    db.set_vcs_mode(track::models::VcsMode::Jj).unwrap();
     let handler = CommandHandler::from_db(db);
     let db = handler.get_db();
     let task_service = TaskService::new(db);
@@ -566,6 +622,7 @@ fn test_handle_sync_repo_not_found() {
         return;
     };
     let db = Database::new_in_memory().unwrap();
+    db.set_vcs_mode(track::models::VcsMode::Jj).unwrap();
     let handler = CommandHandler::from_db(db);
     let db = handler.get_db();
     let task_service = TaskService::new(db);
@@ -602,6 +659,7 @@ fn test_handle_sync_branch_already_exists() {
         return;
     };
     let db = Database::new_in_memory().unwrap();
+    db.set_vcs_mode(track::models::VcsMode::Jj).unwrap();
     let handler = CommandHandler::from_db(db);
     let db = handler.get_db();
     let task_service = TaskService::new(db);
@@ -640,6 +698,7 @@ fn test_handle_sync_worktree_already_exists() {
         return;
     };
     let db = Database::new_in_memory().unwrap();
+    db.set_vcs_mode(track::models::VcsMode::Jj).unwrap();
     let handler = CommandHandler::from_db(db);
     let db = handler.get_db();
     let task_service = TaskService::new(db);
@@ -675,7 +734,7 @@ fn test_handle_sync_worktree_already_exists() {
         .unwrap();
 
     // Call Sync - should detect existing worktree and NOT create duplicate
-    let cmd = Commands::Sync { legacy: false };
+    let cmd = Commands::Sync { legacy: true };
     handler.handle(cmd).unwrap();
 
     // Verify only 1 worktree exists (not duplicated)
@@ -689,6 +748,7 @@ fn test_handle_sync_skip_done_todos() {
         return;
     };
     let db = Database::new_in_memory().unwrap();
+    db.set_vcs_mode(track::models::VcsMode::Jj).unwrap();
     let handler = CommandHandler::from_db(db);
     let db = handler.get_db();
     let task_service = TaskService::new(db);
@@ -729,6 +789,7 @@ fn test_handle_sync_failed_branch_create() {
     };
     // Test scenario where bookmark creation fails
     let db = Database::new_in_memory().unwrap();
+    db.set_vcs_mode(track::models::VcsMode::Jj).unwrap();
     let handler = CommandHandler::from_db(db);
     let db = handler.get_db();
     let task_service = TaskService::new(db);
@@ -798,6 +859,7 @@ fn test_handle_sync_multiple_todos_different_worktrees() {
         return;
     };
     let db = Database::new_in_memory().unwrap();
+    db.set_vcs_mode(track::models::VcsMode::Jj).unwrap();
     let handler = CommandHandler::from_db(db);
     let db = handler.get_db();
     let task_service = TaskService::new(db);
@@ -833,7 +895,7 @@ fn test_handle_sync_multiple_todos_different_worktrees() {
         .unwrap();
 
     // Call Sync - should create worktree for todo2, but NOT todo1 (exists check)
-    let cmd = Commands::Sync { legacy: false };
+    let cmd = Commands::Sync { legacy: true };
     handler.handle(cmd).unwrap();
 
     // Verify both worktrees exist with correct todo_id linkage

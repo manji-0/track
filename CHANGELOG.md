@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `track config set vcs-mode git|jj` — git is the default on new databases; track owns `.worktrees/<slug>` on `track/<slug>` in both modes (git worktree or colocated jj workspace)
+- `track config set aggressive-mode on|off` — per-task empty marker revision and scraps as git notes (`refs/notes/track`)
+- Command hints: stderr footer (`hint:` / `next:`) after human output; `hint` on `--json` snapshots (`TRACK_HINTS=0` to hide)
+
+### Changed
+- `track sync` / `track repo add` create the task workspace in **jj** mode as well as git; agents follow `hint` / `workflow.next_action` instead of `jj-task`
+- Existing databases that already had tasks and never set `vcs-mode` stay on **jj** so current jj users are not flipped
+- Track no longer reads `~/.config/jj/task-workspaces.json`
+- Aggressive marker SHA is insert-once; `track sync` backfills a marker when aggressive is turned on after the workspace exists
+- `.worktrees/` is ignored via `.git/info/exclude` so the first sync does not dirty `.gitignore`
+- Switching `vcs-mode` against an existing workspace of the other backend is an error
+
 ## [0.8.0] - 2026-09-13
 
 ### Changed

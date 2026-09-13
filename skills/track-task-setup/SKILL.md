@@ -1,17 +1,17 @@
 ---
 name: track-task-setup
-description: Set up a track task before implementation — create task, description, register repos, add TODOs and links. Assumes agent-skill-jj for jj-task repo init and workspace creation. Use when workflow.phase is setup.
+description: Set up a track task before implementation — create task, description, register repos, add TODOs and links. Track creates the git/jj workspace on repo add. Use when workflow.phase is setup.
 license: MIT
-compatibility: Requires track CLI and jj-task (agent-skill-jj)
+compatibility: Requires track CLI
 metadata:
   author: track
-  version: 3.1.0
+  version: 4.0.0
   tags: [track, setup, planning, todo, repo]
 ---
 
 # Track — Task Setup
 
-Prepare **what** to build. JJ workspaces are created later via **jj-task** (see **track-task-execute** and **`$jj`**).
+Prepare **what** to build. `track repo add` also creates the coding workspace.
 
 ## When to use
 
@@ -21,9 +21,9 @@ Prepare **what** to build. JJ workspaces are created later via **jj-task** (see 
 ## Outcome checklist
 
 - Task with name (ticket/alias recommended)
-- Registered repo(s)
-- TODO list (one jj-task workspace per task; `--no-workspace` for research TODOs)
-- `track alias set <slug>` when ticket ID is not a good jj-task slug
+- Registered repo(s) — workspace at `.worktrees/<slug>/`
+- TODO list (`--no-workspace` for research TODOs)
+- `track alias set <slug>` when ticket ID is not a good workspace slug
 
 ## Workflow
 
@@ -31,7 +31,7 @@ Prepare **what** to build. JJ workspaces are created later via **jj-task** (see 
 
 ```bash
 track new "Implement OAuth" --ticket PROJ-123 --ticket-url https://...
-track alias set oauth-login    # optional: overrides jj.slug
+track alias set oauth-login    # optional: overrides slug
 ```
 
 ### 2. Describe scope
@@ -40,22 +40,15 @@ track alias set oauth-login    # optional: overrides jj.slug
 track desc "Acceptance criteria, constraints, links"
 ```
 
-### 3. Register repository
+### 3. Register repository (creates workspace)
 
 ```bash
-track repo add              # current directory (main workspace)
+track repo add              # current directory
 ```
 
-### 4. Initialize jj-task (once per repo)
+Follow the stderr `next:` line or JSON `hint.next_command`.
 
-From the **main workspace** (repo root):
-
-```bash
-jj git init --colocate    # if needed
-jj-task repo init
-```
-
-### 5. Add TODOs
+### 4. Add TODOs
 
 ```bash
 track todo add --json "Implement token refresh"
@@ -63,27 +56,29 @@ track todo add --json "Compare providers" --no-workspace
 track todo add --json "Add integration tests"
 ```
 
-One **jj-task** workspace covers all code TODOs sequentially.
+One workspace covers all code TODOs sequentially.
 
-### 6. Review
+### 5. Review
 
 ```bash
 track status --json
 ```
 
-Check `jj.slug` and `workflow.phase`.
+Check `hint`, `vcs_mode`, and `workflow.phase`.
 
-### 7. Hand off
+### 6. Hand off
 
-Switch to **track-task-execute** → `jj-task start <jj.slug>`.
+Switch to **track-task-execute** → follow `hint.next_command`.
 
-## jj.slug derivation
+## Slug derivation
 
 | Priority | Source | Example slug |
 |----------|--------|--------------|
 | 1 | alias | `oauth-login` |
 | 2 | ticket_id | `proj-123` |
 | 3 | task id | `task-42` |
+
+PR head is always `track/<slug>`.
 
 ## Next step
 

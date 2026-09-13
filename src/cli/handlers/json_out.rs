@@ -1,6 +1,7 @@
 //! Agent-oriented JSON output for CLI mutations and task lists.
 
 use crate::cli::handlers::CommandCtx;
+use crate::cli::handlers::hint::emit_hint;
 use crate::db::Database;
 use crate::models::{Task, TaskId};
 use crate::services::TaskService;
@@ -90,10 +91,11 @@ pub fn emit_mutation(
 ) -> Result<()> {
     if json {
         let value = mutation_json(ctx.db, kind, id, task_id)?;
-        print_json(&value)
+        print_json(&value)?;
+        Ok(())
     } else {
         human();
-        Ok(())
+        emit_hint(ctx, false, task_id)
     }
 }
 

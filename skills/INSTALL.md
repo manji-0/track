@@ -1,26 +1,14 @@
 # Installing Track Skills for AI Agents
 
-Track skills manage **tasks and TODOs**. They assume **[agent-skill-jj](https://github.com/manji-0/agent-skill-jj)** is installed for all JJ commit and PR work (`$jj` skill + `jj-task` script).
+Track skills manage **tasks, TODOs, and track-owned workspaces**. They tell agents to follow `hint` / `workflow.next_action` from `track status --json`. Skills are optional — `track llm-help` covers the same loop.
 
 ## Requirements
 
 - **track CLI** on `PATH`
-- **jj** on `PATH`
-- **jj-task** from agent-skill-jj (`~/.local/bin/jj-task`)
-- **`jj` skill** from agent-skill-jj (via `npx skills`)
+- **git** and/or **jj** depending on `track config show` (`vcs-mode`)
 - **Node.js 18+** (for `npx skills` only)
 
-### Install agent-skill-jj (required)
-
-```bash
-npx skills add manji-0/agent-skill-jj -s jj -g -a cursor -a claude-code -a codex -y
-
-# jj-task helper
-git clone https://github.com/manji-0/agent-skill-jj.git
-ln -s "$(pwd)/agent-skill-jj/skills/jj/scripts/jj-task.sh" ~/.local/bin/jj-task
-```
-
-See [../docs/JJ_INTEGRATION.md](../docs/JJ_INTEGRATION.md) for the combined workflow.
+See [../docs/JJ_INTEGRATION.md](../docs/JJ_INTEGRATION.md) for workspace layout (`track/<slug>`).
 
 ---
 
@@ -191,6 +179,7 @@ track status --json
 | Field | Use |
 |-------|-----|
 | `workflow.phase` | Route to setup / execute / advanced skill |
+| `hint.next_command` | Exact next command (also stderr `next:`) |
 | `workflow.next_action` | Suggested command and reason |
 | `workflow.checklist` | Ordered setup/sync steps |
 | `todos_agent[].is_next` | Which TODO to work on |

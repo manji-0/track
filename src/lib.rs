@@ -1,7 +1,8 @@
 //! # Track — personal work-context manager
 //!
 //! CLI + Web UI for one implicit current task (TODOs, scraps, links) in XDG SQLite.
-//! JJ workspaces and commits belong to **jj-task** and the `$jj` skill, not this crate.
+//! Track owns the coding workspace (git worktree or colocated jj workspace at
+//! `.worktrees/<slug>` on `track/<slug>`). Switch backends with `track config set vcs-mode`.
 //!
 //! ```bash
 //! track new "Implement feature X"

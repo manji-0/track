@@ -6,11 +6,11 @@ use std::str::FromStr;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum VcsMode {
-    /// Jujutsu via agent-skill-jj (`jj-task` + `$jj` skill). Default.
+    /// Plain git worktrees and branches. Default.
     #[default]
-    Jj,
-    /// Plain git worktrees and branches.
     Git,
+    /// Jujutsu (colocated with git). Track owns `jj workspace add`.
+    Jj,
 }
 
 impl VcsMode {

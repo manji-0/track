@@ -3,7 +3,7 @@ use crate::models::{RepoIndex, TaskId, TaskRepo, TaskRepoId};
 use crate::utils::{Result, TrackError};
 use chrono::Utc;
 use rusqlite::{OptionalExtension, params};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 pub struct RepoService<'a> {
     db: &'a Database,
@@ -25,9 +25,11 @@ impl<'a> RepoService<'a> {
         // Resolve to absolute path
         let abs_path = self.resolve_absolute_path(repo_path)?;
 
-        // Validate it's a JJ repository
-        if !self.is_jj_repository(&abs_path)? {
-            return Err(TrackError::NotJjRepository(abs_path.display().to_string()));
+        let path_str = abs_path.display().to_string();
+        let is_git = crate::services::git_worktree::is_git_repository(&path_str);
+        let is_jj = abs_path.join(".jj").exists();
+        if !is_git && !is_jj {
+            return Err(TrackError::NotVcsRepository(path_str));
         }
 
         let path_str = abs_path.to_string_lossy().to_string();
@@ -131,12 +133,6 @@ impl<'a> RepoService<'a> {
                 .map_err(|e| TrackError::PathResolutionFailed(e.to_string()))
         }
     }
-
-    /// Check if a path is a JJ repository
-    fn is_jj_repository(&self, path: &Path) -> Result<bool> {
-        let jj_dir = path.join(".jj");
-        Ok(jj_dir.exists())
-    }
 }
 
 #[cfg(test)]
@@ -196,7 +192,7 @@ mod tests {
             result
                 .unwrap_err()
                 .to_string()
-                .contains("not a JJ repository")
+                .contains("not a git or jj repository")
         );
 
         // Cleanup

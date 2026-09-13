@@ -39,7 +39,7 @@ pub fn handle_todo(ctx: &CommandCtx, command: TodoCommands) -> Result<()> {
                 || {
                     println!("Added TODO #{}: {}", todo.task_index, todo.content);
                     if no_workspace {
-                        println!("No jj-task/git workspace required for this TODO");
+                        println!("No git/jj workspace required for this TODO");
                     }
                 },
             )

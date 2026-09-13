@@ -2,7 +2,7 @@
 
 use crate::models::{TaskStatus, TodoStatus};
 use crate::utils::Result;
-use rusqlite::Connection;
+use rusqlite::{Connection, OptionalExtension};
 
 /// Adds CHECK constraints on task/todo status columns for existing databases.
 pub(crate) fn migrate_status_check_constraints(conn: &Connection) -> Result<()> {
@@ -492,6 +492,48 @@ pub fn migrate_schema(conn: &Connection) -> Result<()> {
     )?;
 
     migrate_status_check_constraints(conn)?;
+    migrate_task_revisions(conn)?;
+    migrate_legacy_vcs_mode_default(conn)?;
 
+    Ok(())
+}
+
+fn migrate_task_revisions(conn: &Connection) -> Result<()> {
+    conn.execute_batch(
+        r#"
+        CREATE TABLE IF NOT EXISTS task_revisions (
+            task_id INTEGER NOT NULL,
+            repo_path TEXT NOT NULL,
+            git_commit TEXT NOT NULL,
+            jj_change_id TEXT,
+            created_at TEXT NOT NULL,
+            PRIMARY KEY (task_id, repo_path),
+            FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
+        );
+        "#,
+    )?;
+    Ok(())
+}
+
+/// Existing databases that never set `vcs_mode` were implicitly jj. Keep them on jj.
+fn migrate_legacy_vcs_mode_default(conn: &Connection) -> Result<()> {
+    let existing: Option<String> = conn
+        .query_row(
+            "SELECT value FROM app_state WHERE key = 'vcs_mode'",
+            [],
+            |row| row.get(0),
+        )
+        .optional()?;
+    if existing.is_some() {
+        return Ok(());
+    }
+
+    let task_count: i64 = conn.query_row("SELECT COUNT(*) FROM tasks", [], |row| row.get(0))?;
+    if task_count > 0 {
+        conn.execute(
+            "INSERT INTO app_state (key, value) VALUES ('vcs_mode', 'jj')",
+            [],
+        )?;
+    }
     Ok(())
 }

@@ -1,4 +1,5 @@
 use crate::cli::handlers::CommandCtx;
+use crate::cli::handlers::hint::emit_hint;
 use crate::models::VcsMode;
 use crate::use_cases::{RepoSyncOutcome, SyncTaskUseCase};
 use crate::utils::{Result, TrackError};
@@ -13,7 +14,7 @@ pub fn handle_sync(ctx: &CommandCtx, legacy: bool) -> Result<()> {
 
     match outcome.vcs_mode {
         VcsMode::Jj => {
-            println!("Syncing task bookmark: {}\n", outcome.task_bookmark);
+            println!("Syncing jj workspace bookmark: {}\n", outcome.task_bookmark);
         }
         VcsMode::Git => {
             println!("Syncing git worktree branch: {}\n", outcome.task_bookmark);
@@ -48,32 +49,28 @@ pub fn handle_sync(ctx: &CommandCtx, legacy: bool) -> Result<()> {
                 workspace_path,
             } => {
                 println!(
-                    "  ✓ Worktree {} created from {} at {}",
+                    "  ✓ Workspace {} created from {} at {}",
                     outcome.task_bookmark, base_ref, workspace_path
                 );
             }
             RepoSyncOutcome::WorktreeExists { workspace_path } => {
                 println!(
-                    "  ✓ Worktree {} already exists at {}",
+                    "  ✓ Workspace {} already exists at {}",
                     outcome.task_bookmark, workspace_path
                 );
             }
             RepoSyncOutcome::WorktreeCreateFailed { base_ref, detail } => {
                 println!(
-                    "  ✗ Failed to create worktree {} from {} ({})",
+                    "  ✗ Failed to create workspace {} from {} ({})",
                     outcome.task_bookmark, base_ref, detail
                 );
             }
         }
     }
 
-    if outcome.vcs_mode == VcsMode::Jj {
-        println!("Checking for pending workspaces...");
-    }
-
     for created in &outcome.workspaces_created {
         println!(
-            "Creating workspace for TODO #{}: {}",
+            "Creating legacy workspace for TODO #{}: {}",
             created.todo_index, created.todo_content
         );
         println!("  Created {} ({})", created.workspace_path, created.branch);
@@ -86,27 +83,12 @@ pub fn handle_sync(ctx: &CommandCtx, legacy: bool) -> Result<()> {
         );
     }
 
-    if outcome.vcs_mode == VcsMode::Jj {
-        if legacy {
-            eprintln!(
-                "warning: `track sync --legacy` uses the deprecated per-TODO worktree model."
-            );
-        } else if !outcome.workspaces_created.is_empty() {
-            eprintln!(
-                "warning: legacy per-TODO workspaces created — run `track migrate legacy-worktrees` after finishing."
-            );
-        }
-    }
-
-    if outcome.vcs_mode == VcsMode::Jj && outcome.workspaces_created.is_empty() && !legacy {
-        println!(
-            "\nTip: use `jj-task start <slug>` for task workspaces (see `track status --json`)."
-        );
-    } else if outcome.vcs_mode == VcsMode::Jj && outcome.workspaces_created.is_empty() && legacy {
-        println!("\nLegacy sync finished (bookmark only). Prefer jj-task for new work.");
+    if legacy {
+        eprintln!("warning: `track sync --legacy` uses the deprecated per-TODO worktree model.");
     }
 
     println!("Sync complete.");
+    emit_hint(ctx, false, Some(current_task_id))?;
     Ok(())
 }
 

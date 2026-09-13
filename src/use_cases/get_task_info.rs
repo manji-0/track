@@ -1,5 +1,5 @@
 use crate::db::Database;
-use crate::models::{Link, Scrap, Task, TaskRepo, Todo, VcsMode, Worktree};
+use crate::models::{AggressiveMode, Link, Scrap, Task, TaskRepo, Todo, VcsMode, Worktree};
 use crate::services::agent_context::build_agent_extensions;
 use crate::services::{
     LinkService, RepoService, ScrapService, TaskService, TodoService, WorktreeService,
@@ -16,6 +16,7 @@ pub struct TaskInfoSnapshot {
     pub worktrees: Vec<Worktree>,
     pub repos: Vec<TaskRepo>,
     pub vcs_mode: VcsMode,
+    pub aggressive_mode: AggressiveMode,
 }
 
 /// Loads task detail and builds CLI/JSON status views.
@@ -47,6 +48,7 @@ impl<'a> GetTaskInfoUseCase<'a> {
         let repo_service = RepoService::new(self.db);
         let repos = repo_service.list_repos(task_id)?;
         let vcs_mode = self.db.get_vcs_mode()?;
+        let aggressive_mode = self.db.get_aggressive_mode()?;
 
         Ok(TaskInfoSnapshot {
             task,
@@ -56,6 +58,7 @@ impl<'a> GetTaskInfoUseCase<'a> {
             worktrees,
             repos,
             vcs_mode,
+            aggressive_mode,
         })
     }
 
@@ -174,6 +177,7 @@ impl<'a> GetTaskInfoUseCase<'a> {
 
         let agent = build_agent_extensions(
             snapshot.vcs_mode,
+            snapshot.aggressive_mode,
             &snapshot.task,
             &snapshot.todos,
             &snapshot.worktrees,
@@ -197,7 +201,7 @@ impl<'a> GetTaskInfoUseCase<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::services::TaskService;
+    use crate::services::{TaskService, TodoService};
 
     #[test]
     fn base_bookmark_uses_ticket_when_no_base_worktree() {

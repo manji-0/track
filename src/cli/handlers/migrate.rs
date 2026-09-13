@@ -47,7 +47,10 @@ pub fn handle_migrate(ctx: &CommandCtx, command: MigrateCommands) -> Result<()> 
                     }
                     println!("  retry with --force after committing or discarding changes");
                 }
-                println!("  next: jj-task start {}", report.jj_slug);
+                println!(
+                    "  next: track sync  # workspace .worktrees/{}",
+                    report.jj_slug
+                );
                 println!();
             }
 

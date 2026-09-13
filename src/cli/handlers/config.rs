@@ -1,6 +1,7 @@
 use crate::cli::ConfigCommands;
 use crate::cli::handlers::CommandCtx;
-use crate::models::VcsMode;
+use crate::cli::handlers::hint::emit_hint;
+use crate::models::{AggressiveMode, VcsMode};
 use crate::utils::{Result, TrackError};
 
 pub fn handle_config(ctx: &CommandCtx, command: ConfigCommands) -> Result<()> {
@@ -13,21 +14,43 @@ pub fn handle_config(ctx: &CommandCtx, command: ConfigCommands) -> Result<()> {
                     ctx.db.set_vcs_mode(mode)?;
                     println!("Set VCS mode: {mode}");
                     match mode {
-                        VcsMode::Jj => {
-                            println!("\nJJ mode uses agent-skill-jj (jj-task + $jj skill).");
-                            println!("Run `jj-task start <slug>` to begin work.");
+                        VcsMode::Git => {
                             println!(
-                                "(`track sync` is legacy-only — see `track migrate legacy-worktrees`)"
+                                "Git mode: track creates `.worktrees/<slug>` on branch `track/<slug>`."
+                            );
+                            println!(
+                                "Register a repo with `track repo add .` (workspace is created automatically)."
                             );
                         }
-                        VcsMode::Git => {
-                            println!("\nGit mode uses plain git worktrees and branches.");
-                            println!("Run `track sync` to create `.worktrees/<slug>/` workspaces.");
+                        VcsMode::Jj => {
+                            println!(
+                                "JJ mode: track creates colocated jj workspaces at `.worktrees/<slug>`."
+                            );
+                            println!(
+                                "Bookmark `track/<slug>` is the GitHub PR head (`jj git push --named track/<slug>`)."
+                            );
                         }
+                    }
+                }
+                "aggressive-mode" => {
+                    let mode: AggressiveMode =
+                        value.parse().map_err(TrackError::InvalidAggressiveMode)?;
+                    ctx.db.set_aggressive_mode(mode)?;
+                    println!("Set aggressive mode: {mode}");
+                    if mode.is_on() {
+                        println!(
+                            "Each task gets a dedicated empty marker revision; scraps are git notes (`refs/notes/track`) on that marker."
+                        );
+                        println!(
+                            "Run `track sync` so existing workspaces get a marker. The marker SHA is never rewritten."
+                        );
+                    } else {
+                        println!("Task revisions and git notes are disabled.");
                     }
                 }
                 other => return Err(TrackError::UnknownConfigKey(other.to_string())),
             }
+            emit_hint(ctx, false, ctx.db.get_current_task_id()?)?;
         }
         ConfigCommands::SetCalendar { calendar_id } => {
             ctx.db.set_app_state("calendar_id", &calendar_id)?;
@@ -40,7 +63,13 @@ pub fn handle_config(ctx: &CommandCtx, command: ConfigCommands) -> Result<()> {
             println!("=== Track Configuration ===\n");
 
             let vcs_mode = ctx.db.get_vcs_mode()?;
-            println!("VCS mode: {vcs_mode} (jj = agent-skill-jj, git = plain git worktrees)");
+            let aggressive = ctx.db.get_aggressive_mode()?;
+            println!(
+                "VCS mode: {vcs_mode} (git = default worktrees, jj = colocated jj workspaces)"
+            );
+            println!(
+                "Aggressive mode: {aggressive} (on = per-task revision + scraps as git notes)"
+            );
 
             if let Some(calendar_id) = ctx.db.get_app_state("calendar_id")? {
                 println!("Google Calendar ID: {}", calendar_id);
@@ -50,9 +79,11 @@ pub fn handle_config(ctx: &CommandCtx, command: ConfigCommands) -> Result<()> {
                 println!("  track config set-calendar <calendar-id>");
             }
 
-            println!("\nTo change VCS mode, run:");
-            println!("  track config set vcs-mode jj");
+            println!("\nTo change settings, run:");
             println!("  track config set vcs-mode git");
+            println!("  track config set vcs-mode jj");
+            println!("  track config set aggressive-mode on");
+            println!("  track config set aggressive-mode off");
         }
     }
     Ok(())

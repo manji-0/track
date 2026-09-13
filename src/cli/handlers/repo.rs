@@ -1,7 +1,9 @@
 use crate::cli::RepoCommands;
 use crate::cli::handlers::CommandCtx;
+use crate::cli::handlers::hint::emit_hint;
 use crate::cli::handlers::json_out::{MutationKind, emit_mutation};
-use crate::services::RepoService;
+use crate::services::{RepoService, task_workspace};
+use crate::use_cases::SyncTaskUseCase;
 use crate::utils::{Result, TrackError};
 use prettytable::{Cell, Row, Table, format};
 
@@ -15,79 +17,9 @@ pub fn handle_repo(ctx: &CommandCtx, command: RepoCommands) -> Result<()> {
     match command {
         RepoCommands::Add { path, base, json } => {
             let repo_path = path.as_deref().unwrap_or(".");
-
-            // Determine base bookmark and change ID
-            let (base_branch, base_commit_hash) = if let Some(bookmark) = base {
-                let hash_output = std::process::Command::new("jj")
-                    .args([
-                        "-R",
-                        repo_path,
-                        "log",
-                        "-r",
-                        &bookmark,
-                        "--no-graph",
-                        "-T",
-                        "commit_id",
-                    ])
-                    .output()?;
-
-                if !hash_output.status.success() {
-                    return Err(TrackError::Jj(format!(
-                        "Failed to get change ID for bookmark '{bookmark}'"
-                    )));
-                }
-
-                let hash = String::from_utf8_lossy(&hash_output.stdout)
-                    .trim()
-                    .to_string();
-                (Some(bookmark), Some(hash))
-            } else {
-                let bookmark_output = std::process::Command::new("jj")
-                    .args(["-R", repo_path, "bookmark", "list", "-r", "@", "-T", "name"])
-                    .output()?;
-
-                if !bookmark_output.status.success() {
-                    return Err(TrackError::Jj(
-                        "Failed to resolve current bookmark".to_string(),
-                    ));
-                }
-
-                let bookmark = String::from_utf8_lossy(&bookmark_output.stdout)
-                    .lines()
-                    .find(|line| !line.trim().is_empty())
-                    .map(|line| line.trim().to_string());
-
-                let hash = if let Some(ref name) = bookmark {
-                    let hash_output = std::process::Command::new("jj")
-                        .args([
-                            "-R",
-                            repo_path,
-                            "log",
-                            "-r",
-                            name,
-                            "--no-graph",
-                            "-T",
-                            "commit_id",
-                        ])
-                        .output()?;
-
-                    if !hash_output.status.success() {
-                        return Err(TrackError::Jj(
-                            "Failed to get change ID for current bookmark".to_string(),
-                        ));
-                    }
-
-                    Some(
-                        String::from_utf8_lossy(&hash_output.stdout)
-                            .trim()
-                            .to_string(),
-                    )
-                } else {
-                    None
-                };
-
-                (bookmark, hash)
-            };
+            let vcs_mode = ctx.db.get_vcs_mode()?;
+            let (base_branch, base_commit_hash) =
+                task_workspace::resolve_base(vcs_mode, repo_path, base.as_deref())?;
 
             let repo = repo_service.add_repo(
                 current_task_id,
@@ -95,6 +27,12 @@ pub fn handle_repo(ctx: &CommandCtx, command: RepoCommands) -> Result<()> {
                 base_branch.clone(),
                 base_commit_hash.clone(),
             )?;
+
+            let sync_note = match SyncTaskUseCase::new(ctx.db).execute(current_task_id, false) {
+                Ok(_) => None,
+                Err(err) => Some(err.to_string()),
+            };
+
             emit_mutation(
                 ctx,
                 json,
@@ -103,12 +41,17 @@ pub fn handle_repo(ctx: &CommandCtx, command: RepoCommands) -> Result<()> {
                 Some(current_task_id),
                 || {
                     println!("Registered repository: {}", repo.repo_path);
-                    if let Some(branch) = base_branch {
-                        println!(
-                            "Base bookmark: {} ({})",
-                            branch,
-                            &base_commit_hash.unwrap()[..8]
-                        );
+                    if let Some(branch) = &base_branch {
+                        if let Some(hash) = &base_commit_hash {
+                            let short = &hash[..std::cmp::min(8, hash.len())];
+                            println!("Base: {branch} ({short})");
+                        } else {
+                            println!("Base: {branch}");
+                        }
+                    }
+                    if let Some(err) = &sync_note {
+                        eprintln!("Workspace not created yet: {err}");
+                        eprintln!("Run `track sync` after the base workspace is clean.");
                     }
                 },
             )?;
@@ -130,11 +73,11 @@ pub fn handle_repo(ctx: &CommandCtx, command: RepoCommands) -> Result<()> {
             }
 
             table.printstd();
+            emit_hint(ctx, false, Some(current_task_id))?;
         }
         RepoCommands::Remove { id } => {
             let repos = repo_service.list_repos(current_task_id)?;
 
-            // Find repo by task_index
             let repo = repos
                 .iter()
                 .find(|r| r.task_index == id)
@@ -142,6 +85,7 @@ pub fn handle_repo(ctx: &CommandCtx, command: RepoCommands) -> Result<()> {
 
             repo_service.remove_repo(repo.id)?;
             println!("Removed repository #{}", id);
+            emit_hint(ctx, false, Some(current_task_id))?;
         }
     }
 

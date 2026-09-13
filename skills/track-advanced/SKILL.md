@@ -1,28 +1,27 @@
 ---
 name: track-advanced
-description: Advanced track workflows with agent-skill-jj — archive, handoff, multi-repo tasks, hotfixes. Assumes jj-task and $jj skill for all JJ/PR operations. Use when workflow.phase is task_complete or for cross-repo patterns.
+description: Advanced track workflows — archive, handoff, multi-repo tasks, hotfixes. Track owns git/jj workspaces. Use when workflow.phase is task_complete or for cross-repo patterns.
 license: MIT
-compatibility: Requires track CLI, jj-task, and agent-skill-jj ($jj skill)
+compatibility: Requires track CLI
 metadata:
   author: track
-  version: 3.1.0
+  version: 4.0.0
   tags: [track, advanced, multi-repo, archive]
 ---
 
 # Track — Advanced Workflows
 
-Track handles **task state**; **`$jj`** handles **PR merge and push**.
+Track handles **task state and workspaces**. Push/merge `track/<slug>` from the workspace, then archive.
 
 ## Task completion
 
 ```bash
 track status --json                    # confirm task_complete
-# $jj skill: merge PR, final push
-jj-task done <jj.slug>                 # mark workspace merged in jj map
-track archive                          # validates jj-task phase + dirty workspaces
+# push track/<slug> and merge the PR
+track archive                          # removes workspaces; keeps branch/bookmark
 ```
 
-Do **not** pass `track archive --force` unless the user explicitly wants to skip those checks. Agents cannot confirm prompts: non-TTY stdin fails instead of hanging. Fix the blocker (`jj-task done`, commit/discard) and archive again.
+Do **not** pass `track archive --force` unless the user explicitly wants to skip dirty-workspace checks. Agents cannot confirm prompts: non-TTY stdin fails instead of hanging.
 
 ## Multi-repository task
 
@@ -34,7 +33,7 @@ track todo add "API endpoint"
 track todo add "Client sync"
 ```
 
-Each repo: `jj-task repo init` once, then `jj-task start <slug>` per repo (same slug, separate maps).
+`track repo add` / `track sync` creates `.worktrees/<slug>` in **each** repo (same slug).
 
 ## Hotfix
 
@@ -42,8 +41,7 @@ Each repo: `jj-task repo init` once, then `jj-task start <slug>` per repo (same 
 track new "Fix auth bug" --ticket BUG-999
 track alias set fix-auth-bug
 track todo add "Fix refresh logic"
-# track-task-execute: jj-task start fix-auth-bug
-# $jj: squash, draft PR, push
+# follow hint → cd .worktrees/fix-auth-bug
 track todo done 1
 ```
 
@@ -51,15 +49,14 @@ track todo done 1
 
 ```bash
 track switch t:PROJ-123
-track status --json    # new jj.slug
-cd "$(jj-task path <jj.slug>)"
+track status --json    # new slug; track ensures workspace when repos exist
 ```
 
 ## Team handoff
 
 ```bash
-# $jj skill: push bookmark, open PR
-track status --json    # share jj.slug + TODOs
+# push track/<slug>, open PR
+track status --json    # share slug + TODOs
 track scrap list
 ```
 

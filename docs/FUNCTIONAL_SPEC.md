@@ -109,9 +109,9 @@ URL: <url>
 
 ---
 
-### 1.4. jj-task slug
+### 1.4. Workspace slug
 
-JJ-mode workspaces are named by `jj.slug` from `track status --json`, not by `track sync` bookmark names.
+Workspaces are named by `git.slug` / `jj.slug` from `track status --json`. Directory: `.worktrees/<slug>/`. Git branch / jj bookmark: `track/<slug>` (GitHub PR head).
 
 | Source (first match) | Example |
 |---|---|
@@ -119,7 +119,7 @@ JJ-mode workspaces are named by `jj.slug` from `track status --json`, not by `tr
 | Sanitized ticket id | `PROJ-123` → `proj-123` |
 | Fallback | `task-{id}` |
 
-Legacy git-mode / `track sync` still uses `task/<ticket_id>` bookmarks. Per-TODO `--worktree` is removed; migrate with `track migrate legacy-worktrees`.
+Per-TODO `--worktree` is removed; migrate with `track migrate legacy-worktrees`.
 
 ---
 
@@ -600,9 +600,9 @@ Added scrap at <timestamp>
 
 ## 5. Workspace Integration Functions
 
-JJ mode: coding workspaces are **jj-task** (`.worktrees/<slug>/`). Track does not create them. Git mode and leftover `worktree_requested` rows still use `track sync` / `track todo workspace`. See [JJ_INTEGRATION.md](JJ_INTEGRATION.md).
+Both VCS modes create a **track-owned** coding workspace at `.worktrees/<slug>/` on `track/<slug>` (`track repo add` / `track sync`). Switch backends with `track config set vcs-mode git|jj`. See [JJ_INTEGRATION.md](JJ_INTEGRATION.md).
 
-The old `track workspace add/list/link/remove` commands are gone. Register repos with `track repo`; complete TODOs with `track todo done` (track DB only in JJ mode).
+The old `track workspace add/list/link/remove` commands are gone. Register repos with `track repo`; complete TODOs with `track todo done`.
 
 ### 5.1. Task Lifecycle Integration
 
@@ -616,10 +616,11 @@ Automatically manages relevant workspaces according to task state changes.
    - If omitted: Use current active task (Error if no active task).
 2. Check for uncommitted changes in all related workspaces.
    - TTY: display warning and ask for confirmation.
-   - Non-TTY: error with a hint (`jj-task done` or `--force`). Do not wait for stdin.
+   - Non-TTY: error with a hint (`--force`). Do not wait for stdin.
 3. For all related workspaces:
-   - Execute `jj workspace forget <name>` and remove the directory.
-   - Delete record from DB.
+   - Remove the git worktree or jj workspace directory.
+   - Keep branch/bookmark `track/<slug>` for GitHub PRs.
+   - Delete leftover non-VCS directories best-effort.
 4. Update task `status` to `'archived'`.
 5. If `app_state`'s `current_task_id` matches the task, clear it.
 
@@ -681,23 +682,23 @@ fn insert_task(db: &Database) -> Result<(), TrackError> {
 
 ### 8.1. `track repo add [path]` - Register Repository
 
-**Overview**: Registers a JJ repository to the current task.
+**Overview**: Registers a git or jj repository to the current task and creates the task workspace.
 
 **Input**:
 | Argument/Flag | Type | Required | Description |
 |---|---|---|---| 
 | `path` | Path | | Repository path (Default: current directory `.`) |
-| `--base` / `-b` | String | | Base bookmark name (Default: current bookmark) |
+| `--base` / `-b` | String | | Base branch/bookmark (Default: current) |
 
 **Process Flow**:
 1. Validate that a task is currently active.
 2. Resolve path to absolute path.
-3. Validate that path is a JJ repository (check for `.jj` directory).
+3. Validate that path is a git and/or jj repository (depends on `vcs-mode`).
 4. Check if repository is already registered for this task.
-5. Determine base bookmark:
-   - If `--base` is specified, use that bookmark name.
-   - Otherwise, use the current bookmark in the repository.
-6. INSERT record into `task_repos` table with base bookmark.
+5. Determine base revision:
+   - If `--base` is specified, use that name.
+   - Otherwise, use the current branch/bookmark.
+6. INSERT record into `task_repos` and create `.worktrees/<slug>` on `track/<slug>`.
 
 **Output**:
 ```
@@ -708,7 +709,7 @@ Registered repository: /absolute/path/to/repo
 | Condition | Error Message |
 |---|---|
 | No active task | `Error: No active task. Run 'track new' or 'track switch' first.` |
-| Not a JJ repository | `Error: <path> is not a JJ repository` |
+| Not a VCS repository | `Error: <path> is not a git/jj repository` |
 | Already registered | `Error: Repository already registered for this task` |
 
 ---
@@ -745,28 +746,24 @@ Removed repository #<id>
 
 ### 8.4. `track sync` - Sync Repositories
 
-**Overview**: Git mode (and legacy JJ `--worktree` rows) create/move task worktrees. Default JJ mode rejects `track sync` unless leftover `worktree_requested` TODOs exist, or `--legacy` is passed. New work uses `jj-task start <jj.slug>`.
+**Overview**: Creates or refreshes the task workspace for every registered repo. Both git and jj modes use `.worktrees/<slug>` on `track/<slug>`. `--legacy` rebuilds old per-TODO jj worktrees.
 
-**JJ mode (current)**:
-1. If no legacy per-TODO worktrees are pending: error, tell the agent to run `jj-task start`.
-2. With pending legacy rows or `--legacy`: keep old bookmark/workspace behavior.
-
-**Git mode**:
+**Git / jj (current)**:
 1. Get current task and registered repos.
-2. Create `.worktrees/<slug>` on `track/<slug>` as needed.
+2. Create `.worktrees/<slug>` on `track/<slug>` as needed (jj: colocate + workspace add).
+3. When aggressive mode is on, ensure a per-task empty revision exists.
 
 **Error Cases**:
 | Condition | Error Message |
 |---|---|
 | No active task | `Error: No active task` |
-| JJ mode, no legacy TODOs | Use `jj-task start` (see `track status --json`) |
 | No repositories registered | `Error: No repositories registered for this task` |
 
 ---
 
 ### 8.5. `track todo add <text> [--no-workspace]` - Add TODO
 
-**Overview**: Adds a TODO to the current task. Default TODOs expect a jj-task (or git) workspace. `--no-workspace` marks research/planning items. `--worktree` is removed and returns an error.
+**Overview**: Adds a TODO to the current task. Default TODOs expect a coding workspace. `--no-workspace` marks research/planning items. `--worktree` is removed and returns an error.
 
 **Input**:
 | Argument/Flag | Type | Required | Description |
@@ -789,7 +786,7 @@ Added TODO #15: Implement login endpoint
 
 ### 8.6. `track todo done <id>` - Complete TODO
 
-**Overview**: Marks a TODO done in the track DB. In JJ mode this is **not** a jj commit or workspace merge — use `$jj` then keep working in the same jj-task workspace. Legacy per-TODO workspaces (git mode / leftover `worktree_requested`) may still rebase and remove a worktree.
+**Overview**: Marks a TODO done in the track DB. This is **not** a git/jj commit — commit from the task workspace, then keep working there. Legacy per-TODO workspaces (`worktree_requested`) may still rebase and remove a worktree.
 
 **Input**:
 | Argument | Type | Required | Description |

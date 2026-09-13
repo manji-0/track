@@ -2,7 +2,7 @@
 
 ## Overview
 
-Track is a personal work-context manager (Rust CLI + Web UI). One implicit current task lives in SQLite at `~/.local/share/track/track.db`. JJ workspaces and commits are owned by jj-task / `$jj` — see [docs/JJ_INTEGRATION.md](docs/JJ_INTEGRATION.md).
+Track is a personal work-context manager (Rust CLI + Web UI). One implicit current task lives in SQLite at `~/.local/share/track/track.db`. Track owns coding workspaces (git or colocated jj) — see [docs/JJ_INTEGRATION.md](docs/JJ_INTEGRATION.md).
 
 ## Directory Structure
 

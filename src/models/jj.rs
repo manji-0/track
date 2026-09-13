@@ -3,7 +3,7 @@ use serde::Serialize;
 use std::fmt;
 use std::ops::Deref;
 
-/// jj-task slug derived from a track task (`alias` → `ticket_id` → `task-{id}`).
+/// Workspace slug derived from a track task (`alias` → `ticket_id` → `task-{id}`).
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize)]
 #[serde(transparent)]
 pub struct JjSlug(String);
@@ -56,10 +56,9 @@ impl PartialEq<&str> for JjSlug {
     }
 }
 
-/// Derives the jj-task slug for a track task.
+/// Derives the workspace slug for a track task.
 ///
 /// Priority: alias → ticket_id (sanitized) → `task-{id}`.
-/// Matches [agent-skill-jj](https://github.com/manji-0/agent-skill-jj) conventions.
 pub fn jj_slug(task: &Task) -> JjSlug {
     if let Some(alias) = task.alias.as_deref() {
         return JjSlug::from_sanitized(sanitize_jj_slug(alias));
@@ -70,7 +69,7 @@ pub fn jj_slug(task: &Task) -> JjSlug {
     JjSlug::from_sanitized(format!("task-{}", task.id))
 }
 
-/// Normalizes a string into a jj-task-compatible slug (lowercase, hyphen-separated).
+/// Normalizes a string into a workspace slug (lowercase, hyphen-separated).
 pub fn sanitize_jj_slug(input: &str) -> String {
     let mut slug = String::new();
     let mut prev_hyphen = false;

@@ -1,6 +1,6 @@
 use crate::db::Database;
-use crate::models::{Task, VcsMode, WorktreeId, jj_slug};
-use crate::services::{RepoService, TaskService, WorktreeService, jj_task};
+use crate::models::{Task, WorktreeId};
+use crate::services::{TaskService, WorktreeService};
 use crate::utils::{Result, TrackError};
 
 /// A workspace with uncommitted JJ changes blocking archive.
@@ -14,8 +14,6 @@ pub struct DirtyWorkspace {
 #[derive(Debug, Clone, Default)]
 pub struct ArchiveBlockers {
     pub dirty_workspaces: Vec<DirtyWorkspace>,
-    pub jj_task_slug: Option<String>,
-    pub jj_task_workspaces: Vec<String>,
 }
 
 /// Result of archiving a task and cleaning up workspaces.
@@ -76,10 +74,6 @@ pub struct ArchivePrompt {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ArchivePromptKind {
     UncommittedWorkspaces(Vec<String>),
-    JjTaskNotCompleted {
-        slug: String,
-        workspaces: Vec<String>,
-    },
 }
 
 /// CLI-facing warning and prompt text for archive confirmation.
@@ -102,22 +96,6 @@ impl ArchivePrompt {
                     warning_lines,
                     prompt: "Archive and remove workspaces anyway? [y/N]: ".to_string(),
                     non_tty_hint: "commit or discard workspace changes, or re-run with `track archive --force`".to_string(),
-                }
-            }
-            ArchivePromptKind::JjTaskNotCompleted { slug, workspaces } => {
-                let mut warning_lines = vec![
-                    format!("WARNING: jj-task workspace '{slug}' is not marked merged."),
-                    format!("  Merge your PR with the $jj skill, then run: jj-task done {slug}"),
-                ];
-                warning_lines.extend(workspaces.iter().map(|path| format!("  {path}")));
-                warning_lines.push(String::new());
-                ArchivePromptView {
-                    warning_lines,
-                    prompt: "Archive the track task anyway (jj-task map unchanged)? [y/N]: "
-                        .to_string(),
-                    non_tty_hint: format!(
-                        "run `jj-task done {slug}` after merging, or re-run with `track archive --force`"
-                    ),
                 }
             }
         }
@@ -147,47 +125,9 @@ impl<'a> ArchiveTaskUseCase<'a> {
 
     pub fn find_archive_blockers(&self, task_id: crate::models::TaskId) -> Result<ArchiveBlockers> {
         let worktree_service = WorktreeService::new(self.db);
-        let mut blockers = ArchiveBlockers {
+        Ok(ArchiveBlockers {
             dirty_workspaces: self.find_dirty_track_workspaces(task_id, &worktree_service)?,
-            ..Default::default()
-        };
-
-        if self.db.get_vcs_mode()? != VcsMode::Jj {
-            return Ok(blockers);
-        }
-
-        let task_service = TaskService::new(self.db);
-        let task = task_service.get_task(task_id)?;
-        let repo_service = RepoService::new(self.db);
-        let repos = repo_service.list_repos(task_id)?;
-        if repos.is_empty() {
-            return Ok(blockers);
-        }
-
-        let slug = jj_slug(&task);
-        let repo_paths: Vec<String> = repos.iter().map(|repo| repo.repo_path.clone()).collect();
-        let active = jj_task::active_registrations(&slug, &repo_paths);
-        if !active.is_empty() {
-            blockers.jj_task_slug = Some(slug.to_string());
-            blockers.jj_task_workspaces = active
-                .iter()
-                .filter_map(|status| status.workspace_path.clone())
-                .collect();
-        }
-
-        for path in jj_task::active_workspace_paths(&slug, &repo_paths) {
-            if std::path::Path::new(&path).exists()
-                && worktree_service.has_uncommitted_changes(&path)?
-                && !blockers.dirty_workspaces.iter().any(|ws| ws.path == path)
-            {
-                blockers.dirty_workspaces.push(DirtyWorkspace {
-                    id: WorktreeId::from_i64(0),
-                    path,
-                });
-            }
-        }
-
-        Ok(blockers)
+        })
     }
 
     fn find_dirty_track_workspaces(
@@ -224,12 +164,6 @@ impl<'a> ArchiveTaskUseCase<'a> {
                     kind: ArchivePromptKind::UncommittedWorkspaces(workspaces),
                 }))
             }
-            Err(TrackError::JjTaskNotCompleted { slug, workspaces }) => {
-                Ok(ArchiveTaskStep::NeedsConfirmation(ArchivePrompt {
-                    task_id,
-                    kind: ArchivePromptKind::JjTaskNotCompleted { slug, workspaces },
-                }))
-            }
             Err(err) => Err(err),
         }
     }
@@ -241,8 +175,8 @@ impl<'a> ArchiveTaskUseCase<'a> {
 
     /// Removes workspaces and archives the task.
     ///
-    /// When `force` is false, returns [`TrackError::UncommittedWorkspaces`] or
-    /// [`TrackError::JjTaskNotCompleted`]. Prefer [`Self::run`] for interactive flows.
+    /// When `force` is false, returns [`TrackError::UncommittedWorkspaces`].
+    /// Prefer [`Self::run`] for interactive flows.
     pub fn execute(
         &self,
         task_id: crate::models::TaskId,
@@ -254,29 +188,20 @@ impl<'a> ArchiveTaskUseCase<'a> {
         let task = task_service.get_task(task_id)?;
         let blockers = self.find_archive_blockers(task_id)?;
 
-        if !force {
-            if let Some(slug) = &blockers.jj_task_slug {
-                return Err(TrackError::JjTaskNotCompleted {
-                    slug: slug.clone(),
-                    workspaces: blockers.jj_task_workspaces.clone(),
-                });
-            }
-
-            if !blockers.dirty_workspaces.is_empty() {
-                return Err(TrackError::UncommittedWorkspaces(
-                    blockers
-                        .dirty_workspaces
-                        .iter()
-                        .map(|ws| {
-                            if ws.id.as_i64() > 0 {
-                                format!("#{} {}", ws.id, ws.path)
-                            } else {
-                                format!("jj-task {}", ws.path)
-                            }
-                        })
-                        .collect(),
-                ));
-            }
+        if !force && !blockers.dirty_workspaces.is_empty() {
+            return Err(TrackError::UncommittedWorkspaces(
+                blockers
+                    .dirty_workspaces
+                    .iter()
+                    .map(|ws| {
+                        if ws.id.as_i64() > 0 {
+                            format!("#{} {}", ws.id, ws.path)
+                        } else {
+                            ws.path.clone()
+                        }
+                    })
+                    .collect(),
+            ));
         }
 
         let worktrees = worktree_service.list_worktrees(task_id)?;
@@ -309,23 +234,7 @@ impl<'a> ArchiveTaskUseCase<'a> {
 mod tests {
     use super::*;
     use crate::models::TaskStatus;
-    use crate::services::jj_task;
     use std::fs;
-    use std::sync::{Mutex, OnceLock};
-
-    fn jj_task_map_lock() -> std::sync::MutexGuard<'static, ()> {
-        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
-        LOCK.get_or_init(|| Mutex::new(())).lock().unwrap()
-    }
-
-    fn insert_repo(db: &Database, task_id: crate::models::TaskId, repo_path: &str) {
-        db.get_connection()
-            .execute(
-                "INSERT INTO task_repos (task_id, task_index, repo_path, created_at) VALUES (?1, 1, ?2, datetime('now'))",
-                rusqlite::params![task_id, repo_path],
-            )
-            .unwrap();
-    }
 
     #[test]
     fn archive_task_marks_task_archived() {
@@ -340,144 +249,6 @@ mod tests {
         assert_eq!(outcome.task.id, task.id);
         let archived = task_service.get_task(task.id).unwrap();
         assert_eq!(archived.status, TaskStatus::Archived);
-    }
-
-    #[test]
-    fn find_archive_blockers_detects_active_jj_task() {
-        let _guard = jj_task_map_lock();
-        let temp = tempfile::tempdir().unwrap();
-        let map_path = temp.path().join("task-workspaces.json");
-        let repo_path = temp.path().join("repo");
-        fs::create_dir_all(&repo_path).unwrap();
-        let repo_key = jj_task::repo_key(repo_path.to_str().unwrap());
-        fs::write(
-            &map_path,
-            format!(
-                r#"{{
-              "repos": {{
-                {repo_key:?}: {{
-                  "tasks": {{
-                    "task-1": {{
-                      "workspace": "/repo/.worktrees/task-1",
-                      "phase": "active"
-                    }}
-                  }}
-                }}
-              }}
-            }}"#
-            ),
-        )
-        .unwrap();
-
-        let prev = std::env::var("JJ_TASK_MAP").ok();
-        unsafe { std::env::set_var("JJ_TASK_MAP", &map_path) };
-
-        let db = Database::new_in_memory().unwrap();
-        let task_service = TaskService::new(&db);
-        let task = task_service.create_task("Task", None, None, None).unwrap();
-        insert_repo(&db, task.id, repo_path.to_str().unwrap());
-
-        let blockers = ArchiveTaskUseCase::new(&db)
-            .find_archive_blockers(task.id)
-            .unwrap();
-
-        match prev {
-            Some(value) => unsafe { std::env::set_var("JJ_TASK_MAP", value) },
-            None => unsafe { std::env::remove_var("JJ_TASK_MAP") },
-        }
-
-        assert_eq!(blockers.jj_task_slug.as_deref(), Some("task-1"));
-        assert!(!blockers.jj_task_workspaces.is_empty());
-    }
-
-    #[test]
-    fn archive_allows_merged_jj_task_phase() {
-        let _guard = jj_task_map_lock();
-        let temp = tempfile::tempdir().unwrap();
-        let map_path = temp.path().join("task-workspaces.json");
-        let repo_path = temp.path().join("repo");
-        fs::create_dir_all(&repo_path).unwrap();
-        let repo_key = jj_task::repo_key(repo_path.to_str().unwrap());
-        fs::write(
-            &map_path,
-            format!(
-                r#"{{
-              "repos": {{
-                {repo_key:?}: {{
-                  "tasks": {{
-                    "task-1": {{
-                      "workspace": "/repo/.worktrees/task-1",
-                      "phase": "merged"
-                    }}
-                  }}
-                }}
-              }}
-            }}"#
-            ),
-        )
-        .unwrap();
-
-        let prev = std::env::var("JJ_TASK_MAP").ok();
-        unsafe { std::env::set_var("JJ_TASK_MAP", &map_path) };
-
-        let db = Database::new_in_memory().unwrap();
-        let task_service = TaskService::new(&db);
-        let task = task_service.create_task("Task", None, None, None).unwrap();
-        insert_repo(&db, task.id, repo_path.to_str().unwrap());
-
-        let result = ArchiveTaskUseCase::new(&db).execute(task.id, false);
-
-        match prev {
-            Some(value) => unsafe { std::env::set_var("JJ_TASK_MAP", value) },
-            None => unsafe { std::env::remove_var("JJ_TASK_MAP") },
-        }
-
-        assert!(result.is_ok());
-    }
-
-    #[test]
-    fn archive_allows_legacy_done_jj_task_phase() {
-        let _guard = jj_task_map_lock();
-        let temp = tempfile::tempdir().unwrap();
-        let map_path = temp.path().join("task-workspaces.json");
-        let repo_path = temp.path().join("repo");
-        fs::create_dir_all(&repo_path).unwrap();
-        let repo_key = jj_task::repo_key(repo_path.to_str().unwrap());
-        fs::write(
-            &map_path,
-            format!(
-                r#"{{
-              "repos": {{
-                {repo_key:?}: {{
-                  "tasks": {{
-                    "task-1": {{
-                      "workspace": "/repo/.worktrees/task-1",
-                      "phase": "done"
-                    }}
-                  }}
-                }}
-              }}
-            }}"#
-            ),
-        )
-        .unwrap();
-
-        let prev = std::env::var("JJ_TASK_MAP").ok();
-        unsafe { std::env::set_var("JJ_TASK_MAP", &map_path) };
-
-        let db = Database::new_in_memory().unwrap();
-        let task_service = TaskService::new(&db);
-        let task = task_service.create_task("Task", None, None, None).unwrap();
-        insert_repo(&db, task.id, repo_path.to_str().unwrap());
-
-        let result = ArchiveTaskUseCase::new(&db).execute(task.id, false);
-
-        match prev {
-            Some(value) => unsafe { std::env::set_var("JJ_TASK_MAP", value) },
-            None => unsafe { std::env::remove_var("JJ_TASK_MAP") },
-        }
-
-        assert!(result.is_ok());
     }
 
     #[test]
@@ -537,15 +308,12 @@ mod tests {
 
         let result = ArchiveTaskUseCase::new(&db).execute(task.id, false);
         assert!(
-            matches!(
-                result,
-                Err(TrackError::WorkspaceRemovalFailed(_)) | Err(TrackError::Jj(_))
-            ),
-            "unexpected result: {result:?}"
+            result.is_ok(),
+            "leftover non-vcs directories should be removed: {result:?}"
         );
-
-        let still_active = task_service.get_task(task.id).unwrap();
-        assert_eq!(still_active.status, TaskStatus::Active);
+        assert!(!worktree_path.exists());
+        let archived = task_service.get_task(task.id).unwrap();
+        assert_eq!(archived.status, TaskStatus::Archived);
     }
 
     #[test]
@@ -576,59 +344,5 @@ mod tests {
         assert!(view.info_lines[1].contains("#7"));
         assert!(view.error_lines[0].contains("failed"));
         assert_eq!(view.summary, format!("Archived task #{}: Done", task.id));
-    }
-
-    #[test]
-    fn run_returns_prompt_for_active_jj_task() {
-        let _guard = jj_task_map_lock();
-        let temp = tempfile::tempdir().unwrap();
-        let map_path = temp.path().join("task-workspaces.json");
-        let repo_path = temp.path().join("repo");
-        fs::create_dir_all(&repo_path).unwrap();
-        let repo_key = jj_task::repo_key(repo_path.to_str().unwrap());
-        fs::write(
-            &map_path,
-            format!(
-                r#"{{
-              "repos": {{
-                {repo_key:?}: {{
-                  "tasks": {{
-                    "task-1": {{
-                      "workspace": "/repo/.worktrees/task-1",
-                      "phase": "active"
-                    }}
-                  }}
-                }}
-              }}
-            }}"#
-            ),
-        )
-        .unwrap();
-
-        let prev = std::env::var("JJ_TASK_MAP").ok();
-        unsafe { std::env::set_var("JJ_TASK_MAP", &map_path) };
-
-        let db = Database::new_in_memory().unwrap();
-        let task_service = TaskService::new(&db);
-        let task = task_service.create_task("Task", None, None, None).unwrap();
-        insert_repo(&db, task.id, repo_path.to_str().unwrap());
-
-        let step = ArchiveTaskUseCase::new(&db).run(task.id, false).unwrap();
-
-        match prev {
-            Some(value) => unsafe { std::env::set_var("JJ_TASK_MAP", value) },
-            None => unsafe { std::env::remove_var("JJ_TASK_MAP") },
-        }
-
-        match step {
-            ArchiveTaskStep::NeedsConfirmation(prompt) => {
-                let view = prompt.view();
-                assert!(view.warning_lines[0].contains("jj-task"));
-                assert!(view.prompt.contains("jj-task map unchanged"));
-                assert!(view.non_tty_hint.contains("jj-task done"));
-                assert!(view.non_tty_hint.contains("track archive --force"));
-            }
-            ArchiveTaskStep::Completed(_) => panic!("expected confirmation prompt"),
-        }
     }
 }

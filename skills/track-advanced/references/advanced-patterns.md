@@ -14,9 +14,7 @@ track todo add "Add sync API endpoint"
 track todo add "Implement sync client"
 ```
 
-Each repo: `jj-task repo init` once, then `jj-task start <slug>` per repo (same slug, separate jj-task maps).
-
-Work through TODOs sequentially in the jj-task workspace(s) via **track-task-execute** and **`$jj`**.
+Each repo gets `.worktrees/<slug>` on `track/<slug>` (same slug). Work through TODOs sequentially via **track-task-execute**.
 
 ---
 
@@ -26,9 +24,8 @@ Work through TODOs sequentially in the jj-task workspace(s) via **track-task-exe
 track new "Fix critical auth bug" --ticket BUG-999
 track alias set fix-auth-bug
 track todo add "Fix token refresh logic"
-jj-task start fix-auth-bug
-cd "$(jj-task path fix-auth-bug)"
-# fix, test — $jj skill for squash/commit/PR
+# follow hint: cd .worktrees/fix-auth-bug
+# fix, test, commit, push track/fix-auth-bug
 track todo done 1
 ```
 
@@ -50,18 +47,17 @@ Research TODOs skip workspace sync and go straight to `execute`.
 ## Team Collaboration
 
 ```bash
-# $jj skill: push bookmark, open PR
-track status --json    # share jj.slug + TODOs
+# push track/<slug>, open PR
+track status --json    # share slug + TODOs
 track scrap list
 ```
 
-Teammate switches task and continues in their jj-task workspace:
+Teammate switches task and continues in the track-owned workspace:
 
 ```bash
 track switch t:PROJ-123
 track status --json
-jj-task start <jj.slug>
-cd "$(jj-task path <jj.slug>)"
+track sync             # if needed
 ```
 
 ---
@@ -70,20 +66,19 @@ cd "$(jj-task path <jj.slug>)"
 
 ```bash
 track status --json   # confirm task_complete
-# $jj skill: merge PR if needed
-jj-task done <jj.slug>
+# merge PR if needed
 track archive
 ```
 
-`track archive` validates jj-task phase and dirty workspaces. On a TTY it prompts; without a TTY it errors instead of hanging. Use `track archive --force` only when you intentionally skip those checks.
+`track archive` checks dirty workspaces. On a TTY it prompts; without a TTY it errors instead of hanging. Use `track archive --force` only when you intentionally skip those checks. Branch/bookmark `track/<slug>` is kept for PRs.
 
 ---
 
 ## Best Practices
 
-1. Use tickets or `track alias set` for stable jj-task slugs
-2. One jj-task workspace per track task — sequential TODOs, not per-TODO workspaces
-3. All jj commit/PR work through **`$jj`** skill
+1. Use tickets or `track alias set` for stable slugs
+2. One workspace per track task — sequential TODOs, not per-TODO workspaces
+3. Follow `hint` / `workflow.next_action` instead of inventing git/jj workspace commands
 4. Document decisions with `track scrap add`
-5. Read `track status --json` before and after work — follow `workflow.checklist`
+5. Read `track status --json` before and after work
 6. Archive completed tasks regularly

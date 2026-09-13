@@ -45,7 +45,7 @@ pub struct Todo {
     pub status: TodoStatus,
     #[serde(skip)]
     pub worktree_requested: bool,
-    /// When false, this TODO does not require a jj-task/git workspace (e.g. research).
+    /// When false, this TODO does not require a git/jj workspace (e.g. research).
     #[serde(skip)]
     pub requires_workspace: bool,
     #[serde(skip)]

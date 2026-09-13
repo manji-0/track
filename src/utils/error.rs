@@ -28,12 +28,7 @@ pub enum TrackError {
     EmptyTaskName,
 
     #[error(
-        "track sync is deprecated in JJ mode. Use `jj-task start {slug}` instead (or `track sync --legacy` for old per-TODO worktrees)."
-    )]
-    SyncUseJjTask { slug: String },
-
-    #[error(
-        "--worktree was removed. Use one jj-task workspace per task (`jj-task start <slug>`). See `track llm-help`."
+        "--worktree was removed. Use one workspace per task (`track sync`). See `track llm-help`."
     )]
     WorktreeFlagRemoved,
 
@@ -45,14 +40,6 @@ pub enum TrackError {
 
     #[error("Workspaces have uncommitted changes: {0:?}")]
     UncommittedWorkspaces(Vec<String>),
-
-    #[error(
-        "jj-task workspace '{slug}' is not complete — run `jj-task done {slug}` after merging your PR. Active workspaces: {workspaces:?}"
-    )]
-    JjTaskNotCompleted {
-        slug: String,
-        workspaces: Vec<String>,
-    },
 
     #[error("Ticket '{0}' is already linked to task #{1}")]
     DuplicateTicket(String, i64),
@@ -89,6 +76,9 @@ pub enum TrackError {
 
     #[error("JJ error: {0}")]
     Jj(String),
+
+    #[error("Path '{0}' is not a git or jj repository")]
+    NotVcsRepository(String),
 
     #[error("Path '{0}' is not a JJ repository")]
     NotJjRepository(String),
@@ -181,9 +171,6 @@ pub enum TrackError {
     #[error("Git error: {0}")]
     Git(String),
 
-    #[error("Invalid jj-task workspace map at {path}: {detail}")]
-    JjTaskMapInvalid { path: String, detail: String },
-
     #[error("Template '{name}' render failed: {detail}")]
     TemplateRenderFailed { name: String, detail: String },
 
@@ -193,13 +180,25 @@ pub enum TrackError {
     #[error("Invalid VCS mode: {0}")]
     InvalidVcsMode(String),
 
+    #[error(
+        "Workspace at {path} is {actual} but vcs-mode is {expected}. Switch back with `track config set vcs-mode {actual}` or remove the workspace and re-run `track sync`."
+    )]
+    WorkspaceVcsMismatch {
+        path: String,
+        expected: String,
+        actual: String,
+    },
+
+    #[error("Invalid aggressive mode: {0}")]
+    InvalidAggressiveMode(String),
+
     #[error("Invalid app_state value for '{key}': {detail}")]
     InvalidAppStateValue { key: String, detail: String },
 
     #[error("Migration blocked: {detail}")]
     MigrationBlocked { detail: String },
 
-    #[error("Unknown config key '{0}' (supported: vcs-mode)")]
+    #[error("Unknown config key '{0}' (supported: vcs-mode, aggressive-mode)")]
     UnknownConfigKey(String),
 }
 

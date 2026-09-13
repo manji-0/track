@@ -5,7 +5,7 @@ Track is a **personal work-context manager**. Start here:
 | Doc | Use |
 |-----|-----|
 | [../DESIGN.md](../DESIGN.md) | Product design: implicit current task, schema, agent JSON |
-| [JJ_INTEGRATION.md](JJ_INTEGRATION.md) | Two-layer stack: track (WHAT) + `$jj` / jj-task (HOW) |
+| [JJ_INTEGRATION.md](JJ_INTEGRATION.md) | VCS modes: git / jj workspaces owned by track |
 | [LLM_INTEGRATION.md](LLM_INTEGRATION.md) | Agent skills install |
 | [LLM_HELP_DESIGN.md](LLM_HELP_DESIGN.md) | `track llm-help` content contract |
 | [FUNCTIONAL_SPEC.md](FUNCTIONAL_SPEC.md) | Command-level behavior |

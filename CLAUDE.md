@@ -4,7 +4,7 @@ This document provides context and guidelines for AI assistants working on the T
 
 ## Project Overview
 
-Track is a personal work-context manager (Rust CLI + Web UI): one implicit current task in XDG SQLite. Coding workspaces and commits belong to jj-task / `$jj`. It features:
+Track is a personal work-context manager (Rust CLI + Web UI): one implicit current task in XDG SQLite. Track owns coding workspaces (git worktree or colocated jj workspace). It features:
 
 - **CLI Interface**: Fast, intuitive command-line operations (`--json` for agents)
 - **Web UI**: Browser-based interface with real-time updates

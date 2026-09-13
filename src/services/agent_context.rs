@@ -1,17 +1,21 @@
 use crate::models::{
-    AgentGuardrails, GitAgentContext, JjAgentContext, RepoRegistration, Task, TaskRepo, Todo,
-    TodoAgentAction, TodoAgentView, TodoStatus, VcsMode, WorkflowContext, WorkspaceAgentView,
-    WorkspaceFacts, Worktree, build_workflow_context, jj_map_phase_is_complete, jj_slug,
-    oldest_pending_todo, workspace_lifecycle,
+    AgentGuardrails, AggressiveMode, CommandHint, GitAgentContext, JjAgentContext,
+    RepoRegistration, RepoWorkspaceStatus, Task, TaskRepo, Todo, TodoAgentAction, TodoAgentView,
+    TodoStatus, VcsMode, WorkflowContext, WorkspaceAgentView, WorkspaceFacts, Worktree,
+    build_workflow_context, jj_slug, oldest_pending_todo, workspace_lifecycle,
 };
-use crate::services::{WorktreeService, git_worktree, jj_task};
+use crate::services::{
+    WorktreeService, git_worktree, task_workspace, worktree_service::jj as jj_ws,
+};
 use serde::Serialize;
 
 /// Agent-oriented fields shared by `track status --json` and `/api/status`.
 #[derive(Debug, Clone, Serialize)]
 pub struct AgentStatusExtensions {
     pub vcs_mode: VcsMode,
+    pub aggressive: bool,
     pub workflow: WorkflowContext,
+    pub hint: CommandHint,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub jj: Option<JjAgentContext>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -20,99 +24,78 @@ pub struct AgentStatusExtensions {
     pub guardrails: AgentGuardrails,
 }
 
-fn repo_paths(repos: &[TaskRepo]) -> Vec<String> {
-    repos.iter().map(|repo| repo.repo_path.clone()).collect()
-}
-
-/// Observes filesystem / jj-task map state so workflow functions stay pure.
+/// Observes filesystem workspace state so workflow functions stay pure.
 pub fn observe_workspace(vcs_mode: VcsMode, task: &Task, repos: &[TaskRepo]) -> WorkspaceFacts {
     let slug = jj_slug(task);
-    let paths = repo_paths(repos);
-
-    match vcs_mode {
-        VcsMode::Jj => {
-            let statuses = jj_task::repos_workspace_status(&slug, &paths);
-            let registered_repo_count = statuses.iter().filter(|status| status.registered).count();
-            let coding_workspace_ready = !paths.is_empty() && registered_repo_count == paths.len();
-            let workspace_path = if coding_workspace_ready {
-                statuses
-                    .iter()
-                    .find_map(|status| status.workspace_path.clone())
-            } else {
-                paths
-                    .first()
-                    .map(|first_repo| jj_task::expected_workspace_path(first_repo, &slug))
-            };
-            let task_phase = jj_task::task_phase(&slug, &paths);
-
-            WorkspaceFacts {
-                coding_workspace_ready,
-                slug_registered: jj_task::slug_registered(&slug, &paths),
-                jj_repos_initialized: !repos.is_empty()
-                    && repos
-                        .iter()
-                        .all(|repo| jj_task::repo_initialized(&repo.repo_path)),
-                registered_repo_count,
-                total_repo_count: paths.len(),
-                task_phase_completed: jj_map_phase_is_complete(task_phase.as_deref()),
-                workspace_path,
-                repo_registrations: statuses
-                    .iter()
-                    .map(|status| RepoRegistration {
-                        repo_path: status.repo_path.clone(),
-                        registered: status.registered,
-                    })
-                    .collect(),
+    let registrations: Vec<RepoRegistration> = repos
+        .iter()
+        .map(|repo| {
+            let path = task_workspace::workspace_path(&repo.repo_path, &slug);
+            RepoRegistration {
+                repo_path: repo.repo_path.clone(),
+                registered: task_workspace::workspace_exists(&path),
             }
-        }
-        VcsMode::Git => {
-            let workspace_path = repos
-                .first()
-                .map(|repo| git_worktree::git_worktree_path(&repo.repo_path, &slug));
-            let coding_workspace_ready = workspace_path
-                .as_deref()
-                .is_some_and(git_worktree::git_worktree_exists);
+        })
+        .collect();
+    let registered_repo_count = registrations
+        .iter()
+        .filter(|status| status.registered)
+        .count();
+    let coding_workspace_ready = !repos.is_empty() && registered_repo_count == repos.len();
+    let workspace_path = repos
+        .first()
+        .map(|repo| task_workspace::workspace_path(&repo.repo_path, &slug));
+    let jj_repos_initialized = vcs_mode == VcsMode::Jj
+        && !repos.is_empty()
+        && repos
+            .iter()
+            .all(|repo| jj_ws::is_jj_repository(&repo.repo_path));
 
-            WorkspaceFacts {
-                coding_workspace_ready,
-                slug_registered: coding_workspace_ready,
-                jj_repos_initialized: false,
-                registered_repo_count: usize::from(coding_workspace_ready),
-                total_repo_count: repos.len(),
-                task_phase_completed: false,
-                workspace_path,
-                repo_registrations: Vec::new(),
-            }
-        }
+    WorkspaceFacts {
+        coding_workspace_ready,
+        slug_registered: coding_workspace_ready,
+        jj_repos_initialized,
+        registered_repo_count,
+        total_repo_count: repos.len(),
+        task_phase_completed: false,
+        workspace_path,
+        repo_registrations: registrations,
     }
 }
 
 pub fn build_jj_context(task: &Task, repos: &[TaskRepo]) -> JjAgentContext {
     let slug = jj_slug(task);
-    let paths = repo_paths(repos);
-    let repo_statuses = jj_task::repos_workspace_status(&slug, &paths);
-    let workspace_registered = jj_task::all_repos_registered(&slug, &paths);
-    let task_phase = jj_task::task_phase(&slug, &paths);
-    let workspace_path = if workspace_registered {
-        repo_statuses
-            .iter()
-            .find_map(|status| status.workspace_path.clone())
-    } else {
-        paths
-            .first()
-            .map(|first_repo| jj_task::expected_workspace_path(first_repo, &slug))
-    };
+    let facts = observe_workspace(VcsMode::Jj, task, repos);
+    let repo_statuses: Vec<RepoWorkspaceStatus> = repos
+        .iter()
+        .map(|repo| {
+            let path = task_workspace::workspace_path(&repo.repo_path, &slug);
+            let ready = task_workspace::workspace_exists(&path);
+            RepoWorkspaceStatus {
+                repo_path: repo.repo_path.clone(),
+                registered: ready,
+                workspace_path: Some(path),
+                phase: None,
+            }
+        })
+        .collect();
+
+    let workspace_path = facts.workspace_path.clone();
+    let path_command = workspace_path
+        .as_deref()
+        .map(|path| format!("cd \"{path}\""))
+        .unwrap_or_else(|| "track sync".to_string());
 
     JjAgentContext {
         slug: slug.clone(),
         skill: "jj",
-        workspace_registered,
+        workspace_registered: facts.coding_workspace_ready,
         workspace_path,
-        task_phase,
+        task_phase: None,
         repos: repo_statuses,
-        start_command: format!("jj-task start {slug}"),
-        path_command: format!("jj-task path {slug}"),
-        repo_init_command: "jj-task repo init",
+        start_command: "track sync".to_string(),
+        path_command,
+        repo_init_command: "track repo add",
     }
 }
 
@@ -138,6 +121,7 @@ pub fn build_git_context(task: &Task, repos: &[TaskRepo]) -> GitAgentContext {
 /// Builds agent-oriented JSON extensions for status endpoints.
 pub fn build_agent_extensions(
     vcs_mode: VcsMode,
+    aggressive: AggressiveMode,
     task: &Task,
     todos: &[Todo],
     worktrees: &[Worktree],
@@ -146,6 +130,7 @@ pub fn build_agent_extensions(
 ) -> AgentStatusExtensions {
     let facts = observe_workspace(vcs_mode, task, repos);
     let workflow = build_workflow_context(vcs_mode, task, todos, worktrees, repos, &facts);
+    let hint = CommandHint::from_workflow(vcs_mode, aggressive, &facts, &workflow.next_action);
     let next_todo_id = oldest_pending_todo(todos).map(|todo| todo.id);
     let legacy_merge_required = vcs_mode == VcsMode::Jj
         && todos
@@ -153,7 +138,7 @@ pub fn build_agent_extensions(
             .any(|todo| todo.status == TodoStatus::Pending && todo.worktree_requested);
 
     let git_ctx = build_git_context(task, repos);
-    let git_worktree_path = git_ctx.workspace_path.clone();
+    let task_workspace_path = facts.workspace_path.clone();
 
     let todos_agent: Vec<TodoAgentView> = todos
         .iter()
@@ -171,8 +156,8 @@ pub fn build_agent_extensions(
                 .find(|wt| wt.todo_id == Some(todo.id))
                 .map(|wt| wt.path.clone())
                 .or_else(|| {
-                    if vcs_mode == VcsMode::Git && todo.status == TodoStatus::Pending {
-                        git_worktree_path.clone()
+                    if todo.status == TodoStatus::Pending {
+                        task_workspace_path.clone()
                     } else {
                         None
                     }
@@ -202,7 +187,9 @@ pub fn build_agent_extensions(
 
     AgentStatusExtensions {
         vcs_mode,
+        aggressive: aggressive.is_on(),
         workflow,
+        hint,
         jj,
         git,
         todos_agent,
@@ -214,7 +201,7 @@ pub fn build_agent_extensions(
 mod tests {
     use super::*;
     use crate::db::Database;
-    use crate::models::{TaskId, TaskStatus, TicketId, WorkflowPhase};
+    use crate::models::{AggressiveMode, TaskId, TaskStatus, TicketId, WorkflowPhase};
     use crate::services::{TaskService, TodoService};
     use chrono::Utc;
 
@@ -255,14 +242,21 @@ mod tests {
 
         let todos = todo_service.list_todos(task.id).unwrap();
         let worktree_service = WorktreeService::new(&db);
-        let extensions =
-            build_agent_extensions(VcsMode::Jj, &task, &todos, &[], &[], &worktree_service);
+        let extensions = build_agent_extensions(
+            VcsMode::Jj,
+            AggressiveMode::Off,
+            &task,
+            &todos,
+            &[],
+            &[],
+            &worktree_service,
+        );
 
         assert_eq!(extensions.workflow.phase, WorkflowPhase::Setup);
         assert_eq!(extensions.vcs_mode, VcsMode::Jj);
         assert_eq!(extensions.jj.as_ref().unwrap().skill, "jj");
         assert!(extensions.git.is_none());
-        assert!(extensions.guardrails.must_use_jj_skill);
+        assert!(!extensions.guardrails.must_use_jj_skill);
         assert!(extensions.guardrails.reopen_forbidden);
         assert_eq!(
             extensions.todos_agent[0].allowed_actions,
@@ -289,6 +283,7 @@ mod tests {
         let worktree_service = WorktreeService::new(&db);
         let extensions = build_agent_extensions(
             db.get_vcs_mode().unwrap(),
+            AggressiveMode::Off,
             &task,
             &todos,
             &[],
@@ -308,7 +303,7 @@ mod tests {
         let ctx = build_jj_context(&task, &[]);
         assert_eq!(ctx.slug.as_str(), "proj-1");
         assert_eq!(ctx.skill, "jj");
-        assert_eq!(ctx.start_command, "jj-task start proj-1");
+        assert_eq!(ctx.start_command, "track sync");
     }
 
     #[test]

@@ -120,6 +120,8 @@ fn to_template_context(
         "calendar_id": calendar_id,
         "workflow": agent.workflow,
         "vcs_mode": agent.vcs_mode,
+        "aggressive": agent.aggressive,
+        "hint": agent.hint,
         "jj": agent.jj,
         "git": agent.git,
         "guardrails": agent.guardrails,
@@ -130,6 +132,7 @@ fn agent_extensions(db: &Database, snapshot: &TaskInfoSnapshot) -> Result<AgentS
     let worktree_service = WorktreeService::new(db);
     Ok(build_agent_extensions(
         snapshot.vcs_mode,
+        snapshot.aggressive_mode,
         &snapshot.task,
         &snapshot.todos,
         &snapshot.worktrees,

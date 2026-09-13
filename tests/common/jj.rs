@@ -12,7 +12,7 @@ use tempfile::TempDir;
 static JJ_ENV_MUTEX: OnceLock<Mutex<()>> = OnceLock::new();
 static CWD_MUTEX: OnceLock<Mutex<()>> = OnceLock::new();
 
-/// Serializes jj integration tests that mutate process-global state (`HOME`, `JJ_TASK_MAP`).
+/// Serializes jj integration tests that mutate process-global state (`HOME`).
 pub fn jj_test_lock() -> MutexGuard<'static, ()> {
     JJ_ENV_MUTEX.get_or_init(|| Mutex::new(())).lock().unwrap()
 }
@@ -22,12 +22,10 @@ pub fn cwd_lock() -> MutexGuard<'static, ()> {
     CWD_MUTEX.get_or_init(|| Mutex::new(())).lock().unwrap()
 }
 
-/// Temporary jj environment with an isolated `HOME` (and optional `JJ_TASK_MAP`).
+/// Temporary jj environment with an isolated `HOME`.
 pub struct JjIsolation {
     _home_dir: TempDir,
-    _map_dir: Option<TempDir>,
     old_home: Option<OsString>,
-    old_jj_task_map: Option<OsString>,
 }
 
 impl JjIsolation {
@@ -41,36 +39,20 @@ impl JjIsolation {
         configure_jj_user(home_dir.path());
 
         let old_home = std::env::var_os("HOME");
-        let old_jj_task_map = std::env::var_os("JJ_TASK_MAP");
         unsafe {
             std::env::set_var("HOME", home_dir.path());
         }
 
         Some(Self {
             _home_dir: home_dir,
-            _map_dir: None,
             old_home,
-            old_jj_task_map,
         })
-    }
-
-    /// Isolated jj-task map file for tests that read workspace registrations.
-    pub fn with_jj_task_map(mut self) -> (Self, PathBuf) {
-        let map_dir = tempfile::tempdir().expect("temp JJ_TASK_MAP dir");
-        let map_path = map_dir.path().join("task-workspaces.json");
-        std::fs::write(&map_path, "{\"repos\":{}}").expect("write empty jj-task map");
-        unsafe {
-            std::env::set_var("JJ_TASK_MAP", &map_path);
-        }
-        self._map_dir = Some(map_dir);
-        (self, map_path)
     }
 }
 
 impl Drop for JjIsolation {
     fn drop(&mut self) {
         restore_env_var("HOME", self.old_home.take());
-        restore_env_var("JJ_TASK_MAP", self.old_jj_task_map.take());
     }
 }
 

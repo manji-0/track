@@ -6,6 +6,166 @@ pub fn is_jj_repository(path: &str) -> bool {
     Path::new(path).join(".jj").exists()
 }
 
+/// True when the working copy is a colocated git+jj repo (`.git` + `.jj`).
+pub fn is_colocated(path: &str) -> bool {
+    is_jj_repository(path) && crate::services::git_worktree::is_git_repository(path)
+}
+
+/// Ensure a git working copy has a colocated jj repo (`jj git init --colocate`).
+pub fn ensure_colocated(repo_path: &str) -> Result<()> {
+    if is_colocated(repo_path) {
+        return Ok(());
+    }
+
+    if crate::services::git_worktree::is_git_repository(repo_path) && !is_jj_repository(repo_path) {
+        let output = Command::new("jj")
+            .current_dir(repo_path)
+            .args(["git", "init", "--colocate", repo_path])
+            .output()?;
+        if !output.status.success() {
+            let error = String::from_utf8_lossy(&output.stderr);
+            return Err(TrackError::Jj(format!(
+                "failed to colocate jj in {repo_path}: {error}"
+            )));
+        }
+        return Ok(());
+    }
+
+    if is_jj_repository(repo_path) {
+        // Non-colocated jj still works for workspaces; git notes/PR use the git store.
+        return Ok(());
+    }
+
+    Err(TrackError::NotVcsRepository(repo_path.to_string()))
+}
+
+pub fn current_change_id(repo_path: &str) -> Result<String> {
+    jj_template(repo_path, "@", "change_id.short()")
+}
+
+pub fn current_commit_id(repo_path: &str) -> Result<String> {
+    jj_template(repo_path, "@", "commit_id")
+}
+
+pub fn describe_current(repo_path: &str, message: &str) -> Result<()> {
+    let output = Command::new("jj")
+        .current_dir(repo_path)
+        .args(["-R", repo_path, "describe", "-m", message])
+        .output()?;
+    if !output.status.success() {
+        let error = String::from_utf8_lossy(&output.stderr);
+        return Err(TrackError::Jj(error.to_string()));
+    }
+    Ok(())
+}
+
+pub fn new_empty_change(repo_path: &str) -> Result<()> {
+    let output = Command::new("jj")
+        .current_dir(repo_path)
+        .args(["-R", repo_path, "new"])
+        .output()?;
+    if !output.status.success() {
+        let error = String::from_utf8_lossy(&output.stderr);
+        return Err(TrackError::Jj(error.to_string()));
+    }
+    Ok(())
+}
+
+pub fn new_change_with_message(repo_path: &str, message: &str) -> Result<()> {
+    let output = Command::new("jj")
+        .current_dir(repo_path)
+        .args(["-R", repo_path, "new", "-m", message])
+        .output()?;
+    if !output.status.success() {
+        let error = String::from_utf8_lossy(&output.stderr);
+        return Err(TrackError::Jj(error.to_string()));
+    }
+    Ok(())
+}
+
+/// Point `bookmark` at `rev`. Retries with `--allow-backwards` when jj requires it.
+pub fn set_bookmark(repo_path: &str, bookmark: &str, rev: &str) -> Result<()> {
+    let output = Command::new("jj")
+        .current_dir(repo_path)
+        .args(["-R", repo_path, "bookmark", "set", bookmark, "-r", rev])
+        .output()?;
+    if output.status.success() {
+        return Ok(());
+    }
+
+    let retry = Command::new("jj")
+        .current_dir(repo_path)
+        .args([
+            "-R",
+            repo_path,
+            "bookmark",
+            "set",
+            bookmark,
+            "-r",
+            rev,
+            "--allow-backwards",
+        ])
+        .output()?;
+    if retry.status.success() {
+        return Ok(());
+    }
+
+    let error = String::from_utf8_lossy(&retry.stderr);
+    Err(TrackError::Jj(format!(
+        "failed to set bookmark {bookmark} to {rev}: {error}"
+    )))
+}
+
+fn jj_template(repo_path: &str, rev: &str, template: &str) -> Result<String> {
+    let output = Command::new("jj")
+        .current_dir(repo_path)
+        .args([
+            "-R",
+            repo_path,
+            "log",
+            "-r",
+            rev,
+            "--no-graph",
+            "-T",
+            template,
+        ])
+        .output()?;
+    if !output.status.success() {
+        let error = String::from_utf8_lossy(&output.stderr);
+        return Err(TrackError::Jj(error.to_string()));
+    }
+    Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+}
+
+pub fn current_bookmark(repo_path: &str) -> Result<Option<String>> {
+    let output = Command::new("jj")
+        .current_dir(repo_path)
+        .args([
+            "-R",
+            repo_path,
+            "bookmark",
+            "list",
+            "-r",
+            "@",
+            "-T",
+            "name ++ \"\\n\"",
+        ])
+        .output()?;
+    if !output.status.success() {
+        return Ok(None);
+    }
+    let name = String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .map(str::trim)
+        .find(|line| !line.is_empty())
+        .map(ToString::to_string);
+    Ok(name)
+}
+
+pub fn bookmark_change_id(repo_path: &str, bookmark: &str) -> Result<String> {
+    jj_template(repo_path, bookmark, "commit_id")
+}
+
 pub fn bookmark_exists(repo_path: &str, bookmark: &str) -> Result<bool> {
     if !is_jj_repository(repo_path) {
         return Err(TrackError::NotJjRepository(repo_path.to_string()));

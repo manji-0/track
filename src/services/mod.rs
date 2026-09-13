@@ -5,16 +5,19 @@
 //! operations related to its domain and interacts with the database layer.
 
 pub mod agent_context;
+pub mod git_notes;
 pub mod git_worktree;
-pub mod jj_task;
 pub mod link_service;
 pub mod repo_service;
+pub mod task_revision;
 pub mod task_service;
+pub mod task_workspace;
 pub mod todo_service;
 pub mod worktree_service;
 
 pub use link_service::{LinkService, ScrapService};
 pub use repo_service::RepoService;
+pub use task_revision::TaskRevisionService;
 pub use task_service::TaskService;
 pub use todo_service::TodoService;
 pub use worktree_service::{LegacyWorktreeCleanupOutcome, WorktreeService, is_legacy_worktree};

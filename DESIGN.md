@@ -15,18 +15,20 @@ Track is **not**:
 
 Tickets and URLs are optional labels on a personal task. The source of truth for "what am I doing" is the local DB, shared by a human and coding agents.
 
-## Two-layer stack
+## Track-owned workspaces
 
 <!-- constrained-by ./docs/JJ_INTEGRATION.md#Division of responsibility -->
 
 | Layer | Tool | Responsibility |
 |-------|------|----------------|
-| **WHAT** | `track` + track skills | Current task, TODOs, scraps, workflow JSON |
-| **HOW** | `$jj` skill + `jj-task` | Workspaces, squash/commit, PR, push |
+| **WHAT** | `track` | Current task, TODOs, scraps, workflow JSON |
+| **WHERE** | `track` | Git worktree or colocated jj workspace at `.worktrees/<slug>` on `track/<slug>` |
 
-In JJ mode (default), track does **not** create the coding workspace. Agents read `jj.slug` from `track status --json` and run `jj-task start <slug>`. Commits follow the `$jj` skill, not `track todo done`.
+`git` is the default VCS mode (`track config set vcs-mode git|jj`). Track creates the coding workspace on `track repo add` / `track sync`. Agents read `hint` / `workflow.next_action` from `track status --json` (or the stderr footer) instead of running `git worktree` / `jj workspace` / jj-task by hand.
 
-Git mode (`track config set vcs-mode git`) still uses `track sync` for `.worktrees/<slug>` on `track/<slug>` branches.
+Aggressive mode (`track config set aggressive-mode on`) adds a per-task empty marker revision and stores scraps as git notes (`refs/notes/track`) on that marker, not on HEAD.
+
+Commits and GitHub PRs still use git or jj from the task workspace; the PR head is always `track/<slug>`.
 
 ## Technology stack
 
@@ -56,7 +58,8 @@ Path: `$HOME/.local/share/track/track.db`. `CREATE TABLE` in `src/db/mod.rs` plu
 ### app_state
 
 - `current_task_id`
-- `vcs-mode` (`jj` \| `git`)
+- `vcs-mode` (`git` \| `jj`; default `git` on new DBs)
+- `aggressive_mode` (`on` \| `off`; default `off`)
 - `calendar_id` (WebUI today-task calendar)
 - section revision counters for SSE
 
@@ -83,9 +86,9 @@ Task-scoped URL list and chronological notes. Scraps may set `active_todo_id` to
 
 Registered working copies for the current task (`repo_path`, `base_branch`, `base_commit_hash`, `task_index`). This is what `track repo add` writes.
 
-### worktrees, repo_links
+### worktrees, repo_links, task_revisions
 
-Legacy / git-mode workspace rows. JJ-mode coding happens in jj-task's `.worktrees/<slug>/` and `~/.config/jj/task-workspaces.json`, not as the primary store.
+Track-owned workspace rows. Both VCS modes use `<repo>/.worktrees/<slug>/`. Git notes / empty task commits live in `task_revisions` when aggressive mode is on. Legacy per-TODO `worktree_requested` rows still exist until `track migrate legacy-worktrees`.
 
 ## Command surface
 
@@ -98,8 +101,8 @@ Prefix: `track`. Human tables/prose are the default. `--json` / `-j` is for agen
 | `track new <name>` | Create task, switch to it. Optional `--ticket`, `--template`, `--json`. |
 | `track list [--all]` | Task inventory. `--json` → `current_task_id` + `tasks[].is_current` (not a status snapshot). |
 | `track switch <ref>` | Switch by id, `t:<ticket>`, `a:<alias>`, or `today`. |
-| `track status [--json]` | Current-task snapshot. JSON includes `workflow`, `jj`, `todos_agent`, `guardrails`. |
-| `track archive` | Archive after `jj-task done` (JJ). Prompts only on a TTY; `--force` skips checks. |
+| `track status [--json]` | Current-task snapshot. JSON includes `workflow`, `hint`, `git`/`jj`, `todos_agent`, `guardrails`. |
+| `track archive` | Archive after the PR is done. Removes workspaces; keeps `track/<slug>` for PRs. Prompts only on a TTY; `--force` skips dirty checks. |
 
 ### Items (current task)
 
@@ -108,13 +111,13 @@ Prefix: `track`. Human tables/prose are the default. `--json` / `-j` is for agen
 | `track todo add/list/done/update/next/delete` | TODOs. Delete requires `--force` off-TTY. |
 | `track scrap add/list` | Work notes (not `track log`). |
 | `track link add/list/delete` | Reference URLs. |
-| `track repo add/list/remove` | Register repos. JJ: `jj` subprocess for base bookmark. |
+| `track repo add/list/remove` | Register repos. Track creates the task workspace (git or jj). |
 
 Mutations that accept `--json` (`new`, `switch`, `archive`, `todo add/done/update/next/delete`, `scrap add`, `repo add`) print the **same shape as `track status --json`** plus `ok` and `mutation` (`kind`, `id`). They do not invent per-command schemas.
 
 ### Other
 
-`desc`, `ticket`, `alias`, `config`, `sync` (git / legacy JJ `--worktree`), `migrate legacy-worktrees`, `webui`, `llm-help`, `completion`.
+`desc`, `ticket`, `alias`, `config` (`vcs-mode`, `aggressive-mode`), `sync`, `migrate legacy-worktrees`, `webui`, `llm-help`, `completion`.
 
 ## Agent contract
 
@@ -124,9 +127,9 @@ Mutations that accept `--json` (`new`, `switch`, `archive`, `todo add/done/updat
 Coding agents should:
 
 1. Read `track status --json` (or a mutation `--json` response).
-2. Follow `workflow.next_action` / `workflow.checklist`.
-3. Start `jj-task` from `jj.slug` when `phase` is `sync_required`.
-4. Use `$jj` for commits; use track only for TODO/scrap/archive.
+2. Follow `hint.next_command` / `workflow.next_action` / `workflow.checklist`.
+3. Work only in `.worktrees/<slug>/` (never repo root).
+4. Use track for TODO/scrap/archive; commit and push from the task workspace (`git` or `jj`).
 
 MCP is intentionally absent: Cursor / Claude Code / Codex already have a shell and skills. A future MCP would wrap this same snapshot, not a second schema.
 

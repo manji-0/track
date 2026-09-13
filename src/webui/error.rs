@@ -30,8 +30,6 @@ impl WebError {
             | TrackError::NoRepositoriesRegistered
             | TrackError::RepoHasPendingChanges(_)
             | TrackError::WorktreeFlagRemoved
-            | TrackError::SyncUseJjTask { .. }
-            | TrackError::JjTaskNotCompleted { .. }
             | TrackError::CurrentDirectoryNotRegistered
             | TrackError::WorkspaceHasUncommittedChanges { .. }
             | TrackError::BookmarkNotFound { .. }
@@ -47,6 +45,8 @@ impl WebError {
             | TrackError::TaskReferenceNotFound(_)
             | TrackError::LinkNotFound(_)
             | TrackError::InvalidVcsMode(_)
+            | TrackError::WorkspaceVcsMismatch { .. }
+            | TrackError::InvalidAggressiveMode(_)
             | TrackError::UnknownConfigKey(_)
             | TrackError::InvalidAppStateValue { .. }
             | TrackError::ConfirmationRequired { .. } => StatusCode::BAD_REQUEST,
@@ -60,13 +60,13 @@ impl WebError {
             | TrackError::Jj(_)
             | TrackError::Git(_)
             | TrackError::NotJjRepository(_)
+            | TrackError::NotVcsRepository(_)
             | TrackError::NotGitRepository(_)
             | TrackError::BookmarkExists(_)
             | TrackError::FailedRepoStatusCheck(_)
             | TrackError::WorkspaceRemovalFailed(_)
             | TrackError::WorkspaceStatusCheckFailed { .. }
             | TrackError::SerializationFailed(_)
-            | TrackError::JjTaskMapInvalid { .. }
             | TrackError::PathResolutionFailed(_)
             | TrackError::Io(_)
             | TrackError::Cancelled

@@ -4,6 +4,7 @@ mod alias;
 mod completion;
 mod config;
 mod confirm;
+mod hint;
 mod json_out;
 mod link;
 mod llm_help;

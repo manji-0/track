@@ -3,8 +3,10 @@
 //! This module defines the core data structures used throughout the application,
 //! including tasks, TODOs, links, scraps, and JJ-related items.
 
+mod aggressive_mode;
 mod alias;
 mod entities;
+mod hint;
 mod http_url;
 mod ids;
 mod jj;
@@ -16,8 +18,10 @@ mod todo_add_options;
 mod vcs_mode;
 mod workflow;
 
+pub use aggressive_mode::AggressiveMode;
 pub use alias::TaskAlias;
 pub use entities::{Link, RepoLink, Scrap, Task, TaskRepo, Todo, Worktree};
+pub use hint::CommandHint;
 pub use http_url::HttpUrl;
 pub use ids::{
     LinkId, LinkIndex, RepoIndex, RepoLinkId, ScrapId, ScrapIndex, TaskId, TaskRepoId, TodoId,
@@ -34,6 +38,5 @@ pub use workflow::{
     RepoWorkspaceStatus, TodoAgentView, WorkflowContext, WorkflowPhase, WorkflowStep,
     WorkspaceAgentView, WorkspaceFacts, WorkspaceLifecycle, build_next_action,
     build_workflow_checklist, build_workflow_context, compute_workflow_phase,
-    jj_map_phase_is_complete, legacy_worktree_pending, legacy_worktree_sync_needed,
-    oldest_pending_todo, workspace_lifecycle,
+    legacy_worktree_pending, legacy_worktree_sync_needed, oldest_pending_todo, workspace_lifecycle,
 };

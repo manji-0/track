@@ -1,4 +1,4 @@
 interface:
   display_name: "Track"
   short_description: "Route track CLI tasks by workflow phase"
-  default_prompt: "Use $track for task context (track status --json), then $jj for commits and PR."
+  default_prompt: "Use $track for task context (track status --json). Follow hint / next_action; track owns the git/jj workspace."

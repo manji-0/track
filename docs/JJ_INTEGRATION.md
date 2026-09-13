@@ -1,42 +1,49 @@
-# JJ Integration Strategy
+# VCS Integration
 
-Track and [agent-skill-jj](https://github.com/manji-0/agent-skill-jj) form a **two-layer agent stack**:
+Track owns the **coding workspace**. Git or jj is a switchable backend; agents and humans do not run `git worktree`, `jj workspace add`, or jj-task by hand.
 
-| Layer | Tool / skill | Responsibility |
-|-------|--------------|----------------|
-| **Task** | `track` + track skills | WHAT to work on — tasks, TODOs, scraps, tickets, JSON workflow |
-| **JJ / PR** | `$jj` + `jj-task` | HOW to commit — workspaces, squash, two-phase PR, prek, push |
-
-Install both:
+| Layer | Tool | Responsibility |
+|-------|------|----------------|
+| **WHAT** | `track` | Tasks, TODOs, scraps, tickets, JSON workflow + hints |
+| **WHERE** | `track` | `.worktrees/<slug>/` on branch/bookmark `track/<slug>` |
+| **HOW** | git or jj (in that workspace) | Commits and GitHub PRs |
 
 ```bash
-npx skills add manji-0/track \
-  -s track -s track-task-setup -s track-task-execute -s track-advanced -g -y
-
-npx skills add manji-0/agent-skill-jj -s jj -g -y
-
-ln -s "$(pwd)/../agent-skill-jj/skills/jj/scripts/jj-task.sh" ~/.local/bin/jj-task
+track config set vcs-mode git          # default
+track config set vcs-mode jj           # colocated jj
+track config set aggressive-mode on    # per-task revision + git notes
 ```
 
-## Agent loop (combined)
+Existing databases that already had tasks and never set `vcs-mode` stay on **jj** so current jj users are not flipped silently. New databases default to **git**.
+
+## Agent loop
 
 ```
-track status --json     →  workflow.phase + jj.slug + next_action
+track status --json     →  workflow.phase + hint + next_action
         ↓
-jj-task start <slug>    →  workspace at .worktrees/<slug>/  (once per task)
+track repo add . / track sync   →  workspace at .worktrees/<slug>/
         ↓
-cd "$(jj-task path <slug>)"  →  implement in task workspace (not main)
+cd "<workspace_path>"   →  implement (not main / repo root)
         ↓
-$jj skill              →  prek, jj squash/commit, two-phase PR, push
+git commit / jj commit from that workspace
         ↓
-track scrap add --json   →  record decisions; response includes workflow
+track scrap add --json   →  record decisions (git notes when aggressive)
         ↓
 track todo done N --json →  mark TODO complete; follow returned next_action
         ↓
 repeat until task_complete
         ↓
-$jj skill + jj-task done <slug> + track archive
+push track/<slug>, open/merge PR, track archive
 ```
+
+Human commands print the same next step on **stderr**:
+
+```
+hint: vcs=git aggressive=off | workspace ready at /repo/.worktrees/slug
+next: cd "/repo/.worktrees/slug"
+```
+
+`--json` includes `hint`. Set `TRACK_HINTS=0` to hide the footer.
 
 ## Division of responsibility
 
@@ -44,66 +51,88 @@ $jj skill + jj-task done <slug> + track archive
 
 - Task / TODO lifecycle (`track new`, `track todo add/done`)
 - Scraps, links, tickets, aliases
-- `track status --json` / mutation `--json` / `GET /api/status` — `workflow`, `jj`, `todos_agent`, `guardrails`
+- Workspace create/remove (`track repo add`, `track sync`, `track archive`, `track switch`)
+- `track status --json` / mutation `--json` / `GET /api/status` — `workflow`, `hint`, `git`/`jj`, `todos_agent`, `guardrails`
+- Aggressive mode: empty task revision + `refs/notes/track`
 - WebUI
-- `track archive` (task-level cleanup; treats jj-task phase `merged` or legacy `done` as complete)
 
-### agent-skill-jj (`$jj`) owns
+### Git mode (`vcs-mode=git`)
 
-- **Main workspace = sync only** — no feature edits at repo root
-- **Task workspace** — `.worktrees/<slug>/` via `jj-task start`
-- **Global map** — `~/.config/jj/task-workspaces.json`
-- **Commits** — Conventional Commits, `jj squash` (draft), `jj commit` (in review)
-- **prek** before `jj commit` when hook config exists
-- **PR phases** — draft vs in-review, force-push rules
-- **Push** — `jj bookmark move`, `jj git push`, `gh pr`
+- `git worktree add` at `<repo>/.worktrees/<slug>/` on branch `track/<slug>`
+- Best-effort fetch of the base branch
+- `.worktrees/` is excluded locally (`.git/info/exclude`), not via a committed `.gitignore`
+- PR head: `git push -u origin track/<slug>` then `gh pr create`
 
-### jj-task slug
+### JJ mode (`vcs-mode=jj`)
 
-Track derives `jj.slug` from the current task:
+- Ensures a colocated repo (`jj git init --colocate` when the path is git-only)
+- `jj workspace add` at `<repo>/.worktrees/<slug>/`
+- Bookmark `track/<slug>` is the GitHub PR head (`jj git push --named track/<slug>`)
+- Git collocate stays enabled so `gh` and git remotes keep working
+
+Track does **not** read `~/.config/jj/task-workspaces.json` or invoke `jj-task`.
+
+### Workspace slug
+
+Same in both modes (`git.slug` / `jj.slug`):
 
 1. `track alias` if set
 2. else `ticket_id` (sanitized, e.g. `PROJ-123` → `proj-123`)
 3. else `task-{id}`
 
-Set an alias when the ticket ID is not a good workspace slug:
-
 ```bash
 track alias set fix-oauth-refresh
 ```
 
+### Aggressive mode
+
+When `aggressive-mode` is `on`:
+
+1. Each `(task, repo)` gets **one empty marker revision**, recorded in `task_revisions`. The stored git commit is immutable.
+2. **Git:** empty commit on `track/<slug>` at workspace birth (ancestor of later work; included in the PR).
+3. **JJ:** empty change described `[track:<slug>] <name>`. Working copy is a **child**. Bookmark `track/<slug>` follows the working copy (GitHub PR head), not the marker.
+4. `track scrap add` rewrites git notes (`refs/notes/track`) on the **marker** commit. Track DB remains source of truth; notes failures warn on stderr.
+5. Turning aggressive on after a workspace exists: `track sync` backfills a marker if none is stored. Turning it off stops writing notes; marker and notes stay.
+
+Inspired by [jjtask](https://github.com/Coobaha/jjtask) (per-task empty revisions + notes), implemented entirely inside track.
+
 ## Implementation reference
 
-Workflow phase computation and agent `next_action` generation are pure functions in
-[`src/models/workflow.rs`](../src/models/workflow.rs) (`compute_workflow_phase`,
-`build_workflow_context`, `build_next_action`), given observed `WorkspaceFacts`.
-Filesystem and jj-task map reads live in [`src/services/agent_context.rs`](../src/services/agent_context.rs)
-and [`src/services/jj_task/`](../src/services/jj_task/).
+Workflow phase and `next_action` are pure functions in
+[`src/models/workflow.rs`](../src/models/workflow.rs), given observed `WorkspaceFacts`.
+Filesystem observation lives in [`src/services/agent_context.rs`](../src/services/agent_context.rs).
+Workspace create/remove: [`src/services/task_workspace.rs`](../src/services/task_workspace.rs).
+Git notes / task revisions: [`src/services/git_notes.rs`](../src/services/git_notes.rs), [`src/services/task_revision.rs`](../src/services/task_revision.rs).
 
 ## JSON fields (`track status --json`)
 
 ```json
 {
+  "vcs_mode": "git",
+  "aggressive": false,
   "workflow": {
     "phase": "sync_required",
-    "next_action": { "command": "jj-task start proj-123", "reason": "..." },
+    "next_action": { "command": "track sync", "reason": "Create git worktree at .worktrees/proj-123 on branch/bookmark track/proj-123" },
     "checklist": [
-      { "id": "jj_task_start", "label": "jj-task start in /repo", "done": false, "command": "jj-task start proj-123" }
+      { "id": "sync", "label": "Create git worktree for this task", "done": false, "command": "track sync" }
     ]
   },
-  "jj": {
+  "hint": {
+    "vcs_mode": "git",
+    "aggressive": false,
+    "post_state": "workspace missing at /repo/.worktrees/proj-123 — run track sync",
+    "next_command": "track sync",
+    "next_reason": "Create git worktree at .worktrees/proj-123 on branch/bookmark track/proj-123"
+  },
+  "git": {
     "slug": "proj-123",
-    "skill": "jj",
-    "workspace_registered": false,
-    "task_phase": null,
-    "repos": [{ "repo_path": "/repo", "registered": false }],
+    "branch": "track/proj-123",
+    "workspace_ready": false,
     "workspace_path": "/repo/.worktrees/proj-123",
-    "start_command": "jj-task start proj-123",
-    "path_command": "jj-task path proj-123",
-    "repo_init_command": "jj-task repo init"
+    "sync_command": "track sync"
   },
   "guardrails": {
-    "must_use_jj_skill": true,
+    "must_use_jj_skill": false,
     "jj_skill_name": "jj",
     "reopen_forbidden": true,
     "complete_requires_jj_merge": false
@@ -111,41 +140,41 @@ and [`src/services/jj_task/`](../src/services/jj_task/).
 }
 ```
 
-| Phase | Track action | JJ action |
-|-------|--------------|-----------|
-| `setup` | `track repo add`, `track todo add` | `jj-task repo init` (once) |
-| `sync_required` | follow `workflow.checklist` | `jj-task start <slug>` per repo |
-| `execute` | `track scrap add`, `track todo done` | `$jj` for all jj commands |
-| `task_complete` | `track archive` (after `jj-task done` → phase `merged`) | `$jj` if phase not `merged`/`done` |
+In jj mode the `git` object is omitted and `jj` is present (`start_command` is `track sync`, `path_command` is `cd "<path>"`). `must_use_jj_skill` is always `false`.
 
-Research TODOs: `track todo add "..." --no-workspace`  
-Legacy tasks: `track migrate legacy-worktrees` then jj-task.
+| Phase | Track action |
+|-------|----------------|
+| `setup` | `track repo add`, `track todo add` |
+| `sync_required` | `track sync` (creates the workspace) |
+| `execute` | `cd` into the workspace, `track scrap add`, `track todo done` |
+| `task_complete` | push `track/<slug>`, merge PR, `track archive` |
+
+Research TODOs: `track todo add "..." --no-workspace`
 
 ## Legacy: per-TODO `--worktree`
 
 `track todo add --worktree` was **removed**. Existing DB rows with `worktree_requested` still work until migrated:
 
 ```bash
-track migrate legacy-worktrees --dry-run   # inspect flags + worktree records
-track migrate legacy-worktrees             # clear flags, remove legacy worktree DB/jj workspaces
-track migrate legacy-worktrees --force     # remove even when workspaces are dirty
-jj-task start <slug>
+track migrate legacy-worktrees --dry-run
+track migrate legacy-worktrees
+track migrate legacy-worktrees --force
+track sync
 ```
 
-JJ mode `track sync` runs only when legacy TODOs are pending, or with `--legacy` explicitly.
+`track sync --legacy` still rebuilds old per-TODO jj worktrees.
 
-## What changed from track-only JJ docs
+## What changed from the jj-task stack
 
-| Old (track-only) | New (jj-first) |
-|------------------|----------------|
-| `track sync` before coding | `jj-task start <slug>` |
-| Work in repo root after sync | Work in `.worktrees/<slug>/` only |
-| `jj describe` before `todo done` | `$jj` skill: squash/commit per PR phase |
-| `task/PROJ-123` bookmark at root | `<slug>` bookmark in task workspace |
+| Old (jj-task) | Now (track-owned) |
+|----------------|-------------------|
+| `jj-task start <slug>` | `track sync` / `track repo add` |
+| `jj-task path <slug>` | `hint.next_command` / `cd "<workspace_path>"` |
+| `~/.config/jj/task-workspaces.json` | Track DB + filesystem |
+| `$jj` skill required for workspace | Follow stderr hint / JSON `hint` |
 | Per-TODO workspaces | One workspace per track task |
 
 ## References
 
-- [agent-skill-jj](https://github.com/manji-0/agent-skill-jj) — `$jj` skill, `jj-task` script
-- [skills/INSTALL.md](../skills/INSTALL.md) — install both skill packs
 - [LLM_INTEGRATION.md](LLM_INTEGRATION.md) — agent overview
+- [skills/INSTALL.md](../skills/INSTALL.md) — optional skills (thin; follow `hint`)

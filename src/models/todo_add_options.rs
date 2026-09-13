@@ -1,9 +1,9 @@
 /// Options when creating a new TODO.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TodoAddOptions {
-    /// Legacy per-TODO worktree flag (deprecated; use jj-task per task instead).
+    /// Legacy per-TODO worktree flag (deprecated; use one workspace per task).
     pub worktree_requested: bool,
-    /// When true (default), a jj-task/git workspace is required before execute.
+    /// When true (default), a git/jj workspace is required before execute.
     pub requires_workspace: bool,
 }
 

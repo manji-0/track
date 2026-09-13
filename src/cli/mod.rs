@@ -124,7 +124,7 @@ pub enum Commands {
         /// Task ID or ticket reference (defaults to current task)
         task_ref: Option<String>,
 
-        /// Skip jj-task and dirty-workspace checks (required when stdin is not a TTY)
+        /// Skip dirty-workspace checks (required when stdin is not a TTY)
         #[arg(short, long)]
         force: bool,
 
@@ -147,7 +147,7 @@ pub enum Commands {
 
     /// Sync repositories and setup task branches
     Sync {
-        /// JJ mode only: run legacy bookmark/per-TODO workspace sync (deprecated)
+        /// JJ mode: also run legacy bookmark / per-TODO workspace sync
         #[arg(long)]
         legacy: bool,
     },
@@ -205,7 +205,7 @@ pub enum Commands {
 
 #[derive(Subcommand)]
 pub enum MigrateCommands {
-    /// Clear legacy per-TODO worktree flags (switch to jj-task)
+    /// Clear legacy per-TODO worktree flags (switch to one workspace per task)
     LegacyWorktrees {
         /// Task ID or ticket reference (defaults to all tasks)
         task_ref: Option<String>,
@@ -227,11 +227,11 @@ pub enum TodoCommands {
         /// TODO content
         text: String,
 
-        /// [DEPRECATED] Legacy per-TODO worktree — use jj-task per task instead
+        /// [DEPRECATED] Legacy per-TODO worktree — use one workspace per task (`track sync`)
         #[arg(short, long, hide = true)]
         worktree: bool,
 
-        /// Research/planning TODO that does not need a jj-task or git worktree
+        /// Research/planning TODO that does not need a git/jj workspace
         #[arg(long, conflicts_with = "worktree")]
         no_workspace: bool,
 
@@ -398,9 +398,9 @@ pub enum AliasCommands {
 
 #[derive(Subcommand)]
 pub enum ConfigCommands {
-    /// Set a configuration value (e.g. vcs-mode jj|git)
+    /// Set a configuration value (e.g. vcs-mode git|jj, aggressive-mode on|off)
     Set {
-        /// Configuration key (e.g. vcs-mode)
+        /// Configuration key (e.g. vcs-mode, aggressive-mode)
         key: String,
 
         /// Configuration value

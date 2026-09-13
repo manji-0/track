@@ -4,7 +4,7 @@
 //! and application state management. The database stores all task, TODO, link, scrap,
 //! and Git repository information.
 
-use crate::models::{TaskId, TaskStatus, TodoStatus, VcsMode};
+use crate::models::{AggressiveMode, TaskId, TaskStatus, TodoStatus, VcsMode};
 use crate::utils::Result;
 use directories::ProjectDirs;
 use rusqlite::{Connection, OptionalExtension, params};
@@ -187,6 +187,16 @@ impl Database {
                 UNIQUE(task_id, repo_path)
             );
 
+            CREATE TABLE IF NOT EXISTS task_revisions (
+                task_id INTEGER NOT NULL,
+                repo_path TEXT NOT NULL,
+                git_commit TEXT NOT NULL,
+                jj_change_id TEXT,
+                created_at TEXT NOT NULL,
+                PRIMARY KEY (task_id, repo_path),
+                FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
+            );
+
             CREATE INDEX IF NOT EXISTS idx_todos_task_id ON todos(task_id);
             CREATE INDEX IF NOT EXISTS idx_links_task_id ON links(task_id);
             CREATE INDEX IF NOT EXISTS idx_scraps_task_id ON scraps(task_id);
@@ -270,7 +280,7 @@ impl Database {
         Ok(())
     }
 
-    /// Returns the configured VCS backend (`jj` by default).
+    /// Returns the configured VCS backend (`git` by default).
     pub fn get_vcs_mode(&self) -> Result<VcsMode> {
         match self.get_app_state(VcsMode::KEY)? {
             Some(value) => value
@@ -283,6 +293,19 @@ impl Database {
     /// Persists the VCS backend preference.
     pub fn set_vcs_mode(&self, mode: VcsMode) -> Result<()> {
         self.set_app_state(VcsMode::KEY, mode.as_str())
+    }
+
+    pub fn get_aggressive_mode(&self) -> Result<AggressiveMode> {
+        match self.get_app_state(AggressiveMode::KEY)? {
+            Some(value) => value
+                .parse()
+                .map_err(crate::utils::TrackError::InvalidAggressiveMode),
+            None => Ok(AggressiveMode::default()),
+        }
+    }
+
+    pub fn set_aggressive_mode(&self, mode: AggressiveMode) -> Result<()> {
+        self.set_app_state(AggressiveMode::KEY, mode.as_str())
     }
 
     /// Gets the ID of the current active task.
@@ -440,9 +463,17 @@ mod tests {
     }
 
     #[test]
-    fn test_vcs_mode_defaults_to_jj() {
+    fn test_vcs_mode_defaults_to_git() {
         let db = Database::new_in_memory().unwrap();
-        assert_eq!(db.get_vcs_mode().unwrap(), VcsMode::Jj);
+        assert_eq!(db.get_vcs_mode().unwrap(), VcsMode::Git);
+    }
+
+    #[test]
+    fn test_aggressive_mode_defaults_off() {
+        let db = Database::new_in_memory().unwrap();
+        assert_eq!(db.get_aggressive_mode().unwrap(), AggressiveMode::Off);
+        db.set_aggressive_mode(AggressiveMode::On).unwrap();
+        assert_eq!(db.get_aggressive_mode().unwrap(), AggressiveMode::On);
     }
 
     #[test]

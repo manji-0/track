@@ -1,35 +1,29 @@
 ---
 name: track-task-execute
-description: Execute track TODOs with jj-task workspaces and agent-skill-jj ($jj) for commits. Read track status --json, start jj-task workspace, implement, use $jj for jj operations, track scrap/done for task state. Use when workflow.phase is sync_required or execute.
+description: Execute track TODOs in the track-owned git/jj workspace. Read track status --json, follow hint/next_action, implement in .worktrees/<slug>, track scrap/done for task state. Use when workflow.phase is sync_required or execute.
 license: MIT
-compatibility: Requires track CLI, jj-task, and agent-skill-jj ($jj skill)
+compatibility: Requires track CLI
 metadata:
   author: track
-  version: 3.1.0
-  tags: [track, execute, agent, jj-task, todo]
+  version: 4.0.0
+  tags: [track, execute, agent, todo]
 ---
 
 # Track — Task Execution (Agents)
 
-**Track** = TODO state. **`$jj`** = all jj commit/PR operations.
-
-## Prerequisites
-
-- [agent-skill-jj](https://github.com/manji-0/agent-skill-jj) `$jj` skill installed
-- `jj-task` on PATH
+**Track** owns TODO state and the coding workspace. Commit with git or jj **from that workspace**.
 
 ## Agent loop (every turn)
 
 ```
 track status --json
         ↓
-jj-task start <jj.slug>   (if sync_required)
+follow hint.next_command / workflow.next_action
+  (track sync, or cd "<workspace_path>")
         ↓
-cd "$(jj-task path <jj.slug>)"
+implement + test in .worktrees/<slug>/
         ↓
-implement + test
-        ↓
-$jj skill → prek, jj squash/commit, push (per PR phase)
+commit/push from the workspace (branch/bookmark track/<slug>)
         ↓
 track scrap add --json "..."
         ↓
@@ -46,36 +40,29 @@ track status --json
 
 | Field | Action |
 |-------|--------|
-| `jj.slug` | jj-task workspace name |
-| `jj.start_command` | Run when `sync_required` |
-| `jj.path_command` | cd target when `execute` |
-| `workflow.next_action` | Always follow this |
+| `hint.next_command` | Run this |
+| `workflow.next_action` | Same as hint when present |
 | `workflow.checklist` | Ordered steps with `done` flags |
-| `guardrails.must_use_jj_skill` | Load `$jj` for jj commands |
+| `git.workspace_path` / `jj.workspace_path` | `.worktrees/<slug>` |
+| `todos_agent[].is_next` | Current TODO |
 
-## Step 2 — Start workspace (sync_required)
+Do **not** look up jj-task maps or run `git worktree` / `jj workspace` yourself.
 
-From **main workspace** (repo root):
+## Step 2 — Ensure workspace (sync_required)
 
 ```bash
-jj-task repo init          # once per repo
-jj-task start <jj.slug>
-cd "$(jj-task path <jj.slug>)"
+track sync
+# then the hint becomes: cd "<repo>/.worktrees/<slug>"
 ```
 
-Workspace path: `.worktrees/<slug>/` (agent-skill-jj convention).
+Workspace path: `.worktrees/<slug>/`. PR head: `track/<slug>`.
 
 ## Step 3 — Implement
 
-- Work only inside the jj-task workspace — **not** repo root
+- Work only inside the task workspace — **not** repo root
 - Run project tests/linters
-- For **all** jj operations, follow **`$jj` skill**:
-  - Draft phase: `jj squash`, force push OK
-  - In review: `jj commit`, append only
-  - prek before commit when hook config exists
-  - Conventional Commits format
-
-Do **not** use bare `jj describe` as a substitute for `$jj` commit rules.
+- Git: commit in the worktree, `git push -u origin track/<slug>`
+- JJ: commit in the workspace, `jj git push --named track/<slug>`
 
 ## Step 4 — Record in track
 
@@ -83,25 +70,26 @@ Do **not** use bare `jj describe` as a substitute for `$jj` commit rules.
 track scrap add --json "Chose bcrypt; tests at 95%"
 ```
 
+With `aggressive-mode on`, scraps are also git notes on the task revision.
+
 ## Step 5 — Complete TODO (track DB)
 
 ```bash
 track todo done --json <index>
 ```
 
-Marks TODO done in track. JJ history stays in the jj-task workspace via `$jj`. The JSON response includes `workflow.next_action` for the next TODO.
+Marks TODO done in track. The JSON response includes `workflow.next_action` for the next TODO.
 
 ## Step 6 — Repeat
 
-If the mutation JSON already includes `workflow.next_action`, follow it. Otherwise re-run `track status --json`.
+If the mutation JSON already includes `hint` / `workflow.next_action`, follow it. Otherwise re-run `track status --json`.
 
 ## Error recovery
 
 | Problem | Fix |
 |---------|-----|
-| Unknown slug | `jj-task start <jj.slug>` |
-| Wrong directory | `cd "$(jj-task path <jj.slug>)"` |
-| Commit/PR questions | Load **`$jj`** skill |
+| Missing workspace | `track sync` |
+| Wrong directory | `cd` the path from `hint` / JSON |
 | TODO state | `track status --json` |
 
 Full walkthrough: [references/execution-workflow.md](references/execution-workflow.md)

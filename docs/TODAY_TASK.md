@@ -5,7 +5,7 @@
 
 `track switch today` switches to a **daily personal inbox**: one task named `Today: YYYY-MM-DD` (local date). It is the same kind of task as any other — TODOs, scraps, links — not a separate product.
 
-Today task is **not** a planner graph and **not** a jj-task workspace by itself. Add `track repo add` / workspace-requiring TODOs only when that day's work needs a coding workspace.
+Today task is **not** a planner graph and **not** a coding workspace by itself. Add `track repo add` / workspace-requiring TODOs only when that day's work needs a git or jj workspace.
 
 ## Switching
 
