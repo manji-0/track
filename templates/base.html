@@ -352,6 +352,17 @@
             padding: 1px 6px; border-radius: 99px; margin-left: 6px;
         }
 
+        .scrap-share {
+            display: inline-block; font-size: 10px; margin-left: 6px;
+            border: 1px solid var(--border); background: transparent;
+            color: var(--muted); border-radius: 99px; padding: 1px 8px; cursor: pointer;
+        }
+        .scrap-share.is-shared {
+            color: var(--accent);
+            border-color: color-mix(in oklab, var(--accent) 40%, var(--border));
+            background: color-mix(in oklab, var(--accent) 12%, transparent);
+        }
+
         .scrap-markdown p { margin: 0 0 .4em; }
         .scrap-markdown p:last-child { margin-bottom: 0; }
         .scrap-markdown pre {

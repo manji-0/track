@@ -39,7 +39,10 @@ pub fn handle_config(ctx: &CommandCtx, command: ConfigCommands) -> Result<()> {
                     println!("Set aggressive mode: {mode}");
                     if mode.is_on() {
                         println!(
-                            "Each task gets a dedicated empty marker revision; scraps are git notes (`refs/notes/track`) on that marker."
+                            "Each task gets a dedicated empty marker revision. `todo done` writes one commit per TODO. Git notes (`refs/notes/track`) on the marker are identity; shared scraps are notes on that TODO's commit. Follow-up work appends a new TODO/commit — published history is never rewritten."
+                        );
+                        println!(
+                            "Share scraps with `track scrap add --share` or `track scrap share N`. Disclose with `track notes push`. Others: `track notes fetch` then `track import` on the PR branch."
                         );
                         println!(
                             "Run `track sync` so existing workspaces get a marker. The marker SHA is never rewritten."
@@ -67,9 +70,7 @@ pub fn handle_config(ctx: &CommandCtx, command: ConfigCommands) -> Result<()> {
             println!(
                 "VCS mode: {vcs_mode} (git = default worktrees, jj = colocated jj workspaces)"
             );
-            println!(
-                "Aggressive mode: {aggressive} (on = per-task revision + scraps as git notes)"
-            );
+            println!("Aggressive mode: {aggressive} (on = published work record in git notes)");
 
             if let Some(calendar_id) = ctx.db.get_app_state("calendar_id")? {
                 println!("Google Calendar ID: {}", calendar_id);

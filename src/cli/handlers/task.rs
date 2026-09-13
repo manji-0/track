@@ -370,6 +370,7 @@ pub fn handle_desc(ctx: &CommandCtx, description: Option<&str>, task: Option<i64
         Some(desc) => {
             // Set mode
             task_service.set_description(task_id, desc)?;
+            crate::use_cases::project_task_notes_or_warn(ctx.db, task_id);
             println!("Updated description for task #{}", task_id);
         }
         None => {
@@ -406,6 +407,7 @@ pub fn handle_ticket(
 
     let task_service = TaskService::new(ctx.db);
     task_service.link_ticket(task_id, ticket_id, url)?;
+    crate::use_cases::project_task_notes_or_warn(ctx.db, task_id);
 
     println!("Linked ticket {} to task #{}", ticket_id, task_id);
     println!("URL: {}", url);

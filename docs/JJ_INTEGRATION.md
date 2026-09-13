@@ -27,7 +27,9 @@ cd "<workspace_path>"   →  implement (not main / repo root)
         ↓
 git commit / jj commit from that workspace
         ↓
-track scrap add --json   →  record decisions (git notes when aggressive)
+track scrap add --json   →  local journal (`--share` = published snapshot)
+track notes push         →  disclose refs/notes/track
+track import             →  restore a task from notes on this branch
         ↓
 track todo done N --json →  mark TODO complete; follow returned next_action
         ↓
@@ -90,8 +92,8 @@ When `aggressive-mode` is `on`:
 
 1. Each `(task, repo)` gets **one empty marker revision**, recorded in `task_revisions`. The stored git commit is immutable.
 2. **Git:** empty commit on `track/<slug>` at workspace birth (ancestor of later work; included in the PR).
-3. **JJ:** empty change described `[track:<slug>] <name>`. Working copy is a **child**. Bookmark `track/<slug>` follows the working copy (GitHub PR head), not the marker.
-4. `track scrap add` rewrites git notes (`refs/notes/track`) on the **marker** commit. Track DB remains source of truth; notes failures warn on stderr.
+3. **JJ:** empty change described `[track:<slug>] <name>`. Working copy is a **child**. Bookmark `track/<slug>` starts on the working copy; after `todo done` it sits on the last TODO commit (`@-`), not the marker or the empty working copy.
+4. Git notes (`refs/notes/track`): **marker** = name / description / ticket / links (frozen once published). **Each TODO commit** holds that TODO's shared scraps. `track scrap add` is local by default. Follow-up review is a new TODO + new commit + new notes (fast-forward only). `track notes push` / `fetch` move the ref. `track import` walks `marker..HEAD` for `Task-Todo` commits.
 5. Turning aggressive on after a workspace exists: `track sync` backfills a marker if none is stored. Turning it off stops writing notes; marker and notes stay.
 
 Inspired by [jjtask](https://github.com/Coobaha/jjtask) (per-task empty revisions + notes), implemented entirely inside track.

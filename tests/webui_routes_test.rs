@@ -4,7 +4,7 @@ use std::sync::Arc;
 use tower::ServiceExt;
 use track::db::Database;
 use track::models::TodoStatus;
-use track::services::{TaskService, TodoService};
+use track::services::{ScrapService, TaskService, TodoService};
 use track::webui::{AppState, Templates, WebState, build_router};
 
 fn test_router(db: Database) -> axum::Router {
@@ -174,6 +174,39 @@ async fn add_scrap_rejects_empty_content() {
         .unwrap();
 
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn toggle_scrap_share_marks_shared() {
+    let db = Database::new_in_memory().unwrap();
+    let task_service = TaskService::new(&db);
+    let task = task_service
+        .create_task("Web task", None, None, None)
+        .unwrap();
+    db.set_current_task_id(task.id).unwrap();
+    ScrapService::new(&db)
+        .add_scrap(task.id, "decision")
+        .unwrap();
+
+    let app = test_router(db);
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("PATCH")
+                .uri("/api/scrap/1/share")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = http_body_util::BodyExt::collect(response.into_body())
+        .await
+        .unwrap()
+        .to_bytes();
+    let html = String::from_utf8_lossy(&body);
+    assert!(html.contains("is-shared"), "{html}");
 }
 
 #[tokio::test]

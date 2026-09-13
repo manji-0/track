@@ -9,8 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - `track config set vcs-mode git|jj` — git is the default on new databases; track owns `.worktrees/<slug>` on `track/<slug>` in both modes (git worktree or colocated jj workspace)
-- `track config set aggressive-mode on|off` — per-task empty marker revision and scraps as git notes (`refs/notes/track`)
+- `track config set aggressive-mode on|off` — per-task empty marker revision and a published task snapshot as git notes (`refs/notes/track`)
 - Command hints: stderr footer (`hint:` / `next:`) after human output; `hint` on `--json` snapshots (`TRACK_HINTS=0` to hide)
+- Task replay: aggressive mode writes marker identity (`track-task` v3) plus per-TODO notes (`track-todo`) on the matching commits. `track todo done` folds unpublished WIP into one commit per TODO. Follow-up TODOs append (no rewrite of published SHAs). `track scrap add --share` / `share` / `unshare` select scraps. `track notes push` / `fetch` disclose the ref. `track import` restores a local task from the PR branch without the author's DB file.
 
 ### Changed
 - `track sync` / `track repo add` create the task workspace in **jj** mode as well as git; agents follow `hint` / `workflow.next_action` instead of `jj-task`

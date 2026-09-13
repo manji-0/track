@@ -178,6 +178,7 @@ fn test_handle_scrap_add() {
 
     let cmd = Commands::Scrap(ScrapCommands::Add {
         content: "My Note".to_string(),
+        share: false,
         json: false,
     });
     handler.handle(cmd).unwrap();
@@ -185,6 +186,29 @@ fn test_handle_scrap_add() {
     let scraps = scrap_service.list_scraps(task.id).unwrap();
     assert_eq!(scraps.len(), 1);
     assert_eq!(scraps[0].content, "My Note");
+    assert!(!scraps[0].visibility.is_shared());
+}
+
+#[test]
+fn test_handle_scrap_share() {
+    let db = Database::new_in_memory().unwrap();
+    let handler = CommandHandler::from_db(db);
+    let db = handler.get_db();
+    let task = TaskService::new(db)
+        .create_task("Task", None, None, None)
+        .unwrap();
+    handler
+        .handle(Commands::Scrap(ScrapCommands::Add {
+            content: "Decision".to_string(),
+            share: false,
+            json: false,
+        }))
+        .unwrap();
+    handler
+        .handle(Commands::Scrap(ScrapCommands::Share { id: 1, json: false }))
+        .unwrap();
+    let scraps = ScrapService::new(db).list_scraps(task.id).unwrap();
+    assert!(scraps[0].visibility.is_shared());
 }
 
 #[test]

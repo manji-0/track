@@ -1,8 +1,10 @@
 //! HTTP route handlers for the WebUI.
 
-use crate::models::{TodoAction, TodoAddOptions, TodoIndex, TodoStatus};
+use crate::models::{
+    ScrapIndex, ScrapVisibility, TodoAction, TodoAddOptions, TodoIndex, TodoStatus,
+};
 use crate::services::{LinkService, RepoService, ScrapService, TaskService, TodoService};
-use crate::use_cases::{ApplyTodoActionUseCase, GetTaskInfoUseCase};
+use crate::use_cases::{ApplyTodoActionUseCase, GetTaskInfoUseCase, project_task_notes_or_warn};
 use crate::utils::TrackError;
 use crate::webui::error::WebError;
 use crate::webui::state::{AppState, SseEvent};
@@ -40,6 +42,8 @@ pub struct AddTodoForm {
 #[derive(Deserialize)]
 pub struct AddScrapForm {
     pub content: String,
+    #[serde(default)]
+    pub share: Option<String>,
 }
 
 /// Form data for updating description
@@ -284,6 +288,7 @@ pub async fn add_todo(
         &form.content,
         TodoAddOptions::from_flags(false, form.no_workspace),
     )?;
+    project_task_notes_or_warn(&db, current_task_id);
 
     // Broadcast SSE event
     state.app.broadcast(SseEvent::Todos);
@@ -309,6 +314,7 @@ pub async fn update_todo_status(
         TodoIndex::from_i64(todo_index),
         action,
     )?;
+    project_task_notes_or_warn(&db, current_task_id);
 
     // Broadcast SSE event
     state.app.broadcast(SseEvent::Todos);
@@ -329,6 +335,7 @@ pub async fn delete_todo(
     let todo_service = TodoService::new(&db);
     let todo = todo_service.get_todo_by_index(current_task_id, TodoIndex::from_i64(todo_index))?;
     todo_service.delete_todo(todo.id)?;
+    project_task_notes_or_warn(&db, current_task_id);
 
     // Broadcast SSE event
     state.app.broadcast(SseEvent::Todos);
@@ -348,6 +355,7 @@ pub async fn move_todo_to_next(
 
     let todo_service = TodoService::new(&db);
     todo_service.move_to_next(current_task_id, TodoIndex::from_i64(todo_index))?;
+    project_task_notes_or_warn(&db, current_task_id);
 
     // Broadcast SSE event
     state.app.broadcast(SseEvent::Todos);
@@ -366,7 +374,17 @@ pub async fn add_scrap(
     let current_task_id = db.get_current_task_id()?.ok_or(TrackError::NoActiveTask)?;
 
     let scrap_service = ScrapService::new(&db);
-    let _scrap = scrap_service.add_scrap(current_task_id, &form.content)?;
+    let share = form
+        .share
+        .as_deref()
+        .is_some_and(|v| v == "true" || v == "1" || v == "on");
+    let visibility = if share {
+        ScrapVisibility::Shared
+    } else {
+        ScrapVisibility::Local
+    };
+    let _scrap = scrap_service.add_scrap_with(current_task_id, &form.content, visibility)?;
+    project_task_notes_or_warn(&db, current_task_id);
 
     // Broadcast SSE event
     state.app.broadcast(SseEvent::Scraps);
@@ -383,6 +401,34 @@ pub async fn add_scrap(
     Ok(Html(html))
 }
 
+/// Toggle whether a scrap is included in the published snapshot.
+pub async fn set_scrap_visibility(
+    State(state): State<WebState>,
+    Path(scrap_index): Path<i64>,
+) -> Result<Html<String>, AppError> {
+    let db = state.app.db.lock().await;
+    let current_task_id = db.get_current_task_id()?.ok_or(TrackError::NoActiveTask)?;
+    let scrap_service = ScrapService::new(&db);
+    let scrap =
+        scrap_service.get_scrap_by_index(current_task_id, ScrapIndex::from_i64(scrap_index))?;
+    let next = if scrap.visibility.is_shared() {
+        ScrapVisibility::Local
+    } else {
+        ScrapVisibility::Shared
+    };
+    scrap_service.set_visibility(current_task_id, ScrapIndex::from_i64(scrap_index), next)?;
+    project_task_notes_or_warn(&db, current_task_id);
+    state.app.broadcast(SseEvent::Scraps);
+    let scraps = scrap_service.list_scraps(current_task_id)?;
+    let html = state.templates.render(
+        "partials/scrap_list.html",
+        serde_json::json!({
+            "scraps": format_scraps(&scraps),
+        }),
+    )?;
+    Ok(Html(html))
+}
+
 /// Update task description
 pub async fn update_description(
     State(state): State<WebState>,
@@ -394,6 +440,7 @@ pub async fn update_description(
 
     let task_service = TaskService::new(&db);
     task_service.set_description(current_task_id, &form.description)?;
+    project_task_notes_or_warn(&db, current_task_id);
 
     // Get updated task
     let task = task_service.get_task(current_task_id)?;
@@ -428,6 +475,7 @@ pub async fn update_ticket(
     let ticket_url_str = ticket_url.as_deref().unwrap_or("");
 
     task_service.link_ticket(current_task_id, &form.ticket_id, ticket_url_str)?;
+    project_task_notes_or_warn(&db, current_task_id);
 
     // Get updated task
     let task = task_service.get_task(current_task_id)?;
@@ -456,6 +504,7 @@ pub async fn add_link(
     let title = form.title.filter(|t| !t.trim().is_empty());
 
     link_service.add_link(current_task_id, &form.url, title.as_deref())?;
+    project_task_notes_or_warn(&db, current_task_id);
 
     // Broadcast SSE event
     state.app.broadcast(SseEvent::Links);
@@ -492,6 +541,7 @@ pub async fn delete_link(
 
     // Delete link via service
     link_service.delete_link(link.id)?;
+    project_task_notes_or_warn(&db, current_task_id);
 
     // Broadcast SSE event
     state.app.broadcast(SseEvent::Links);

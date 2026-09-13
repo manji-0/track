@@ -133,7 +133,11 @@ The directory is always `.worktrees/<slug>/` and the PR head is `track/<slug>`.
 ```bash
 track config set aggressive-mode on
 track repo add .     # creates an empty task revision
-track scrap add "decision"   # also refs/notes/track
+track scrap add --share "decision"   # git notes on the matching TODO commit
+track notes push
+# other machine, on the PR branch:
+track notes fetch
+track import
 ```
 
 ## Legacy per-TODO worktrees

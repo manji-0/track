@@ -6,7 +6,7 @@ use std::ops::Deref;
 const MAX_ALIAS_LEN: usize = 50;
 const RESERVED_ALIASES: &[&str] = &[
     "new", "list", "current", "status", "switch", "archive", "sync", "todo", "scrap", "link",
-    "repo", "desc", "ticket", "alias", "help", "webui",
+    "repo", "desc", "ticket", "alias", "help", "webui", "import", "notes",
 ];
 
 /// Human-assigned task alias (`track switch oauth-fix`).

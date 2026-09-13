@@ -26,7 +26,7 @@ Tickets and URLs are optional labels on a personal task. The source of truth for
 
 `git` is the default VCS mode (`track config set vcs-mode git|jj`). Track creates the coding workspace on `track repo add` / `track sync`. Agents read `hint` / `workflow.next_action` from `track status --json` (or the stderr footer) instead of running `git worktree` / `jj workspace` / jj-task by hand.
 
-Aggressive mode (`track config set aggressive-mode on`) adds a per-task empty marker revision and stores scraps as git notes (`refs/notes/track`) on that marker, not on HEAD.
+Aggressive mode (`track config set aggressive-mode on`) adds a per-task empty marker revision. Commit history on `track/<slug>` matches done TODOs (one commit per `track todo done`, same order). Git notes (`refs/notes/track`) on the marker hold task identity (name, description, ticket, links). Shared scraps live as notes on **that TODO's commit**. Follow-up review work is a new TODO → new commit → new notes; published SHAs are never rewritten (`git notes add -f` only on unpublished commits). Scraps default to local; `track scrap add --share` / `track scrap share` selects what is published. `track notes fetch` + `track import` restore the work record from the PR branch without the author's SQLite file.
 
 Commits and GitHub PRs still use git or jj from the task workspace; the PR head is always `track/<slug>`.
 
@@ -80,7 +80,7 @@ Path: `$HOME/.local/share/track/track.db`. `CREATE TABLE` in `src/db/mod.rs` plu
 
 ### links, scraps
 
-Task-scoped URL list and chronological notes. Scraps may set `active_todo_id` to the pending TODO at insert time.
+Task-scoped URL list and chronological notes. Scraps may set `active_todo_id` to the pending TODO at insert time. Each scrap is `local` (default) or `shared`; only shared scraps are exported in git notes.
 
 ### task_repos
 
@@ -109,15 +109,17 @@ Prefix: `track`. Human tables/prose are the default. `--json` / `-j` is for agen
 | Command | Behavior |
 | :--- | :--- |
 | `track todo add/list/done/update/next/delete` | TODOs. Delete requires `--force` off-TTY. |
-| `track scrap add/list` | Work notes (not `track log`). |
+| `track scrap add/list/share/unshare` | Work notes. `--share` marks a scrap for git notes on the matching TODO commit. |
+| `track import` | Restore a task from `refs/notes/track` (marker identity + per-TODO commits). |
+| `track notes push/fetch` | Disclose / receive notes (`refs/notes/track`). |
 | `track link add/list/delete` | Reference URLs. |
 | `track repo add/list/remove` | Register repos. Track creates the task workspace (git or jj). |
 
-Mutations that accept `--json` (`new`, `switch`, `archive`, `todo add/done/update/next/delete`, `scrap add`, `repo add`) print the **same shape as `track status --json`** plus `ok` and `mutation` (`kind`, `id`). They do not invent per-command schemas.
+Mutations that accept `--json` (`new`, `switch`, `archive`, `todo add/done/update/next/delete`, `scrap add/share/unshare`, `repo add`, `import`) print the **same shape as `track status --json`** plus `ok` and `mutation` (`kind`, `id`). They do not invent per-command schemas.
 
 ### Other
 
-`desc`, `ticket`, `alias`, `config` (`vcs-mode`, `aggressive-mode`), `sync`, `migrate legacy-worktrees`, `webui`, `llm-help`, `completion`.
+`desc`, `ticket`, `alias`, `config` (`vcs-mode`, `aggressive-mode`), `sync`, `import`, `notes`, `migrate legacy-worktrees`, `webui`, `llm-help`, `completion`.
 
 ## Agent contract
 

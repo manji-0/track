@@ -9,9 +9,11 @@ pub mod git_notes;
 pub mod git_worktree;
 pub mod link_service;
 pub mod repo_service;
+pub mod task_notes;
 pub mod task_revision;
 pub mod task_service;
 pub mod task_workspace;
+pub mod todo_commit;
 pub mod todo_service;
 pub mod worktree_service;
 

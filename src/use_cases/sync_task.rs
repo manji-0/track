@@ -1,8 +1,9 @@
+use super::project_task_notes::project_task_notes_or_warn;
 use crate::db::Database;
 use crate::models::{AggressiveMode, Task, TodoStatus, VcsMode, jj_slug};
 use crate::services::{
-    RepoService, ScrapService, TaskRevisionService, TaskService, TodoService, WorktreeService,
-    git_notes, git_worktree, task_workspace,
+    RepoService, TaskRevisionService, TaskService, TodoService, WorktreeService, git_worktree,
+    task_workspace,
 };
 use crate::utils::{Result, TrackError};
 use std::path::{Path, PathBuf};
@@ -233,7 +234,7 @@ impl<'a> SyncTaskUseCase<'a> {
                     &ensured.path,
                     &ensured.branch,
                 )?;
-                self.persist_aggressive_revision(task, repo, slug, &ensured)?;
+                self.persist_aggressive_revision(task, repo, &ensured)?;
                 Ok(RepoSyncOutcome::WorktreeCreated {
                     base_ref,
                     workspace_path: ensured.path,
@@ -250,7 +251,6 @@ impl<'a> SyncTaskUseCase<'a> {
         &self,
         task: &Task,
         repo: &crate::models::TaskRepo,
-        slug: &str,
         ensured: &task_workspace::EnsureWorkspaceOutcome,
     ) -> Result<()> {
         let Some(git_commit) = ensured.git_commit.as_deref() else {
@@ -263,7 +263,7 @@ impl<'a> SyncTaskUseCase<'a> {
             git_commit,
             ensured.jj_change_id.as_deref(),
         )?;
-        self.write_notes_or_warn(task.id, slug, git_commit, &ensured.path, &repo.repo_path);
+        self.write_notes_or_warn(task.id);
         Ok(())
     }
 
@@ -282,6 +282,7 @@ impl<'a> SyncTaskUseCase<'a> {
 
         let revisions = TaskRevisionService::new(self.db);
         if revisions.get(task.id, &repo.repo_path)?.is_some() {
+            self.write_notes_or_warn(task.id);
             return Ok(());
         }
 
@@ -293,29 +294,12 @@ impl<'a> SyncTaskUseCase<'a> {
             &git_commit,
             jj_change_id.as_deref(),
         )?;
-        self.write_notes_or_warn(task.id, slug, &git_commit, workspace_path, &repo.repo_path);
+        self.write_notes_or_warn(task.id);
         Ok(())
     }
 
-    fn write_notes_or_warn(
-        &self,
-        task_id: crate::models::TaskId,
-        slug: &str,
-        git_commit: &str,
-        workspace_path: &str,
-        repo_path: &str,
-    ) {
-        let Ok(scraps) = ScrapService::new(self.db).list_scraps(task_id) else {
-            return;
-        };
-        let notes_root = if task_workspace::workspace_exists(workspace_path) {
-            workspace_path
-        } else {
-            repo_path
-        };
-        if let Err(err) = git_notes::write_scraps(notes_root, git_commit, slug, &scraps) {
-            eprintln!("warning: git notes not updated: {err}");
-        }
+    fn write_notes_or_warn(&self, task_id: crate::models::TaskId) {
+        project_task_notes_or_warn(self.db, task_id);
     }
 
     fn sync_repo_jj(

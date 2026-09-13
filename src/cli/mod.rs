@@ -145,6 +145,20 @@ pub enum Commands {
     #[command(subcommand)]
     Scrap(ScrapCommands),
 
+    /// Restore a track task from git notes on the current branch
+    Import {
+        /// Repository path (defaults to current directory)
+        path: Option<String>,
+
+        /// Output the status snapshot after importing
+        #[arg(short, long)]
+        json: bool,
+    },
+
+    /// Push or fetch `refs/notes/track` for task replay
+    #[command(subcommand)]
+    Notes(NotesCommands),
+
     /// Sync repositories and setup task branches
     Sync {
         /// JJ mode: also run legacy bookmark / per-TODO workspace sync
@@ -337,6 +351,10 @@ pub enum ScrapCommands {
         /// Scrap content
         content: String,
 
+        /// Include this scrap in the published git-notes snapshot
+        #[arg(long)]
+        share: bool,
+
         /// Output the status snapshot after adding
         #[arg(short, long)]
         json: bool,
@@ -344,6 +362,43 @@ pub enum ScrapCommands {
 
     /// List scraps
     List,
+
+    /// Mark a scrap as shared (included in git notes)
+    Share {
+        /// Scrap ID
+        id: i64,
+
+        /// Output the status snapshot after sharing
+        #[arg(short, long)]
+        json: bool,
+    },
+
+    /// Mark a scrap as local-only (excluded from git notes)
+    Unshare {
+        /// Scrap ID
+        id: i64,
+
+        /// Output the status snapshot after unsharing
+        #[arg(short, long)]
+        json: bool,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum NotesCommands {
+    /// Push `refs/notes/track` so others can replay the task
+    Push {
+        /// Git remote (default: origin)
+        #[arg(long, default_value = "origin")]
+        remote: String,
+    },
+
+    /// Fetch `refs/notes/track` from a remote
+    Fetch {
+        /// Git remote (default: origin)
+        #[arg(long, default_value = "origin")]
+        remote: String,
+    },
 }
 
 #[derive(Subcommand)]

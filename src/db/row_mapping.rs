@@ -1,6 +1,6 @@
 //! Shared SQLite row parsing helpers for domain entities.
 
-use crate::models::{Task, TaskStatus, Todo, TodoStatus};
+use crate::models::{Scrap, ScrapVisibility, Task, TaskStatus, Todo, TodoStatus};
 use chrono::{DateTime, Utc};
 use rusqlite::{Row, types::Type};
 use std::str::FromStr;
@@ -52,5 +52,18 @@ pub fn row_to_todo(row: &Row<'_>) -> rusqlite::Result<Todo> {
             .get::<_, Option<String>>(8)?
             .map(parse_datetime)
             .transpose()?,
+    })
+}
+
+/// Maps a scraps table row into a [`Scrap`].
+pub fn row_to_scrap(row: &Row<'_>) -> rusqlite::Result<Scrap> {
+    Ok(Scrap {
+        id: row.get(0)?,
+        task_id: row.get(1)?,
+        scrap_id: row.get(2)?,
+        content: row.get(3)?,
+        created_at: parse_datetime(row.get::<_, String>(4)?)?,
+        active_todo_id: row.get(5)?,
+        visibility: ScrapVisibility::from_db(row.get::<_, i64>(6)?),
     })
 }

@@ -225,6 +225,8 @@ pub fn format_scraps(scraps: &[Scrap]) -> Vec<serde_json::Value> {
                 "content_html": scrap.content_html(),
                 "created_at": formatted_time,
                 "active_todo_id": scrap.active_todo_id,
+                "visibility": scrap.visibility.as_str(),
+                "shared": scrap.visibility.is_shared(),
             })
         })
         .collect()

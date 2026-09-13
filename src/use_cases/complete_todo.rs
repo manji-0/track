@@ -1,5 +1,9 @@
 use crate::db::Database;
-use crate::services::{TodoService, WorktreeService};
+use crate::models::{Todo, TodoStatus, VcsMode, jj_slug};
+use crate::services::{
+    RepoService, ScrapService, TaskRevisionService, TaskService, TodoService, WorktreeService,
+    git_notes, task_notes, task_workspace, todo_commit,
+};
 use crate::utils::{Result, TrackError};
 
 /// Result of completing a TODO, including optional workspace bookmark name.
@@ -38,6 +42,10 @@ impl<'a> CompleteTodoUseCase<'a> {
 
         let merged_bookmark = worktree_service.complete_worktree_for_todo(todo.id)?;
 
+        if self.db.get_aggressive_mode()?.is_on() {
+            self.commit_todo_workspaces(task_id, &todo)?;
+        }
+
         if let Err(err) = todo_service.mark_done(todo.id) {
             if let Some(bookmark) = merged_bookmark.clone() {
                 return Err(TrackError::TodoCompletionDbFailed {
@@ -53,6 +61,39 @@ impl<'a> CompleteTodoUseCase<'a> {
             task_index,
             merged_bookmark,
         })
+    }
+
+    fn commit_todo_workspaces(&self, task_id: crate::models::TaskId, todo: &Todo) -> Result<()> {
+        let task = TaskService::new(self.db).get_task(task_id)?;
+        let slug = jj_slug(&task);
+        let branch = task_workspace::branch_name(&slug);
+        let vcs_git = self.db.get_vcs_mode()? == VcsMode::Git;
+        let scraps = ScrapService::new(self.db).list_scraps(task_id)?;
+        let revisions = TaskRevisionService::new(self.db);
+        let mut done = todo.clone();
+        done.status = TodoStatus::Done;
+
+        for repo in RepoService::new(self.db).list_repos(task_id)? {
+            let Some(rev) = revisions.get(task_id, &repo.repo_path)? else {
+                continue;
+            };
+            let workspace = task_workspace::workspace_path(&repo.repo_path, &slug);
+            if !task_workspace::workspace_exists(&workspace) {
+                continue;
+            }
+            let sha = todo_commit::commit_todo(
+                vcs_git,
+                &workspace,
+                &branch,
+                &rev.git_commit,
+                todo.task_index.as_i64(),
+                &todo.content,
+                &slug,
+            )?;
+            let notes = task_notes::build_todo_notes(&slug, &done, &scraps);
+            git_notes::write_todo_notes(&workspace, &sha, &notes)?;
+        }
+        Ok(())
     }
 }
 

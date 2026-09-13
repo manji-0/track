@@ -38,6 +38,25 @@ pub enum TrackError {
     #[error("Scrap content cannot be empty")]
     EmptyScrapContent,
 
+    #[error("Scrap #{0} not found in current task")]
+    ScrapIndexNotFound(i64),
+
+    #[error(
+        "No track task snapshot in git notes (fetch `refs/notes/track` and run from the PR branch)"
+    )]
+    NoTaskNotes,
+
+    #[error("Track task snapshot could not be parsed: {0}")]
+    TaskNotesParse(String),
+
+    #[error(
+        "Cannot rewrite published commits on {branch}. Add a follow-up TODO instead of amending history."
+    )]
+    CannotRewritePublishedHistory { branch: String },
+
+    #[error("Task branch {branch} has diverged from the published tip")]
+    HistoryDiverged { branch: String },
+
     #[error("Workspaces have uncommitted changes: {0:?}")]
     UncommittedWorkspaces(Vec<String>),
 

@@ -79,7 +79,10 @@ track status --json
 |---------|-------------|
 | `track config show` | Show current configuration |
 | `track config set vcs-mode git\|jj` | Git worktrees (default) or colocated jj workspaces |
-| `track config set aggressive-mode on\|off` | Per-task empty revision + scraps as git notes |
+| `track config set aggressive-mode on\|off` | Per-task empty revision + published work record as git notes |
+| `track import [path] [--json]` | Restore a task from git notes on the current branch |
+| `track notes push [--remote]` | Disclose `refs/notes/track` |
+| `track notes fetch [--remote]` | Receive `refs/notes/track` |
 | `track config set-calendar <calendar-id>` | Set Google Calendar ID for today task |
 
 ### TODO Management
@@ -107,8 +110,10 @@ track status --json
 
 | Command | Description |
 |---------|-------------|
-| `track scrap add <content> [--json]` | Add a work note |
-| `track scrap list` | Display note list |
+| `track scrap add <content> [--share] [--json]` | Add a work note (`--share` = git notes on the matching TODO commit) |
+| `track scrap list` | Display all scraps |
+| `track scrap share <id> [--json]` | Include a scrap in git notes on that TODO's commit |
+| `track scrap unshare <id> [--json]` | Keep a scrap local-only |
 
 ### Repository Management
 

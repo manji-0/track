@@ -37,6 +37,7 @@ pub fn build_router(web_state: WebState) -> Router {
         .route("/api/todo/{id}/next", patch(routes::move_todo_to_next))
         .route("/api/todo/{id}/{status}", patch(routes::update_todo_status))
         .route("/api/scrap", post(routes::add_scrap))
+        .route("/api/scrap/{id}/share", patch(routes::set_scrap_visibility))
         .route("/api/description", post(routes::update_description))
         .route("/api/ticket", post(routes::update_ticket))
         .route("/api/link", post(routes::add_link))

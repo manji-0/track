@@ -1,6 +1,8 @@
 use crate::db::Database;
-use crate::db::row_mapping::parse_datetime;
-use crate::models::{HttpUrl, Link, LinkId, Scrap, ScrapId, TodoIndex, TodoStatus};
+use crate::db::row_mapping::{parse_datetime, row_to_scrap};
+use crate::models::{
+    HttpUrl, Link, LinkId, Scrap, ScrapId, ScrapIndex, ScrapVisibility, TodoIndex, TodoStatus,
+};
 use crate::utils::{Result, TrackError};
 use chrono::Utc;
 use rusqlite::{OptionalExtension, params};
@@ -112,6 +114,15 @@ impl<'a> ScrapService<'a> {
     }
 
     pub fn add_scrap(&self, task_id: crate::models::TaskId, content: &str) -> Result<Scrap> {
+        self.add_scrap_with(task_id, content, ScrapVisibility::Local)
+    }
+
+    pub fn add_scrap_with(
+        &self,
+        task_id: crate::models::TaskId,
+        content: &str,
+        visibility: ScrapVisibility,
+    ) -> Result<Scrap> {
         if content.trim().is_empty() {
             return Err(TrackError::EmptyScrapContent);
         }
@@ -140,10 +151,45 @@ impl<'a> ScrapService<'a> {
                 .optional()?;
 
             conn.execute(
-                "INSERT INTO scraps (task_id, task_index, content, created_at, active_todo_id) VALUES (?1, ?2, ?3, ?4, ?5)",
-                params![task_id, next_index, content, now, active_todo_id],
+                "INSERT INTO scraps (task_id, task_index, content, created_at, active_todo_id, shared) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                params![task_id, next_index, content, now, active_todo_id, visibility.as_db()],
             )?;
 
+            let scrap_id = ScrapId::from_i64(conn.last_insert_rowid());
+            self.db.increment_rev("scraps")?;
+            self.get_scrap(scrap_id)
+        })
+    }
+
+    pub fn import_scrap(
+        &self,
+        task_id: crate::models::TaskId,
+        content: &str,
+        created_at: &str,
+        active_todo_id: Option<TodoIndex>,
+        visibility: ScrapVisibility,
+    ) -> Result<Scrap> {
+        if content.trim().is_empty() {
+            return Err(TrackError::EmptyScrapContent);
+        }
+        self.db.with_transaction(|| {
+            let conn = self.db.get_connection();
+            let next_index: i64 = conn.query_row(
+                "SELECT COALESCE(MAX(task_index), 0) + 1 FROM scraps WHERE task_id = ?1",
+                params![task_id],
+                |row| row.get(0),
+            )?;
+            conn.execute(
+                "INSERT INTO scraps (task_id, task_index, content, created_at, active_todo_id, shared) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                params![
+                    task_id,
+                    next_index,
+                    content,
+                    created_at,
+                    active_todo_id,
+                    visibility.as_db()
+                ],
+            )?;
             let scrap_id = ScrapId::from_i64(conn.last_insert_rowid());
             self.db.increment_rev("scraps")?;
             self.get_scrap(scrap_id)
@@ -153,40 +199,52 @@ impl<'a> ScrapService<'a> {
     pub fn get_scrap(&self, scrap_id: ScrapId) -> Result<Scrap> {
         let conn = self.db.get_connection();
         let mut stmt = conn.prepare(
-            "SELECT id, task_id, task_index, content, created_at, active_todo_id FROM scraps WHERE id = ?1",
+            "SELECT id, task_id, task_index, content, created_at, active_todo_id, shared FROM scraps WHERE id = ?1",
         )?;
 
-        let scrap = stmt.query_row(params![scrap_id], |row| {
-            Ok(Scrap {
-                id: row.get(0)?,
-                task_id: row.get(1)?,
-                scrap_id: row.get(2)?,
-                content: row.get(3)?,
-                created_at: parse_datetime(row.get::<_, String>(4)?)?,
-                active_todo_id: row.get(5)?,
-            })
-        })?;
+        let scrap = stmt.query_row(params![scrap_id], row_to_scrap)?;
 
         Ok(scrap)
+    }
+
+    pub fn get_scrap_by_index(
+        &self,
+        task_id: crate::models::TaskId,
+        scrap_index: ScrapIndex,
+    ) -> Result<Scrap> {
+        let conn = self.db.get_connection();
+        let mut stmt = conn.prepare(
+            "SELECT id, task_id, task_index, content, created_at, active_todo_id, shared FROM scraps WHERE task_id = ?1 AND task_index = ?2",
+        )?;
+
+        stmt.query_row(params![task_id, scrap_index], row_to_scrap)
+            .map_err(|_| TrackError::ScrapIndexNotFound(scrap_index.as_i64()))
+    }
+
+    pub fn set_visibility(
+        &self,
+        task_id: crate::models::TaskId,
+        scrap_index: ScrapIndex,
+        visibility: ScrapVisibility,
+    ) -> Result<Scrap> {
+        let scrap = self.get_scrap_by_index(task_id, scrap_index)?;
+        let conn = self.db.get_connection();
+        conn.execute(
+            "UPDATE scraps SET shared = ?1 WHERE id = ?2",
+            params![visibility.as_db(), scrap.id],
+        )?;
+        self.db.increment_rev("scraps")?;
+        self.get_scrap(scrap.id)
     }
 
     pub fn list_scraps(&self, task_id: crate::models::TaskId) -> Result<Vec<Scrap>> {
         let conn = self.db.get_connection();
         let mut stmt = conn.prepare(
-            "SELECT id, task_id, task_index, content, created_at, active_todo_id FROM scraps WHERE task_id = ?1 ORDER BY created_at ASC"
+            "SELECT id, task_id, task_index, content, created_at, active_todo_id, shared FROM scraps WHERE task_id = ?1 ORDER BY created_at ASC"
         )?;
 
         let scraps = stmt
-            .query_map(params![task_id], |row| {
-                Ok(Scrap {
-                    id: row.get(0)?,
-                    task_id: row.get(1)?,
-                    scrap_id: row.get(2)?,
-                    content: row.get(3)?,
-                    created_at: parse_datetime(row.get::<_, String>(4)?)?,
-                    active_todo_id: row.get(5)?,
-                })
-            })?
+            .query_map(params![task_id], row_to_scrap)?
             .collect::<std::result::Result<Vec<_>, _>>()?;
 
         Ok(scraps)
@@ -394,6 +452,23 @@ mod tests {
 
         let scrap = service.add_scrap(task_id, "Test scrap content").unwrap();
         assert_eq!(scrap.content, "Test scrap content");
+        assert_eq!(scrap.visibility, crate::models::ScrapVisibility::Local);
+    }
+
+    #[test]
+    fn test_share_scrap() {
+        let db = setup_db();
+        let task_id = create_test_task(&db);
+        let service = ScrapService::new(&db);
+        let scrap = service.add_scrap(task_id, "decision").unwrap();
+        let shared = service
+            .set_visibility(
+                task_id,
+                scrap.scrap_id,
+                crate::models::ScrapVisibility::Shared,
+            )
+            .unwrap();
+        assert!(shared.visibility.is_shared());
     }
 
     #[test]

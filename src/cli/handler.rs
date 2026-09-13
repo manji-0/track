@@ -68,6 +68,10 @@ impl CommandHandler {
             Commands::Todo(cmd) => super::handlers::handle_todo(&ctx, cmd),
             Commands::Link(cmd) => super::handlers::handle_link(&ctx, cmd),
             Commands::Scrap(cmd) => super::handlers::handle_scrap(&ctx, cmd),
+            Commands::Import { path, json } => {
+                super::handlers::handle_import(&ctx, path.as_deref(), json)
+            }
+            Commands::Notes(cmd) => super::handlers::handle_notes(&ctx, cmd),
             Commands::Sync { legacy } => super::handlers::handle_sync(&ctx, legacy),
             Commands::Migrate(cmd) => super::handlers::handle_migrate(&ctx, cmd),
             Commands::Repo(cmd) => super::handlers::handle_repo(&ctx, cmd),

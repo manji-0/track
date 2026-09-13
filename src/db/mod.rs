@@ -152,6 +152,7 @@ impl Database {
                 content TEXT NOT NULL,
                 created_at TEXT NOT NULL,
                 active_todo_id INTEGER,
+                shared INTEGER NOT NULL DEFAULT 0,
                 FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
             );
 

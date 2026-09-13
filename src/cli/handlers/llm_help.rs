@@ -26,7 +26,7 @@ Set `TRACK_HINTS=0` to hide the footer. `--json` already includes `hint`.
 | Field | Use |
 |-------|-----|
 | `vcs_mode` | `git` (default) or `jj` |
-| `aggressive` | per-task revision + scraps as git notes |
+| `aggressive` | per-task revision + published work record as git notes |
 | `workflow.phase` | setup · sync_required · execute · task_complete · archived |
 | `workflow.next_action.command` | Next command to run |
 | `hint.post_state` / `hint.next_command` | Same as the stderr footer |
@@ -60,16 +60,17 @@ Track runs `jj git init --colocate` when needed and `jj workspace add`.
 Push the PR bookmark: `jj git push --named track/<slug>` then `gh pr create`.
 
 ### Aggressive mode
-When on, each (task, repo) gets **one empty marker revision**. `track scrap add` writes `refs/notes/track` on that marker (not HEAD). Git: marker is the first empty commit on `track/<slug>`. JJ: marker is a parent change; bookmark `track/<slug>` stays on the working-copy child (PR head). Turning it on later: `track sync` backfills a marker without moving an existing one. Notes failures warn on stderr; the track DB stays source of truth.
+When on, each (task, repo) gets **one empty marker revision**. Commit history on `track/<slug>` is **one commit per completed TODO** (same order). Git notes (`refs/notes/track`) on the marker hold name / description / ticket / links. Each TODO's **shared** scraps are notes on **that commit**. `track scrap add` is local by default; use `--share` or `track scrap share N` for decisions. After a TODO commit is on origin, do not amend it — add a follow-up TODO (reopen is forbidden). `track notes push` discloses the ref; others `track notes fetch` then `track import` on the PR branch. Track DB remains source of truth; notes failures warn on stderr.
 
 ## Loop
 
 1. `track status --json` (or use the last `--json` mutation)
 2. Run `workflow.next_action.command` / `hint.next_command`
 3. Implement in the workspace path from JSON
-4. `track scrap add --json "..."` and `track todo done --json N`
-5. Repeat until `task_complete`
-6. Push/merge the PR, then `track archive`
+4. `track scrap add --json "..."` (add `--share` for decisions that should travel with the PR)
+5. `track todo done --json N`
+6. Repeat until `task_complete`
+7. Push/merge the PR, then `track archive`
 
 ## Commands
 
@@ -79,12 +80,14 @@ When on, each (task, repo) gets **one empty marker revision**. `track scrap add`
 | `track switch <ref>` | id, `t:TICKET`, `a:alias`, `today`. Ensures workspace when repos exist |
 | `track status [--json]` | Snapshot + hint |
 | `track todo add/done/update/next/delete` | Delete needs `--force` off-TTY |
-| `track scrap add/list` | Work notes (git notes when aggressive) |
+| `track scrap add/list/share/unshare` | Work notes (`--share` = notes on that TODO's commit) |
+| `track import` | Restore task from git notes on this branch |
+| `track notes push/fetch` | Disclose / receive `refs/notes/track` |
 | `track repo add [path]` | Register + create workspace |
 | `track sync [--legacy]` | Ensure task workspace (legacy = old per-TODO jj worktrees) |
 | `track archive [--force]` | Remove workspaces (branch/bookmark kept for PRs). `--force` skips dirty checks |
 | `track config set vcs-mode git\|jj` | Switch VCS backend |
-| `track config set aggressive-mode on\|off` | Task revision + git notes |
+| `track config set aggressive-mode on\|off` | Task revision + published work record |
 | `track config show` | Print current settings |
 
 ## Slug
@@ -94,6 +97,7 @@ When on, each (task, repo) gets **one empty marker revision**. `track scrap add`
 ## Guardrails
 
 - Never reopen a done/cancelled TODO — add a new TODO.
+- Never rewrite a published TODO commit or its notes; follow-up review is a new TODO.
 - `track todo delete N --force` off-TTY.
 - `track archive --force` only to skip dirty-workspace checks.
 - `--worktree` on `todo add` is removed.

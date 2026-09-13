@@ -14,6 +14,7 @@ pub fn handle_link(ctx: &CommandCtx, command: LinkCommands) -> Result<()> {
     match command {
         LinkCommands::Add { url, title } => {
             let link = link_service.add_link(current_task_id, &url, title.as_deref())?;
+            crate::use_cases::project_task_notes_or_warn(ctx.db, current_task_id);
             println!("Added link #{}: {}", link.task_index, link.title);
         }
         LinkCommands::List => {
@@ -47,6 +48,7 @@ pub fn handle_link(ctx: &CommandCtx, command: LinkCommands) -> Result<()> {
 
             // Delete link via service
             link_service.delete_link(link.id)?;
+            crate::use_cases::project_task_notes_or_warn(ctx.db, current_task_id);
 
             println!("Deleted link #{}: {}", index, link.title);
         }

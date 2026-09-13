@@ -5,6 +5,7 @@ use super::ids::{
     TodoIndex, WorktreeId,
 };
 use super::markdown::render_markdown_with_links;
+use super::scrap_visibility::ScrapVisibility;
 use super::status::{TaskStatus, TodoStatus};
 use super::ticket::TicketId;
 use chrono::{DateTime, Utc};
@@ -95,6 +96,8 @@ pub struct Scrap {
     pub created_at: DateTime<Utc>,
     /// The task-scoped index of the active (oldest pending) TODO when this scrap was created
     pub active_todo_id: Option<TodoIndex>,
+    /// Local scraps stay in SQLite; shared scraps are exported in git notes.
+    pub visibility: ScrapVisibility,
 }
 
 impl Scrap {
@@ -166,6 +169,7 @@ mod tests {
             content: content.to_string(),
             created_at: Utc::now(),
             active_todo_id: None,
+            visibility: ScrapVisibility::Local,
         }
     }
 

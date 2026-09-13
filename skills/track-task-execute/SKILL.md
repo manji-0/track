@@ -68,9 +68,11 @@ Workspace path: `.worktrees/<slug>/`. PR head: `track/<slug>`.
 
 ```bash
 track scrap add --json "Chose bcrypt; tests at 95%"
+# decisions that should travel with the PR:
+track scrap add --share --json "Chose bcrypt because …"
 ```
 
-With `aggressive-mode on`, scraps are also git notes on the task revision.
+With `aggressive-mode on`, `todo done` writes one commit per TODO; **shared** scraps are git notes on **that commit**. Do not amend a published TODO commit — add a follow-up TODO. Do not suppress local scraps. Disclose with `track notes push`.
 
 ## Step 5 — Complete TODO (track DB)
 

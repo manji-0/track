@@ -6,7 +6,7 @@ use crate::models::{TodoAction, TodoAddOptions, TodoIndex};
 use crate::services::TodoService;
 use crate::use_cases::{
     ApplyTodoActionUseCase, CompleteTodoUseCase, DeleteTodoStep, DeleteTodoUseCase,
-    TodoWorkspaceRequest, TodoWorkspaceUseCase,
+    TodoWorkspaceRequest, TodoWorkspaceUseCase, project_task_notes_or_warn,
 };
 use crate::utils::{Result, TrackError};
 use prettytable::{Cell, Row, Table, format};
@@ -30,6 +30,7 @@ pub fn handle_todo(ctx: &CommandCtx, command: TodoCommands) -> Result<()> {
             }
             let options = TodoAddOptions::from_flags(false, no_workspace);
             let todo = todo_service.add_todo(current_task_id, &text, options)?;
+            project_task_notes_or_warn(ctx.db, current_task_id);
             emit_mutation(
                 ctx,
                 json,
@@ -69,6 +70,7 @@ pub fn handle_todo(ctx: &CommandCtx, command: TodoCommands) -> Result<()> {
             let action = TodoAction::from_cli_update_status(status)?;
             let index = TodoIndex::from_i64(id);
             ApplyTodoActionUseCase::new(ctx.db).execute(current_task_id, index, action)?;
+            project_task_notes_or_warn(ctx.db, current_task_id);
             emit_mutation(
                 ctx,
                 json,
@@ -81,6 +83,7 @@ pub fn handle_todo(ctx: &CommandCtx, command: TodoCommands) -> Result<()> {
         TodoCommands::Done { id, json } => {
             let index = TodoIndex::from_i64(id);
             let outcome = CompleteTodoUseCase::new(ctx.db).execute(current_task_id, index)?;
+            project_task_notes_or_warn(ctx.db, current_task_id);
             emit_mutation(
                 ctx,
                 json,
@@ -148,6 +151,7 @@ pub fn handle_todo(ctx: &CommandCtx, command: TodoCommands) -> Result<()> {
                     use_case.confirm_and_run(current_task_id, index)?
                 }
             };
+            project_task_notes_or_warn(ctx.db, current_task_id);
             emit_mutation(
                 ctx,
                 json,
@@ -160,6 +164,7 @@ pub fn handle_todo(ctx: &CommandCtx, command: TodoCommands) -> Result<()> {
         TodoCommands::Next { id, json } => {
             let index = TodoIndex::from_i64(id);
             todo_service.move_to_next(current_task_id, index)?;
+            project_task_notes_or_warn(ctx.db, current_task_id);
             emit_mutation(
                 ctx,
                 json,

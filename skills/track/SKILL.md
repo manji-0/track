@@ -29,7 +29,7 @@ See [../../docs/JJ_INTEGRATION.md](../../docs/JJ_INTEGRATION.md) and [../INSTALL
 track status --json  →  hint + workflow.next_action
 track repo add / track sync  →  .worktrees/<slug>/ on track/<slug>
 cd "<workspace_path>"  →  implement (not repo root)
-track scrap / todo done  →  track DB (git notes when aggressive-mode is on)
+track scrap / todo done  →  track DB (one commit + notes per TODO when aggressive)
 ```
 
 Human commands print the same next step on stderr (`hint:` / `next:`). `--json` includes `hint`. `TRACK_HINTS=0` hides the footer.

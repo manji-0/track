@@ -11,6 +11,7 @@ mod http_url;
 mod ids;
 mod jj;
 mod markdown;
+mod scrap_visibility;
 mod status;
 mod ticket;
 mod todo_action;
@@ -28,6 +29,7 @@ pub use ids::{
     TodoIndex, WorktreeId,
 };
 pub use jj::{JjSlug, jj_slug, sanitize_jj_slug};
+pub use scrap_visibility::ScrapVisibility;
 pub use status::{TaskStatus, TodoStatus};
 pub use ticket::TicketId;
 pub use todo_action::{TodoAction, TodoAgentAction};

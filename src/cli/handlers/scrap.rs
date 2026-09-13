@@ -1,8 +1,9 @@
 use crate::cli::ScrapCommands;
 use crate::cli::handlers::CommandCtx;
 use crate::cli::handlers::json_out::{MutationKind, emit_mutation};
-use crate::models::jj_slug;
-use crate::services::{ScrapService, TaskRevisionService, TaskService, git_notes, task_workspace};
+use crate::models::{ScrapIndex, ScrapVisibility};
+use crate::services::ScrapService;
+use crate::use_cases::project_task_notes_or_warn;
 use crate::utils::{Result, TrackError};
 use chrono::Local;
 
@@ -14,11 +15,18 @@ pub fn handle_scrap(ctx: &CommandCtx, command: ScrapCommands) -> Result<()> {
     let scrap_service = ScrapService::new(ctx.db);
 
     match command {
-        ScrapCommands::Add { content, json } => {
-            let scrap = scrap_service.add_scrap(current_task_id, &content)?;
-            if let Err(err) = sync_aggressive_notes(ctx, current_task_id) {
-                eprintln!("warning: git notes not updated: {err}");
-            }
+        ScrapCommands::Add {
+            content,
+            share,
+            json,
+        } => {
+            let visibility = if share {
+                ScrapVisibility::Shared
+            } else {
+                ScrapVisibility::Local
+            };
+            let scrap = scrap_service.add_scrap_with(current_task_id, &content, visibility)?;
+            project_task_notes_or_warn(ctx.db, current_task_id);
             emit_mutation(
                 ctx,
                 json,
@@ -30,7 +38,11 @@ pub fn handle_scrap(ctx: &CommandCtx, command: ScrapCommands) -> Result<()> {
                         .created_at
                         .with_timezone(&Local)
                         .format("%Y-%m-%d %H:%M:%S");
-                    println!("Added scrap at {}", timestamp);
+                    let vis = scrap.visibility.as_str();
+                    println!(
+                        "Added scrap #{id} ({vis}) at {timestamp}",
+                        id = scrap.scrap_id
+                    );
                 },
             )?;
         }
@@ -41,34 +53,48 @@ pub fn handle_scrap(ctx: &CommandCtx, command: ScrapCommands) -> Result<()> {
                     .created_at
                     .with_timezone(&Local)
                     .format("%Y-%m-%d %H:%M:%S");
-                println!("[{}]", timestamp);
+                println!(
+                    "[{timestamp}] #{} {}",
+                    scrap.scrap_id,
+                    scrap.visibility.as_str()
+                );
                 println!("  {}", scrap.content);
                 println!();
             }
         }
+        ScrapCommands::Share { id, json } => {
+            scrap_service.set_visibility(
+                current_task_id,
+                ScrapIndex::from_i64(id),
+                ScrapVisibility::Shared,
+            )?;
+            project_task_notes_or_warn(ctx.db, current_task_id);
+            emit_mutation(
+                ctx,
+                json,
+                MutationKind::ScrapShare,
+                Some(id),
+                Some(current_task_id),
+                || println!("Shared scrap #{id} (included in git notes)"),
+            )?;
+        }
+        ScrapCommands::Unshare { id, json } => {
+            scrap_service.set_visibility(
+                current_task_id,
+                ScrapIndex::from_i64(id),
+                ScrapVisibility::Local,
+            )?;
+            project_task_notes_or_warn(ctx.db, current_task_id);
+            emit_mutation(
+                ctx,
+                json,
+                MutationKind::ScrapUnshare,
+                Some(id),
+                Some(current_task_id),
+                || println!("Unshared scrap #{id} (local only)"),
+            )?;
+        }
     }
 
-    Ok(())
-}
-
-fn sync_aggressive_notes(ctx: &CommandCtx, task_id: crate::models::TaskId) -> Result<()> {
-    if !ctx.db.get_aggressive_mode()?.is_on() {
-        return Ok(());
-    }
-
-    let task = TaskService::new(ctx.db).get_task(task_id)?;
-    let slug = jj_slug(&task);
-    let scraps = ScrapService::new(ctx.db).list_scraps(task_id)?;
-    let revisions = TaskRevisionService::new(ctx.db).list_for_task(task_id)?;
-
-    for rev in revisions {
-        let workspace = task_workspace::workspace_path(&rev.repo_path, &slug);
-        let root = if task_workspace::workspace_exists(&workspace) {
-            workspace.as_str()
-        } else {
-            rev.repo_path.as_str()
-        };
-        git_notes::write_scraps(root, &rev.git_commit, &slug, &scraps)?;
-    }
     Ok(())
 }

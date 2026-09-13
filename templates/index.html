@@ -59,7 +59,7 @@
                 <form id="cmd-form" class="cmd-box">
                     <span class="cmd-prompt">›</span>
                     <textarea id="cmd-input" class="cmd-input" rows="1"
-                        placeholder="Scrap…  /todo …  /plan …  (Shift+Enter for newline)"
+                        placeholder="Scrap…  /share …  /todo …  /plan …  (Shift+Enter for newline)"
                         autocomplete="off"></textarea>
                     <span class="kbd">⏎</span>
                 </form>
@@ -72,6 +72,7 @@
     // Command bar: Enter submits, Shift+Enter = newline.
     // "/todo <text>"  -> POST /api/todo
     // "/plan <text>"  -> POST /api/todo (no_workspace=true)
+    // "/share <text>" -> POST /api/scrap (shared)
     // anything else   -> POST /api/scrap
     (function () {
         const input = document.getElementById('cmd-input');
@@ -87,7 +88,11 @@
             if (planMatch) {
                 return { kind: 'todo', content: (planMatch[1] || '').trim(), noWorkspace: true };
             }
-            return { kind: 'scrap', content: raw };
+            const shareMatch = raw.match(/^\/share(?:\s+([\s\S]*))?$/);
+            if (shareMatch) {
+                return { kind: 'scrap', content: (shareMatch[1] || '').trim(), share: true };
+            }
+            return { kind: 'scrap', content: raw, share: false };
         }
 
         function submit() {
@@ -106,8 +111,15 @@
                 if (cmd.noWorkspace) values.no_workspace = 'true';
                 htmx.ajax('POST', '/api/todo', { values: values, target: '#todos-section', swap: 'outerHTML' });
             } else {
+                if (cmd.share && !cmd.content) {
+                    input.setCustomValidity('Add a note after /share');
+                    input.reportValidity();
+                    return;
+                }
                 input.setCustomValidity('');
-                htmx.ajax('POST', '/api/scrap', { values: { content: cmd.content }, target: '#scraps-section', swap: 'outerHTML' });
+                const values = { content: cmd.content };
+                if (cmd.share) values.share = 'true';
+                htmx.ajax('POST', '/api/scrap', { values: values, target: '#scraps-section', swap: 'outerHTML' });
             }
             input.value = '';
             input.style.height = 'auto';

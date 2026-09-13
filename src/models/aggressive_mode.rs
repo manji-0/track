@@ -2,7 +2,7 @@ use serde::Serialize;
 use std::fmt;
 use std::str::FromStr;
 
-/// Whether track creates a per-task VCS revision and stores scraps as git notes.
+/// Whether track creates a per-task VCS revision and publishes a work record as git notes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum AggressiveMode {

@@ -22,8 +22,11 @@ pub enum MutationKind {
     TodoDelete,
     TodoNext,
     ScrapAdd,
+    ScrapShare,
+    ScrapUnshare,
     RepoAdd,
     Archive,
+    Import,
 }
 
 /// Envelope added on top of `track status --json`.

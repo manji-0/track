@@ -262,7 +262,7 @@ This includes endpoint design, database schema, and integration tests.
 }
 ```
 
-Mutating commands (`new`, `switch`, `archive`, `todo add/done/update/next/delete`, `scrap add`, `repo add`) also accept `--json` / `-j`. Success output is the same snapshot as `track status --json`, plus:
+Mutating commands (`new`, `switch`, `archive`, `todo add/done/update/next/delete`, `scrap add/share/unshare`, `repo add`, `import`) also accept `--json` / `-j`. Success output is the same snapshot as `track status --json`, plus:
 
 ```json
 {
@@ -567,34 +567,47 @@ Added link #<id>: <title>
 
 ## 4. Scrap (Work Note) Management Functions
 
-### 4.1. `track scrap add <content>` - Add Scrap
+### 4.1. `track scrap add <content> [--share]` - Add Scrap
 
-**Overview**: Adds a work note (Scrap). Records temporary thoughts or notes in chronological order.
+**Overview**: Adds a work note. Default is local-only. `--share` includes it in the published git-notes snapshot (aggressive mode).
 
 **Input**:
 | Argument | Type | Required | Description |
 |---|---|---|---|
 | `content` | String | ✓ | Note content |
+| `--share` | Flag | | Publish this scrap in `refs/notes/track` |
 
 **Output**:
 ```
-Added scrap at <timestamp>
+Added scrap #<id> (local|shared) at <timestamp>
 ```
 
 ---
 
 ### 4.2. `track scrap list` - Display Scrap List
 
-**Overview**: Displays Scraps in chronological order.
+**Overview**: Displays Scraps in chronological order, with local/shared visibility.
 
 **Output Example**:
 ```
-[2025-01-01 10:30:00]
+[2025-01-01 10:30:00] #1 shared
   DB design completed. see DESIGN.md for table structure.
 
-[2025-01-01 14:15:00]
+[2025-01-01 14:15:00] #2 local
   Started API implementation. Starting with authentication.
 ```
+
+---
+
+### 4.3. `track scrap share` / `unshare`
+
+Mark an existing scrap as published or local-only.
+
+---
+
+### 4.4. `track import` / `track notes push|fetch`
+
+Restore a task from `refs/notes/track` on the current branch (`track import`). The marker note is task identity; each `Task-Todo` commit carries that TODO and its shared scraps. Disclose or receive the notes ref with `track notes push` / `fetch`. Aggressive mode must be on for the author; the importer does not need the author's SQLite file. Published commits are never rewritten — review follow-up is a new TODO.
 
 ---
 
@@ -916,5 +929,4 @@ ALTER TABLE tasks ADD COLUMN description TEXT;
 The following are not currently implemented but are under consideration for the future:
 
 - `track search <query>`: Full text search
-- `track import`: Import external data
 - `track server`: MCP Server integration for direct manipulation by LLM agents

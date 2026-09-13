@@ -44,6 +44,11 @@ impl WebError {
             | TrackError::LinkIndexNotFound(_)
             | TrackError::TaskReferenceNotFound(_)
             | TrackError::LinkNotFound(_)
+            | TrackError::ScrapIndexNotFound(_)
+            | TrackError::NoTaskNotes
+            | TrackError::TaskNotesParse(_)
+            | TrackError::CannotRewritePublishedHistory { .. }
+            | TrackError::HistoryDiverged { .. }
             | TrackError::InvalidVcsMode(_)
             | TrackError::WorkspaceVcsMismatch { .. }
             | TrackError::InvalidAggressiveMode(_)

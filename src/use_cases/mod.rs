@@ -9,7 +9,9 @@ pub mod complete_todo;
 pub mod create_today_task;
 pub mod delete_todo;
 pub mod get_task_info;
+pub mod import_task_notes;
 pub mod migrate_legacy_worktrees;
+pub mod project_task_notes;
 pub mod sync_task;
 pub mod todo_workspace;
 
@@ -25,8 +27,12 @@ pub use delete_todo::{
     DeleteTodoStep, DeleteTodoUseCase,
 };
 pub use get_task_info::{GetTaskInfoUseCase, TaskInfoSnapshot};
+pub use import_task_notes::{ImportTaskNotesOutcome, ImportTaskNotesUseCase};
 pub use migrate_legacy_worktrees::{
     LegacyWorktreeTaskReport, MigrateLegacyWorktreesOutcome, MigrateLegacyWorktreesUseCase,
+};
+pub use project_task_notes::{
+    ProjectTaskNotesOutcome, ProjectTaskNotesUseCase, project_task_notes_or_warn,
 };
 pub use sync_task::{
     RepoSyncOutcome, SyncTaskOutcome, SyncTaskUseCase, WorkspaceCreateError, WorkspaceCreated,

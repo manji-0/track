@@ -494,6 +494,7 @@ pub fn migrate_schema(conn: &Connection) -> Result<()> {
     migrate_status_check_constraints(conn)?;
     migrate_task_revisions(conn)?;
     migrate_legacy_vcs_mode_default(conn)?;
+    migrate_scrap_shared(conn)?;
 
     Ok(())
 }
@@ -512,6 +513,21 @@ fn migrate_task_revisions(conn: &Connection) -> Result<()> {
         );
         "#,
     )?;
+    Ok(())
+}
+
+fn migrate_scrap_shared(conn: &Connection) -> Result<()> {
+    let count: i64 = conn.query_row(
+        "SELECT COUNT(*) FROM pragma_table_info('scraps') WHERE name='shared'",
+        [],
+        |row| row.get(0),
+    )?;
+    if count == 0 {
+        conn.execute(
+            "ALTER TABLE scraps ADD COLUMN shared INTEGER NOT NULL DEFAULT 0",
+            [],
+        )?;
+    }
     Ok(())
 }
 

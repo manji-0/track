@@ -12,6 +12,12 @@
         <div class="scrap-card">
             <div class="scrap-content scrap-markdown">{{ scrap.content_html | safe }}</div>
             {% if scrap.active_todo_id %}<span class="todo-ref">todo #{{ scrap.active_todo_id }}</span>{% endif %}
+            <button class="scrap-share {% if scrap.shared %}is-shared{% endif %}"
+                hx-patch="/api/scrap/{{ scrap.scrap_id }}/share"
+                hx-target="#scraps-section" hx-swap="outerHTML"
+                title="{% if scrap.shared %}Unshare (keep local){% else %}Share in git notes snapshot{% endif %}">
+                {% if scrap.shared %}shared{% else %}local{% endif %}
+            </button>
         </div>
     </div>
     {% endfor %}
