@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- README is a short overview (install, quick start, screenshots, doc links). Command tables live in `docs/CLI.md`; Web UI detail and recaptured screenshots in `docs/WEBUI.md` and `docs/images/`.
+- `docs/JJ_INTEGRATION.md` documents the commit + notes strategy (marker revision, one commit per TODO, `refs/notes/track`, push/fetch/import).
+- GitHub Releases that were empty/stub now take their notes from this changelog. `scripts/changelog_for_tag.py` feeds `.github/workflows/release.yml` so later tags stay in sync. Maintainers can backfill published tags with `scripts/sync-github-release-notes.sh` (`gh` write access).
+
 ## [0.9.0] - 2026-09-14
 
 ### Added
@@ -143,6 +148,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Todo reordering uses collision-safe temporary indices
 - Timestamp parsing errors now surface as database conversion failures
+
+## [0.3.7] - 2026-01-06
+
+### Fixed
+- `track switch today` now sets the database current task ID so later commands run on today's task.
 
 ## [0.3.6] - 2026-01-06
 

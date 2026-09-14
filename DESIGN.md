@@ -144,7 +144,9 @@ Today-task and calendar behavior: [docs/TODAY_TASK.md](docs/TODAY_TASK.md).
 ## Related documents
 
 - [docs/README.md](docs/README.md) — index
-- [docs/JJ_INTEGRATION.md](docs/JJ_INTEGRATION.md) — two-layer runtime strategy
+- [docs/JJ_INTEGRATION.md](docs/JJ_INTEGRATION.md) — git / jj workspaces and commit + notes
+- [docs/CLI.md](docs/CLI.md) — command reference
+- [docs/WEBUI.md](docs/WEBUI.md) — browser UI
 - [docs/LLM_HELP_DESIGN.md](docs/LLM_HELP_DESIGN.md) — `track llm-help` content contract
 - [docs/LLM_INTEGRATION.md](docs/LLM_INTEGRATION.md) — skills install
 - [docs/FUNCTIONAL_SPEC.md](docs/FUNCTIONAL_SPEC.md) — command-level spec

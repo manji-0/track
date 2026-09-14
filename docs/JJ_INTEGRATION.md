@@ -88,15 +88,83 @@ track alias set fix-oauth-refresh
 
 ### Aggressive mode
 
-When `aggressive-mode` is `on`:
-
-1. Each `(task, repo)` gets **one empty marker revision**, recorded in `task_revisions`. The stored git commit is immutable.
-2. **Git:** empty commit on `track/<slug>` at workspace birth (ancestor of later work; included in the PR).
-3. **JJ:** empty change described `[track:<slug>] <name>`. Working copy is a **described wip child** so `jj git push` is never blocked by an empty description. After `todo done`, unpublished `jj new` experiments are folded into that TODO unless the range includes trunk (a merge from `main`); then the follow-up TODO appends on top of the merge. Bookmark `track/<slug>` sits on the last TODO commit (`@-`). `todo done` uses the task workspace only (repo-root dirty stays on `main`) and refuses a conflicted working copy.
-4. Git notes (`refs/notes/track`): **marker** = name / description / ticket / links (frozen once published). **Each TODO commit** holds that TODO's shared scraps. `track scrap add` is local by default. Follow-up review is a new TODO + new commit + new notes (fast-forward only). `track notes push` / `fetch` move the ref. `track import` walks the task tip (`HEAD` or jj `@`) for `Task-Todo` commits and uses **this line's marker**, not a sibling already merged to `main`. Git helpers use the colocated object store — they do not use the parent repo's `HEAD` (usually `main`) from a jj workspace.
-5. Turning aggressive on after a workspace exists: `track sync` backfills a marker **under this workspace's unpublished commits** (new empty child of trunk, then `jj rebase -s` this line only, so other task workspaces are not reparented). Unique commits already on origin (`refs/remotes/origin/track/<slug>` or `track/<slug>@origin`, never the local `@git` export) are not rewritten. Turning it off stops writing notes; marker and notes stay.
+`track config set aggressive-mode on` is the **commit + notes** strategy. Off (default) still creates the workspace; you commit with git or jj yourself. On, Track aligns history with TODOs and publishes a replayable work record as git notes.
 
 Inspired by [jjtask](https://github.com/Coobaha/jjtask) (per-task empty revisions + notes), implemented entirely inside track.
+
+## Commit + notes strategy
+
+The SQLite DB remains the source of truth. Notes failures warn on stderr; they do not roll back the task/TODO write. Set `TRACK_HINTS=0` to hide the human footer; `--json` still includes `hint`.
+
+### Two layers on `track/<slug>`
+
+```
+main (or the repo's base)
+ └── empty marker commit          git notes: track-task v3 (identity)
+      ├── TODO 1 commit           git notes: track-todo (shared scraps)
+      ├── TODO 2 commit           git notes: track-todo
+      └── … follow-up TODOs only (no rewrite of published SHAs)
+```
+
+1. **Marker (identity).** Each `(task, repo)` gets **one empty marker revision**, stored in `task_revisions`. The SHA is insert-once.
+   - **Git:** empty commit on `track/<slug>` at workspace birth (ancestor of later work; included in the PR).
+   - **JJ:** empty change described `[track:<slug>] <name>`. The working copy is a **described wip child** so `jj git push` is never blocked by an empty description. Bookmark `track/<slug>` sits on the last TODO commit (`@-`).
+2. **One commit per completed TODO**, in TODO order. `track todo done` folds unpublished WIP in the **task workspace only** (files dirty at the repo root stay on `main`) into that commit. Trailers in the message:
+   - `Task-Todo: <index>`
+   - `Task-Slug: <slug>`
+3. **Git notes** (`refs/notes/track`) on those commits — not a second git history.
+
+### What `todo done` folds
+
+- **Git:** `git reset --soft` back to the last TODO commit (or the marker), then one `--allow-empty` commit.
+- **JJ:** unpublished `jj new` experiments are folded into one described TODO (parity with git); then a fresh wip child.
+- A **merge from `main`** is not folded away. The follow-up TODO **appends on top** of the merge.
+- A **conflicted** workspace is refused. Resolve, then add a follow-up TODO (reopen is forbidden).
+- Unique commits already on origin (`refs/remotes/origin/track/<slug>` or jj `track/<slug>@origin`) are not rewritten. The local colocated `{bookmark}@git` export is **not** origin.
+
+### Notes payloads
+
+| Object | Format | Contents |
+|--------|--------|----------|
+| Marker | `track-task` v3 | slug, name, description, ticket, links. Frozen once that marker SHA is published. TODOs/scraps are **not** on the marker in v3. |
+| TODO commit | `track-todo` v1 | slug, todo index/content/status, **shared** scraps for that TODO |
+
+`track scrap add` is **local** by default. Publish decisions with `track scrap add --share` or `track scrap share N`. `unshare` keeps a scrap in the DB only. Older whole-task blobs (`track-task` v2) still import.
+
+`git notes add -f` is used only on **unpublished** commits. After a TODO commit is on origin, do not amend it — add a follow-up TODO + commit + notes (fast-forward).
+
+### Disclose, fetch, import
+
+```bash
+track notes push [--remote origin]    # disclose refs/notes/track
+track notes fetch [--remote origin]   # receive the ref
+track import [path]                   # restore a local task from notes on this branch
+```
+
+- Push first projects the current task's notes, fetches the remote ref, then pushes. It **refuses** to rewrite a note blob that already exists on the remote for the same commit.
+- Import walks the task tip (`HEAD` or jj `@`) for `Task-Todo` commits and uses **this line's marker**. After a sibling task has landed on `main`, import on this branch ignores TODO commits already on trunk.
+- Git helpers use the colocated object store — they do not mistake the parent repo's `HEAD` (usually `main`) for the task tip from a jj workspace.
+- Others do not need the author's `track.db`. Fetch notes, check out the PR branch, `track import`.
+
+### Turning aggressive on or off later
+
+- On after a workspace exists: `track sync` backfills a marker **under this workspace's unpublished commits** (new empty child of trunk, then rebase this line only — other task workspaces are not reparented). Published unique SHAs stay put.
+- Off stops writing notes; existing marker and notes stay.
+
+### Agent loop with notes
+
+```
+track config set aggressive-mode on
+track repo add . / track sync     # marker at workspace birth
+cd "<workspace>"                  # implement
+track scrap add --share "…"       # optional published decision
+track todo done N --json          # fold WIP → one TODO commit + track-todo notes
+track notes push                  # disclose refs/notes/track with the PR
+# reviewer / other machine:
+track notes fetch && track import
+```
+
+Without aggressive mode, skip notes: commit with git or jj in the workspace, then `track todo done` only updates the DB.
 
 ## Implementation reference
 
@@ -178,5 +246,7 @@ track sync
 
 ## References
 
+- [CLI.md](CLI.md) — command tables (`notes`, `import`, `config`)
+- [USAGE_EXAMPLES.md](USAGE_EXAMPLES.md) — copy-paste including aggressive mode
 - [LLM_INTEGRATION.md](LLM_INTEGRATION.md) — agent overview
 - [skills/INSTALL.md](../skills/INSTALL.md) — optional skills (thin; follow `hint`)

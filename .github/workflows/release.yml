@@ -21,7 +21,10 @@ jobs:
       - name: Create archive
         run: |
           tar -czf track-linux-amd64.tar.gz -C target/release track
+      - name: Release notes from CHANGELOG.md
+        run: python3 scripts/changelog_for_tag.py "${GITHUB_REF_NAME}" > release-notes.md
       - name: Release
         uses: softprops/action-gh-release@v3
         with:
+          body_path: release-notes.md
           files: track-linux-amd64.tar.gz

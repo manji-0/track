@@ -101,7 +101,8 @@ track link { add, list, delete }
 track scrap { add, list }
 track repo { add, list, remove }
 track alias { set, remove }
-track config { set-calendar, show }
+track config { set, set-calendar, show }
+track notes { push, fetch } | import
 track completion | llm-help | webui
 ```
 

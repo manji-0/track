@@ -105,7 +105,7 @@ track todo next 3    # roadmap becomes #1
 
 ## Scraps
 
-Scraps attach to the oldest pending TODO at insert time. With `track config set aggressive-mode on`, they are also written as git notes on the task revision.
+Scraps attach to the oldest pending TODO at insert time. Local is the default. With `track config set aggressive-mode on`, **shared** scraps (`--share` / `track scrap share`) are git notes on **that TODO's commit**, not on the marker. See [JJ_INTEGRATION.md](JJ_INTEGRATION.md#commit--notes-strategy).
 
 ```bash
 track todo add "Implement authentication"

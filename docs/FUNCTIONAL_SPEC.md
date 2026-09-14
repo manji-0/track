@@ -1,6 +1,6 @@
 # Track CLI Functional Specification
 
-Command-level behavior for Track, a personal work-context manager (not a repo issue tracker). Product framing and the two-layer JJ stack live in [DESIGN.md](../DESIGN.md) and [JJ_INTEGRATION.md](JJ_INTEGRATION.md).
+Command-level behavior for Track, a personal work-context manager (not a repo issue tracker). Product framing and VCS / commit+notes live in [DESIGN.md](../DESIGN.md) and [JJ_INTEGRATION.md](JJ_INTEGRATION.md). Quick tables: [CLI.md](CLI.md).
 
 Mutating commands that accept `--json` / `-j` return the same snapshot as `track status --json` plus `ok` and `mutation`. `track list --json` is a task inventory.
 

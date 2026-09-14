@@ -21,7 +21,7 @@ track sync
 #   next: cd "..."
 ```
 
-Full strategy: **[JJ_INTEGRATION.md](JJ_INTEGRATION.md)**
+Full strategy (workspaces, git vs jj, commit + notes): **[JJ_INTEGRATION.md](JJ_INTEGRATION.md)**
 
 ## Install skills
 
@@ -79,7 +79,7 @@ Validate: `python3 scripts/validate_package.py`
 
 ## Resources
 
-- [JJ_INTEGRATION.md](JJ_INTEGRATION.md) — git / jj workspaces
+- [JJ_INTEGRATION.md](JJ_INTEGRATION.md) — git / jj workspaces, commit + notes
 - [skills/README.md](../skills/README.md) — skill catalog
 - [skills/INSTALL.md](../skills/INSTALL.md) — install guide
 - `track llm-help` — CLI reference
