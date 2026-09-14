@@ -5,6 +5,7 @@ use crate::services::git_worktree;
 use crate::services::task_notes::{parse_task_todo_index, todo_commit_message};
 use crate::services::worktree_service::jj as jj_ws;
 use crate::utils::{Result, TrackError};
+use std::path::Path;
 use std::process::Command;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -103,6 +104,53 @@ fn fold_base<'a>(marker: &'a str, last_todo: Option<&'a TodoCommit>) -> &'a str 
     last_todo.map(|c| c.sha.as_str()).unwrap_or(marker)
 }
 
+/// Do not fold through a merge from trunk: `base..tip` then contains trunk commits
+/// that jj will not abandon and that git should keep as merge parents.
+fn fold_target(workspace: &str, last_base: &str, tip: &str) -> Result<String> {
+    if tip == last_base {
+        return Ok(last_base.to_string());
+    }
+    if range_includes_trunk(workspace, last_base, tip)?
+        || jj_range_includes_trunk(workspace, last_base, tip)
+    {
+        return Ok(tip.to_string());
+    }
+    Ok(last_base.to_string())
+}
+
+fn range_includes_trunk(workspace: &str, base: &str, tip: &str) -> Result<bool> {
+    let Some(trunk) = git_notes::trunk_commit(workspace) else {
+        return Ok(false);
+    };
+    for sha in rev_list_store(workspace, &format!("{base}..{tip}"))? {
+        if sha == trunk || git_notes::is_ancestor(workspace, &sha, &trunk) {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
+fn jj_range_includes_trunk(workspace: &str, base: &str, tip: &str) -> bool {
+    if !Path::new(workspace).join(".jj").exists() {
+        return false;
+    }
+    let revset = format!("trunk() & ::{tip} ~ ::{base}");
+    let output = Command::new("jj")
+        .args([
+            "-R",
+            workspace,
+            "log",
+            "--no-graph",
+            "-r",
+            &revset,
+            "-T",
+            "commit_id",
+        ])
+        .output();
+    output
+        .is_ok_and(|o| o.status.success() && !String::from_utf8_lossy(&o.stdout).trim().is_empty())
+}
+
 fn refuse_published_range(workspace: &str, branch: &str, base: &str, tip: &str) -> Result<()> {
     if let Some(published) = published_tip(workspace, branch)
         && !git_notes::is_ancestor(workspace, &published, tip)
@@ -136,7 +184,8 @@ pub fn commit_todo_git(
 ) -> Result<String> {
     let head = git_worktree::current_commit(workspace)?;
     let last = last_todo_commit(workspace, marker)?;
-    let base = fold_base(marker, last.as_ref()).to_string();
+    let last_base = fold_base(marker, last.as_ref()).to_string();
+    let base = fold_target(workspace, &last_base, &head)?;
     refuse_published_range(workspace, branch, &base, &head)?;
 
     if head != base {
@@ -192,7 +241,8 @@ pub fn commit_todo_jj(
 ) -> Result<String> {
     let tip = git_worktree::history_tip(workspace)?;
     let last = last_todo_commit(workspace, marker)?;
-    let base = fold_base(marker, last.as_ref()).to_string();
+    let last_base = fold_base(marker, last.as_ref()).to_string();
+    let base = fold_target(workspace, &last_base, &tip)?;
     refuse_published_range(workspace, branch, &base, &tip)?;
 
     let message = todo_commit_message(todo_index, content, slug);
@@ -224,9 +274,29 @@ pub fn commit_todo(
     content: &str,
     slug: &str,
 ) -> Result<String> {
+    refuse_conflicted(workspace)?;
     if vcs_git {
         commit_todo_git(workspace, branch, marker, todo_index, content, slug)
     } else {
         commit_todo_jj(workspace, branch, marker, todo_index, content, slug)
     }
+}
+
+fn refuse_conflicted(workspace: &str) -> Result<()> {
+    if workspace_conflicted(workspace) {
+        return Err(TrackError::WorkspaceHasConflict {
+            path: workspace.to_string(),
+        });
+    }
+    Ok(())
+}
+
+fn workspace_conflicted(workspace: &str) -> bool {
+    if Path::new(workspace).join(".jj").exists() {
+        return jj_ws::working_copy_conflicted(workspace);
+    }
+    Command::new("git")
+        .args(["-C", workspace, "rev-parse", "-q", "--verify", "MERGE_HEAD"])
+        .output()
+        .is_ok_and(|o| o.status.success())
 }

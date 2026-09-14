@@ -32,6 +32,7 @@ impl WebError {
             | TrackError::WorktreeFlagRemoved
             | TrackError::CurrentDirectoryNotRegistered
             | TrackError::WorkspaceHasUncommittedChanges { .. }
+            | TrackError::WorkspaceHasConflict { .. }
             | TrackError::BookmarkNotFound { .. }
             | TrackError::NoWorkspacePathsAvailable
             | TrackError::TodoIndexNotFound(_)

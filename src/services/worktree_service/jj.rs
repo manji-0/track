@@ -55,6 +55,12 @@ pub fn is_empty(repo_path: &str, rev: &str) -> Result<bool> {
     Ok(jj_template(repo_path, rev, r#"if(empty, "true", "false")"#)? == "true")
 }
 
+pub fn working_copy_conflicted(repo_path: &str) -> bool {
+    jj_template(repo_path, "@", "conflict")
+        .map(|s| s.eq_ignore_ascii_case("true"))
+        .unwrap_or(false)
+}
+
 pub fn has_description(repo_path: &str, rev: &str) -> Result<bool> {
     Ok(jj_template(repo_path, rev, r#"if(description, "true", "false")"#)? == "true")
 }

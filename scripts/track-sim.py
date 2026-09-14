@@ -371,6 +371,49 @@ def jj_conflicted(ctx: Ctx) -> bool:
     return "true" in text
 
 
+def workspace_conflicted(ctx: Ctx) -> bool:
+    if ctx.mode == "jj":
+        return jj_conflicted(ctx)
+    r = git(
+        ctx,
+        ["rev-parse", "-q", "--verify", "MERGE_HEAD"],
+        cwd=ctx.worktree,
+        ok=False,
+    )
+    return r.returncode == 0
+
+
+def commit_files(ctx: Ctx, sha: str) -> list[str]:
+    r = git(ctx, ["ls-tree", "-r", "--name-only", sha], cwd=ctx.repo, ok=False)
+    return [ln.strip() for ln in r.stdout.splitlines() if ln.strip()]
+
+
+def commit_blob(ctx: Ctx, sha: str, path: str) -> str:
+    r = git(ctx, ["show", f"{sha}:{path}"], cwd=ctx.repo, ok=False)
+    return r.stdout if r.returncode == 0 else ""
+
+
+def resolve_merge(ctx: Ctx, rel: str, text: str) -> subprocess.CompletedProcess:
+    write_ws(ctx, rel, text)
+    ws = ctx.worktree
+    assert ws is not None
+    if ctx.mode == "git":
+        git(ctx, ["add", "--", rel], cwd=ws, ok=False)
+        return git(
+            ctx,
+            ["commit", "--no-edit", "-m", "Resolve merge conflict"],
+            cwd=ws,
+            ok=False,
+        )
+    jj(ctx, ["diff", "--stat"], cwd=ws, ok=False)
+    return jj(
+        ctx,
+        ["bookmark", "set", f"track/{ctx.slug}", "-r", "@"],
+        cwd=ws,
+        ok=False,
+    )
+
+
 def bind_status(ctx: Ctx, status: dict) -> None:
     g = status.get("git") or status.get("jj") or {}
     ctx.worktree = Path(g["workspace_path"])
@@ -2103,6 +2146,58 @@ def family_notes_ops(ctx: Ctx, checks: list[Check]) -> None:
         actual=f"hijack_rc={hijack.returncode} push_rc={push_div.returncode} {push_div.stderr[-180:]}",
         ok=hijack.returncode == 0 and push_div.returncode != 0,
     )
+    hijack_todo = run(
+        [
+            "git",
+            "notes",
+            "--ref",
+            "refs/notes/track",
+            "add",
+            "-f",
+            "-m",
+            "hijacked todo notes",
+            todo_sha,
+        ],
+        cwd=clone,
+        env=imp_env,
+        check=False,
+    )
+    push_todo = run(
+        [str(TRACK), "notes", "push"],
+        cwd=clone,
+        env=imp_env,
+        check=False,
+    )
+    origin_todo = run(
+        [
+            "git",
+            "--git-dir",
+            str(ctx.origin),
+            "notes",
+            "--ref",
+            "refs/notes/track",
+            "show",
+            todo_sha,
+        ],
+        cwd=ROOT,
+        env=ctx.env,
+        check=False,
+    )
+    add(
+        checks,
+        cid="N6",
+        ctx=ctx,
+        family="notes-ops",
+        title="notes add -f on a published TODO SHA cannot be pushed",
+        expected="nonzero push; origin blob unchanged",
+        actual=(
+            f"hijack_rc={hijack_todo.returncode} push_rc={push_todo.returncode} "
+            f"origin={origin_todo.stdout[:80]!r} {push_todo.stderr[-120:]}"
+        ),
+        ok=hijack_todo.returncode == 0
+        and push_todo.returncode != 0
+        and "hijacked todo notes" not in origin_todo.stdout,
+    )
     fetch_div = run(
         [str(TRACK), "notes", "fetch"],
         cwd=clone,
@@ -2124,6 +2219,74 @@ def family_notes_ops(ctx: Ctx, checks: list[Check]) -> None:
         expected="local hijack remains",
         actual=f"fetch_rc={fetch_div.returncode} notes={still.stdout[:80]!r}",
         ok="hijacked notes" in still.stdout,
+    )
+    restored = run(
+        [
+            "git",
+            "fetch",
+            "origin",
+            "+refs/notes/track:refs/notes/track",
+        ],
+        cwd=clone,
+        env=imp_env,
+        check=False,
+    )
+    after_restore = run(
+        ["git", "notes", "--ref", "refs/notes/track", "show", ctx.marker or "HEAD"],
+        cwd=clone,
+        env=imp_env,
+        check=False,
+    )
+    after_restore_todo = run(
+        ["git", "notes", "--ref", "refs/notes/track", "show", todo_sha],
+        cwd=clone,
+        env=imp_env,
+        check=False,
+    )
+    add(
+        checks,
+        cid="N8",
+        ctx=ctx,
+        family="notes-ops",
+        title="Manual force-fetch of origin notes restores hijacked local notes",
+        expected="second draft back; hijack gone",
+        actual=(
+            f"rc={restored.returncode} marker={after_restore.stdout[:80]!r} "
+            f"todo={after_restore_todo.stdout[:80]!r}"
+        ),
+        ok=restored.returncode == 0
+        and "second draft" in after_restore.stdout
+        and "hijacked notes" not in after_restore.stdout
+        and "hijacked todo notes" not in after_restore_todo.stdout,
+    )
+
+    orig_todo_notes = notes_show(ctx, todo_sha) or ""
+    track_json(ctx, ["todo", "add", "Notes follow-up", "--json"])
+    write_ws(ctx, "follow-n.txt", "follow notes\n")
+    track(ctx, ["scrap", "add", "--share", "new secret"], cwd=ws)
+    track(ctx, ["todo", "done", "2"], cwd=ws)
+    follow_shas = task_todo_shas(ctx)
+    follow_sha = follow_shas.get(2, "")
+    follow_notes = notes_show(ctx, follow_sha) or ""
+    after_todo_notes = notes_show(ctx, todo_sha) or ""
+    follow_push = track(ctx, ["notes", "push"], cwd=ws, ok=False)
+    add(
+        checks,
+        cid="N7",
+        ctx=ctx,
+        family="notes-ops",
+        title="Follow-up TODO notes still push after origin exists",
+        expected="push exit 0; new secret on new SHA; published TODO notes unchanged",
+        actual=(
+            f"push_rc={follow_push.returncode} follow={follow_sha[:12]} "
+            f"new={'new secret' in follow_notes} "
+            f"old_same={after_todo_notes == orig_todo_notes}"
+        ),
+        ok=follow_push.returncode == 0
+        and bool(follow_sha)
+        and "new secret" in follow_notes
+        and after_todo_notes == orig_todo_notes
+        and "new secret" not in after_todo_notes,
     )
 
 
@@ -2287,12 +2450,71 @@ def family_merge_two_tasks(ctx: Ctx, checks: list[Check]) -> None:
         ok=still_d and (notes_show(ctx, sha_d) is not None or bool(notes_d)),
     )
 
+    notes_d_before = notes_show(ctx, sha_d) or notes_d
+    track_json(ctx, ["todo", "add", "After conflict", "--json"])
+    write_ws(ctx, "after-merge.txt", "follow after resolve\n")
+    during = track(ctx, ["todo", "done", "2"], cwd=ctx.worktree, ok=False)
+    add(
+        checks,
+        cid="MG7",
+        ctx=ctx,
+        family="merge-tasks",
+        title="todo done refuses a conflicted workspace",
+        expected="nonzero; D SHA unchanged",
+        actual=f"rc={during.returncode} conflicted={workspace_conflicted(ctx)} {during.stderr[-150:]}",
+        ok=during.returncode != 0
+        and workspace_conflicted(ctx)
+        and git(ctx, ["cat-file", "-t", sha_d], cwd=ctx.repo, ok=False).stdout.strip()
+        == "commit",
+    )
+    resolved = resolve_merge(ctx, "conflict.txt", "from C and D\n")
+    after = track(ctx, ["todo", "done", "2"], cwd=ctx.worktree, ok=False)
+    follow_shas = task_todo_shas(ctx)
+    follow_sha = follow_shas.get(2, "")
+    add(
+        checks,
+        cid="MG8",
+        ctx=ctx,
+        family="merge-tasks",
+        title="After resolving the conflict, a follow-up TODO appends",
+        expected="todo done 2 exit 0; Task-Todo: 2 exists",
+        actual=(
+            f"resolve_rc={resolved.returncode} done_rc={after.returncode} "
+            f"indexes={list(follow_shas)} {after.stderr[-120:]}"
+        ),
+        ok=after.returncode == 0 and 2 in follow_shas,
+    )
+    notes_d_after = notes_show(ctx, sha_d) or ""
+    blob = commit_blob(ctx, follow_sha, "conflict.txt") if follow_sha else ""
+    files = commit_files(ctx, follow_sha) if follow_sha else []
+    add(
+        checks,
+        cid="MG9",
+        ctx=ctx,
+        family="merge-tasks",
+        title="Follow-up keeps D's SHA/notes and records the resolution",
+        expected="D ancestor of TODO 2; D notes same; conflict.txt resolved; after-merge.txt present",
+        actual=(
+            f"anc={is_ancestor(ctx, sha_d, follow_sha)} notes_same={notes_d_after == notes_d_before} "
+            f"blob={blob[:40]!r} files={files}"
+        ),
+        ok=bool(follow_sha)
+        and is_ancestor(ctx, sha_d, follow_sha)
+        and notes_d_after == notes_d_before
+        and "from C and D" in blob
+        and "<<<<<<" not in blob
+        and "after-merge.txt" in files,
+    )
+
 
 def family_root_mistake(ctx: Ctx, checks: list[Check]) -> None:
     """Working in repo root instead of the worktree — a common agent mistake."""
-    # Use current happy-path task? might not be current. Switch to SIM-1 if exists.
-    track(ctx, ["switch", "t:SIM-1"], ok=False)
-    (ctx.repo / "ACCIDENT.txt").write_text("wrote at root\n")
+    status = setup_task(
+        ctx, "Root mistake", "SIM-R", [("Ship from workspace", False)]
+    )
+    bind_status(ctx, status)
+    accident = ctx.repo / "ACCIDENT.txt"
+    accident.write_text("wrote at root\n")
     dirty = git(ctx, ["status", "--porcelain"], cwd=ctx.repo).stdout
     add(
         checks,
@@ -2306,7 +2528,34 @@ def family_root_mistake(ctx: Ctx, checks: list[Check]) -> None:
         status_if_false="issue",
         detail="Not a track bug; documents that todo done will not pick up root dirty files.",
     )
-    (ctx.repo / "ACCIDENT.txt").unlink(missing_ok=True)
+    write_ws(ctx, "real.txt", "from worktree\n")
+    done = track(ctx, ["todo", "done", "1"], cwd=ctx.repo, ok=False)
+    sha = task_todo_shas(ctx).get(1, "")
+    files = commit_files(ctx, sha) if sha else []
+    add(
+        checks,
+        cid="R2",
+        ctx=ctx,
+        family="root-mistake",
+        title="todo done from repo root folds only the worktree, not root dirty files",
+        expected="real.txt in commit; ACCIDENT.txt not in commit; done exit 0",
+        actual=f"rc={done.returncode} sha={sha[:12]} files={files}",
+        ok=done.returncode == 0
+        and "real.txt" in files
+        and "ACCIDENT.txt" not in files,
+    )
+    still = git(ctx, ["status", "--porcelain"], cwd=ctx.repo).stdout
+    add(
+        checks,
+        cid="R3",
+        ctx=ctx,
+        family="root-mistake",
+        title="Root ACCIDENT.txt stays uncommitted on main after todo done",
+        expected="ACCIDENT.txt still dirty at repo root",
+        actual=still.strip()[:200],
+        ok="ACCIDENT.txt" in still,
+    )
+    accident.unlink(missing_ok=True)
 
 
 def new_ctx(mode: str) -> Ctx:

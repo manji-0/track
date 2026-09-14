@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Isolated mock-repo scenario harness at `scripts/track-sim.py` (git + jj; throwaway HOME under `/tmp/track-sim`). Covers many-TODO, sibling merge + import, and git-notes push/fetch. `track notes push` refuses to rewrite note blobs already on the remote.
+- Isolated mock-repo scenario harness at `scripts/track-sim.py` (git + jj; throwaway HOME under `/tmp/track-sim`). Covers many-TODO, sibling merge + import, git-notes push/fetch, repo-root dirty files, published TODO-SHA note hijacks, and conflict resolve then follow-up. `track notes push` refuses to rewrite note blobs already on the remote.
 - `track archive --force` still **deletes** workspace directories (`--force` only skips dirty checks, it does not keep files)
 - `track config set vcs-mode git|jj` — git is the default on new databases; track owns `.worktrees/<slug>` on `track/<slug>` in both modes (git worktree or colocated jj workspace)
 - `track config set aggressive-mode on|off` — per-task empty marker revision and a published task snapshot as git notes (`refs/notes/track`)
@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Existing databases that already had tasks and never set `vcs-mode` stay on **jj** so current jj users are not flipped
 - Track no longer reads `~/.config/jj/task-workspaces.json`
 - Aggressive marker SHA is insert-once; `track sync` backfills a marker **under** unpublished work (rebase onto an empty parent). Published unique commits are not rewritten. JJ published tip reads `track/<slug>@origin` when git remote-tracking refs are missing — not `{bookmark}@git`, which is the local colocated export. After a sibling task lands on `main`, `track import` on this branch uses this line's marker and ignores TODO commits already on trunk.
+- `track todo done` folds only the task workspace (repo-root dirty files stay on `main`) and refuses a merge-conflicted workspace. Resolve the conflict, then add a follow-up TODO. A merge from `main` is not folded away; the follow-up TODO appends on top.
 - JJ: `todo done` folds unpublished `jj new` experiments into one TODO commit (parity with git `reset --soft`); git helpers use `jj git root` so they do not mistake repo `main` for the task tip; marker birth/backfill leaves no undescribed ancestors on `track/<slug>` so `jj git push` is not rejected; backfill inserts the marker under this workspace's line only
 - `.worktrees/` is ignored via `.git/info/exclude` so the first sync does not dirty `.gitignore`
 - Switching `vcs-mode` against an existing workspace of the other backend is an error

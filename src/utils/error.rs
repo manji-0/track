@@ -139,6 +139,9 @@ pub enum TrackError {
     #[error("Workspace {path} has uncommitted changes. Use --force to recreate.")]
     WorkspaceHasUncommittedChanges { path: String },
 
+    #[error("Workspace {path} has a merge conflict. Resolve it, then add a follow-up TODO.")]
+    WorkspaceHasConflict { path: String },
+
     #[error("Bookmark '{bookmark}' not found in {repo_path}")]
     BookmarkNotFound { bookmark: String, repo_path: String },
 
