@@ -14,18 +14,26 @@ static CWD_MUTEX: OnceLock<Mutex<()>> = OnceLock::new();
 
 /// Serializes jj integration tests that mutate process-global state (`HOME`).
 pub fn jj_test_lock() -> MutexGuard<'static, ()> {
-    JJ_ENV_MUTEX.get_or_init(|| Mutex::new(())).lock().unwrap()
+    JJ_ENV_MUTEX
+        .get_or_init(|| Mutex::new(()))
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
 }
 
 /// Serializes tests that change the process current directory.
 pub fn cwd_lock() -> MutexGuard<'static, ()> {
-    CWD_MUTEX.get_or_init(|| Mutex::new(())).lock().unwrap()
+    CWD_MUTEX
+        .get_or_init(|| Mutex::new(()))
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
 }
 
 /// Temporary jj environment with an isolated `HOME`.
 pub struct JjIsolation {
     _home_dir: TempDir,
     old_home: Option<OsString>,
+    old_git_config_global: Option<OsString>,
+    old_git_config_nosystem: Option<OsString>,
 }
 
 impl JjIsolation {
@@ -37,15 +45,25 @@ impl JjIsolation {
 
         let home_dir = tempfile::tempdir().expect("temp HOME");
         configure_jj_user(home_dir.path());
+        write_gitconfig(home_dir.path());
 
         let old_home = std::env::var_os("HOME");
+        let old_git_config_global = std::env::var_os("GIT_CONFIG_GLOBAL");
+        let old_git_config_nosystem = std::env::var_os("GIT_CONFIG_NOSYSTEM");
         unsafe {
             std::env::set_var("HOME", home_dir.path());
+            std::env::set_var(
+                "GIT_CONFIG_GLOBAL",
+                home_dir.path().join(".gitconfig").as_os_str(),
+            );
+            std::env::set_var("GIT_CONFIG_NOSYSTEM", "1");
         }
 
         Some(Self {
             _home_dir: home_dir,
             old_home,
+            old_git_config_global,
+            old_git_config_nosystem,
         })
     }
 }
@@ -53,6 +71,8 @@ impl JjIsolation {
 impl Drop for JjIsolation {
     fn drop(&mut self) {
         restore_env_var("HOME", self.old_home.take());
+        restore_env_var("GIT_CONFIG_GLOBAL", self.old_git_config_global.take());
+        restore_env_var("GIT_CONFIG_NOSYSTEM", self.old_git_config_nosystem.take());
     }
 }
 
@@ -192,6 +212,20 @@ pub fn assert_base_clean(repo_path: &Path) {
         summary.trim().is_empty(),
         "base workspace has pending changes: {summary:?}"
     );
+}
+
+fn write_gitconfig(home: &Path) {
+    std::fs::write(
+        home.join(".gitconfig"),
+        "[user]\n\
+         \tname = Track Test\n\
+         \temail = test@track.local\n\
+         [commit]\n\
+         \tgpgsign = false\n\
+         [tag]\n\
+         \tgpgsign = false\n",
+    )
+    .expect("write isolated gitconfig");
 }
 
 fn configure_jj_user(home: &Path) {

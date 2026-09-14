@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-09-14
+
 ### Added
 - Isolated mock-repo scenario harness at `scripts/track-sim.py` (git + jj; throwaway HOME under `/tmp/track-sim`). Covers many-TODO, sibling merge + import, git-notes push/fetch, repo-root dirty files, published TODO-SHA note hijacks, and conflict resolve then follow-up. `track notes push` refuses to rewrite note blobs already on the remote.
 - `track archive --force` still **deletes** workspace directories (`--force` only skips dirty checks, it does not keep files)
@@ -24,6 +26,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - JJ: `todo done` folds unpublished `jj new` experiments into one TODO commit (parity with git `reset --soft`); git helpers use `jj git root` so they do not mistake repo `main` for the task tip; marker birth/backfill leaves no undescribed ancestors on `track/<slug>` so `jj git push` is not rejected; backfill inserts the marker under this workspace's line only
 - `.worktrees/` is ignored via `.git/info/exclude` so the first sync does not dirty `.gitignore`
 - Switching `vcs-mode` against an existing workspace of the other backend is an error
+
+### Fixed
+- Git notes and `todo done` commits set `user.name` / `user.email` on the command so they work without a user-level git identity (CI and fresh machines).
 
 ## [0.8.0] - 2026-09-13
 

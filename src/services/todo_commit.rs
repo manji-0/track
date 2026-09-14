@@ -219,10 +219,10 @@ fn rev_list_store(workspace: &str, range: &str) -> Result<Vec<String>> {
 }
 
 fn git_run(workspace: &str, args: &[&str], label: &str) -> Result<()> {
-    let output = Command::new("git")
-        .args(["-C", workspace, "-c", "commit.gpgsign=false"])
-        .args(args)
-        .output()?;
+    let mut cmd = Command::new("git");
+    cmd.args(["-C", workspace]);
+    git_worktree::apply_git_identity(&mut cmd);
+    let output = cmd.args(args).output()?;
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
         return Err(TrackError::Git(format!("{label} failed: {stderr}")));

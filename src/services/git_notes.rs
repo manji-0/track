@@ -36,18 +36,10 @@ fn write_note_body(repo_or_workspace: &str, git_commit: &str, body: &str) -> Res
         return Ok(());
     };
 
+    git_worktree::apply_git_identity(&mut cmd);
     let mut child = cmd
         .args([
-            "-c",
-            "commit.gpgsign=false",
-            "notes",
-            "--ref",
-            NOTES_REF,
-            "add",
-            "-f",
-            "-F",
-            "-",
-            git_commit,
+            "notes", "--ref", NOTES_REF, "add", "-f", "-F", "-", git_commit,
         ])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())

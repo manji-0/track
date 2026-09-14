@@ -53,6 +53,18 @@ fn jj_git_root(path: &str) -> Option<PathBuf> {
     }
 }
 
+/// `-c` flags so commits and notes succeed without a user-level git identity.
+pub fn apply_git_identity(cmd: &mut Command) {
+    cmd.args([
+        "-c",
+        "user.email=track@localhost",
+        "-c",
+        "user.name=track",
+        "-c",
+        "commit.gpgsign=false",
+    ]);
+}
+
 /// `git` command that addresses the object store without using a wrong `HEAD`.
 pub fn git_store_command(path: &str) -> Option<Command> {
     if is_git_repository(path) {

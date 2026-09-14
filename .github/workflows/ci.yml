@@ -21,6 +21,10 @@ jobs:
           components: rustfmt, clippy
       - name: Cache dependencies
         uses: Swatinem/rust-cache@v2
+      - name: Git identity
+        run: |
+          git config --global user.email "ci@track.test"
+          git config --global user.name "track-ci"
       - name: Install jj
         run: cargo install --locked jj-cli
       - name: Verify jj
@@ -31,5 +35,9 @@ jobs:
         run: cargo clippy -- -D warnings
       - name: Run tests
         run: cargo test --verbose
+      - name: Build CLI
+        run: cargo build
+      - name: Scenario harness
+        run: python3 scripts/track-sim.py
       - name: Rustdoc
         run: cargo doc --no-deps --document-private-items
