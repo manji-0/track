@@ -459,6 +459,97 @@ fn aggressive_backfill_does_not_reparent_sibling_task() {
 }
 
 #[test]
+fn git_sync_fetches_and_starts_from_origin_despite_dirty_base() {
+    if !git_available() {
+        return;
+    }
+    let tmp = TempDir::new().unwrap();
+    let seed = tmp.path().join("seed");
+    init_git_repo(&seed);
+    let origin = tmp.path().join("origin.git");
+    git_in(
+        tmp.path(),
+        &["clone", "--bare", "seed", origin.to_str().unwrap()],
+    );
+    let repo = tmp.path().join("repo");
+    git_in(tmp.path(), &["clone", "origin.git", "repo"]);
+    let repo_str = repo.to_str().unwrap();
+
+    std::fs::write(seed.join("upstream.txt"), "new\n").unwrap();
+    git_in(&seed, &["add", "upstream.txt"]);
+    git_in(&seed, &["commit", "-m", "upstream"]);
+    git_in(&seed, &["push", origin.to_str().unwrap(), "main"]);
+    let upstream = git_worktree::rev_parse(seed.to_str().unwrap(), "HEAD").unwrap();
+
+    std::fs::write(repo.join("README.md"), "dirty\n").unwrap();
+    std::fs::write(repo.join("scratch.txt"), "untracked\n").unwrap();
+
+    let db = Database::new_in_memory().unwrap();
+    db.set_vcs_mode(VcsMode::Git).unwrap();
+    let task = TaskService::new(&db)
+        .create_task("Remote base", None, Some("RB-1"), None)
+        .unwrap();
+    RepoService::new(&db)
+        .add_repo(task.id, repo_str, Some("main".into()), None)
+        .unwrap();
+
+    let outcome = SyncTaskUseCase::new(&db).execute(task.id, false).unwrap();
+    assert!(
+        outcome.repos.iter().any(|(_, o)| matches!(
+            o,
+            track::use_cases::RepoSyncOutcome::WorktreeCreated { base_ref, .. }
+                if base_ref == "origin/main"
+        )),
+        "{outcome:?}"
+    );
+
+    let path = git_worktree::git_worktree_path(repo_str, "rb-1");
+    assert_eq!(git_worktree::current_commit(&path).unwrap(), upstream);
+    assert_eq!(
+        std::fs::read_to_string(std::path::Path::new(&path).join("README.md")).unwrap(),
+        "hello\n"
+    );
+    assert!(!std::path::Path::new(&path).join("scratch.txt").exists());
+    let upstream_config = Command::new("git")
+        .args(["-C", repo_str, "config", "branch.track/rb-1.merge"])
+        .output()
+        .unwrap();
+    assert!(
+        !upstream_config.status.success(),
+        "task branch must not track origin/main"
+    );
+}
+
+#[test]
+fn git_sync_without_remote_still_rejects_dirty_base() {
+    if !git_available() {
+        return;
+    }
+    let tmp = TempDir::new().unwrap();
+    let repo = tmp.path().join("repo");
+    init_git_repo(&repo);
+    let repo_str = repo.to_str().unwrap();
+    std::fs::write(repo.join("README.md"), "dirty\n").unwrap();
+
+    let db = Database::new_in_memory().unwrap();
+    db.set_vcs_mode(VcsMode::Git).unwrap();
+    let task = TaskService::new(&db)
+        .create_task("Local base", None, Some("LB-1"), None)
+        .unwrap();
+    RepoService::new(&db)
+        .add_repo(task.id, repo_str, Some("main".into()), None)
+        .unwrap();
+
+    let err = SyncTaskUseCase::new(&db)
+        .execute(task.id, false)
+        .unwrap_err();
+    assert!(
+        matches!(err, track::utils::TrackError::RepoHasPendingChanges(_)),
+        "{err}"
+    );
+}
+
+#[test]
 fn git_workspace_rejects_jj_mode() {
     if !git_available() {
         return;

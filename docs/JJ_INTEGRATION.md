@@ -58,10 +58,20 @@ next: cd "/repo/.worktrees/slug"
 - Aggressive mode: empty task revision + `refs/notes/track`
 - WebUI
 
+### Workspace base
+
+A new task workspace starts from `origin` when possible. Track first runs a best-effort `git fetch origin` (git mode) or `jj git fetch --remote origin` (jj mode), then picks the base:
+
+1. A registered base branch/bookmark (`track repo add --base`, or the bookmark on the current revision at `repo add`) uses its remote counterpart: `origin/<name>` in git mode, `<name>@origin` in jj mode.
+2. With no registered name, the remote default branch wins (`origin/HEAD`, then `main`, then `master`).
+3. When no such remote ref exists (offline, or no `origin` remote), track falls back to the local base: the registered name, the commit recorded at `repo add`, or `HEAD` / `@`.
+
+Only the local fallback refuses a base checkout with uncommitted changes; a remote base cannot pick them up, so a dirty `main` checkout no longer blocks workspace creation. To start from unpushed local commits, register a base that has no `origin` counterpart (for example a commit id). The git task branch is created with `--no-track`, so it never inherits `origin/<base>` as its upstream.
+
 ### Git mode (`vcs-mode=git`)
 
 - `git worktree add` at `<repo>/.worktrees/<slug>/` on branch `track/<slug>`
-- Best-effort fetch of the base branch
+- Base selection as described in [Workspace base](#workspace-base)
 - `.worktrees/` is excluded locally (`.git/info/exclude`), not via a committed `.gitignore`
 - PR head: `git push -u origin track/<slug>` then `gh pr create`
 

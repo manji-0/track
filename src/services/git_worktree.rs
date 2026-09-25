@@ -148,6 +148,7 @@ pub fn create_git_worktree(repo_path: &str, slug: &str, base_ref: &str) -> Resul
                 repo_path,
                 "worktree",
                 "add",
+                "--no-track",
                 "-b",
                 &branch,
                 &worktree_path,
