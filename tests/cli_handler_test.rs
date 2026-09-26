@@ -866,6 +866,92 @@ fn jj_todo_done_folds_experiments_and_lists_from_workspace() {
     assert!(std::path::Path::new(&workspace).join("b.txt").exists());
 }
 
+#[test]
+fn jj_sync_fetches_and_starts_from_origin_despite_dirty_base() {
+    let Some(ws) = JjWorkspace::new() else {
+        return;
+    };
+    let root = ws.root().path();
+    let seed = root.join("seed");
+    std::fs::create_dir_all(&seed).unwrap();
+    git_ok(&seed, &["init", "-b", "main"]);
+    std::fs::write(seed.join("README.md"), "hello\n").unwrap();
+    git_ok(&seed, &["add", "README.md"]);
+    git_ok(&seed, &["commit", "-m", "init"]);
+    git_ok(root, &["clone", "--bare", "seed", "origin.git"]);
+
+    let repo = root.join("app");
+    let repo_path = repo.to_string_lossy().into_owned();
+    let clone = std::process::Command::new("jj")
+        .current_dir(root)
+        .args(["git", "clone", "--colocate", "origin.git", "app"])
+        .output()
+        .unwrap();
+    assert!(
+        clone.status.success(),
+        "jj git clone failed: {}",
+        String::from_utf8_lossy(&clone.stderr)
+    );
+
+    std::fs::write(seed.join("upstream.txt"), "new\n").unwrap();
+    git_ok(&seed, &["add", "upstream.txt"]);
+    git_ok(&seed, &["commit", "-m", "upstream"]);
+    git_ok(&seed, &["push", "../origin.git", "main"]);
+    let upstream = String::from_utf8_lossy(
+        &std::process::Command::new("git")
+            .args(["-C", seed.to_str().unwrap(), "rev-parse", "HEAD"])
+            .output()
+            .unwrap()
+            .stdout,
+    )
+    .trim()
+    .to_string();
+
+    std::fs::write(repo.join("README.md"), "dirty\n").unwrap();
+
+    let db = Database::new_in_memory().unwrap();
+    db.set_vcs_mode(track::models::VcsMode::Jj).unwrap();
+    db.set_aggressive_mode(track::models::AggressiveMode::On)
+        .unwrap();
+    let task = TaskService::new(&db)
+        .create_task("Remote base", None, Some("RB-1"), None)
+        .unwrap();
+    RepoService::new(&db)
+        .add_repo(task.id, &repo_path, None, None)
+        .unwrap();
+
+    let outcome = track::use_cases::SyncTaskUseCase::new(&db)
+        .execute(task.id, false)
+        .unwrap();
+    assert!(
+        outcome.repos.iter().any(|(_, o)| matches!(
+            o,
+            track::use_cases::RepoSyncOutcome::WorktreeCreated { base_ref, .. }
+                if base_ref == "main@origin"
+        )),
+        "{outcome:?}"
+    );
+
+    let workspace = worktrees_path(&repo_path, "rb-1");
+    assert_eq!(
+        std::fs::read_to_string(std::path::Path::new(&workspace).join("README.md")).unwrap(),
+        "hello\n",
+        "base checkout's uncommitted changes must not leak into the workspace"
+    );
+    assert!(
+        std::path::Path::new(&workspace)
+            .join("upstream.txt")
+            .exists()
+    );
+
+    let rev = TaskRevisionService::new(&db)
+        .get(task.id, &repo_path)
+        .unwrap()
+        .expect("marker revision");
+    let marker_parent = jj_template(&workspace, &format!("{}-", rev.git_commit), "commit_id");
+    assert_eq!(marker_parent, upstream, "marker must sit on main@origin");
+}
+
 fn worktrees_path(repo_path: &str, slug: &str) -> String {
     std::path::Path::new(repo_path)
         .join(".worktrees")

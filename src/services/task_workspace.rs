@@ -32,13 +32,13 @@ pub fn ensure_workspace(
     vcs_mode: VcsMode,
     repo_path: &str,
     slug: &str,
-    base_ref: &str,
+    base: &WorkspaceBase,
     aggressive: AggressiveMode,
     task: &Task,
 ) -> Result<EnsureWorkspaceOutcome> {
     match vcs_mode {
-        VcsMode::Git => ensure_git(repo_path, slug, base_ref, aggressive, task),
-        VcsMode::Jj => ensure_jj(repo_path, slug, base_ref, aggressive, task),
+        VcsMode::Git => ensure_git(repo_path, slug, &base.rev, aggressive, task),
+        VcsMode::Jj => ensure_jj(repo_path, slug, base, aggressive, task),
     }
 }
 
@@ -75,7 +75,7 @@ fn ensure_git(
 fn ensure_jj(
     repo_path: &str,
     slug: &str,
-    base_ref: &str,
+    base: &WorkspaceBase,
     aggressive: AggressiveMode,
     task: &Task,
 ) -> Result<EnsureWorkspaceOutcome> {
@@ -93,14 +93,15 @@ fn ensure_jj(
         if let Some(parent) = std::path::Path::new(&path).parent() {
             std::fs::create_dir_all(parent)?;
         }
-        jj_ws::create_workspace(repo_path, &path, &branch, base_ref)?;
+        jj_ws::create_workspace(repo_path, &path, &branch, &base.rev)?;
     }
 
     let mut git_commit = None;
     let mut jj_change_id = None;
 
     if aggressive.is_on() && !existed {
-        let marker = create_jj_birth_marker(&path, &branch, slug, &task.name)?;
+        let parent = base.remote.then_some(base.rev.as_str());
+        let marker = create_jj_birth_marker(&path, &branch, slug, &task.name, parent)?;
         git_commit = Some(marker.0);
         jj_change_id = Some(marker.1);
     }
@@ -218,15 +219,19 @@ fn git_upstream_sha(worktree_path: &str) -> Option<String> {
 /// Fresh jj workspace: the marker is a described empty child of trunk, then
 /// `@` sits on a described wip child. `jj workspace add` often leaves an
 /// undescribed empty working copy; using that as the marker would keep its
-/// undescribed parent in `jj git push`.
+/// undescribed parent in `jj git push`. An explicit `parent` (a remote base)
+/// overrides the local trunk lookup.
 fn create_jj_birth_marker(
     workspace_path: &str,
     branch: &str,
     slug: &str,
     task_name: &str,
+    parent: Option<&str>,
 ) -> Result<(String, String)> {
     let message = marker_message(slug, task_name);
-    if let Some(trunk) = jj_trunk_sha(workspace_path) {
+    if let Some(parent) = parent {
+        jj_ws::new_change_on(workspace_path, parent, &message)?;
+    } else if let Some(trunk) = jj_trunk_sha(workspace_path) {
         let tip = jj_ws::current_commit_id(workspace_path)?;
         if tip == trunk {
             jj_ws::new_change_with_message(workspace_path, &message)?;
@@ -253,18 +258,18 @@ fn create_jj_backfill_marker(
     task_name: &str,
 ) -> Result<(String, String)> {
     let Some(trunk) = jj_trunk_sha(workspace_path) else {
-        return create_jj_birth_marker(workspace_path, branch, slug, task_name);
+        return create_jj_birth_marker(workspace_path, branch, slug, task_name, None);
     };
     let tip = jj_ws::current_commit_id(workspace_path)?;
     if trunk == tip {
-        return create_jj_birth_marker(workspace_path, branch, slug, task_name);
+        return create_jj_birth_marker(workspace_path, branch, slug, task_name, None);
     }
 
     let unique =
         jj_ws::log_commit_ids(workspace_path, &format!("{trunk}..{tip}")).unwrap_or_default();
 
     if unique.is_empty() {
-        return create_jj_birth_marker(workspace_path, branch, slug, task_name);
+        return create_jj_birth_marker(workspace_path, branch, slug, task_name, None);
     }
 
     let published = unique
@@ -282,7 +287,7 @@ fn create_jj_backfill_marker(
             .is_some_and(|empty| !empty)
     });
     if !has_work {
-        return create_jj_birth_marker(workspace_path, branch, slug, task_name);
+        return create_jj_birth_marker(workspace_path, branch, slug, task_name, None);
     }
 
     let first = unique.iter().find(|sha| {
@@ -291,7 +296,7 @@ fn create_jj_backfill_marker(
         !empty || described
     });
     let Some(first) = first else {
-        return create_jj_birth_marker(workspace_path, branch, slug, task_name);
+        return create_jj_birth_marker(workspace_path, branch, slug, task_name, None);
     };
     let marker_sha = jj_ws::insert_described_between(
         workspace_path,
@@ -365,6 +370,128 @@ pub fn default_base_ref(vcs_mode: VcsMode) -> &'static str {
         VcsMode::Git => "HEAD",
         VcsMode::Jj => "@",
     }
+}
+
+const REMOTE: &str = "origin";
+
+/// Revision a new task workspace starts from.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WorkspaceBase {
+    pub rev: String,
+    /// True when `rev` is a remote-tracking ref, so the base checkout's
+    /// uncommitted changes cannot leak into the new workspace.
+    pub remote: bool,
+}
+
+/// Fetch `origin` (best effort) and pick the base for a new task workspace.
+///
+/// A recorded branch/bookmark prefers its `origin` counterpart. Without one,
+/// the remote default branch wins over the commit recorded at `repo add`
+/// (in jj that commit is usually the base checkout's dirty `@`). Offline or
+/// remote-less repositories fall back to the recorded local base.
+pub fn resolve_workspace_base(
+    vcs_mode: VcsMode,
+    repo_path: &str,
+    base_branch: Option<&str>,
+    base_commit_hash: Option<&str>,
+) -> WorkspaceBase {
+    fetch_remote(vcs_mode, repo_path);
+
+    let local = |rev: &str| WorkspaceBase {
+        rev: rev.to_string(),
+        remote: false,
+    };
+
+    if let Some(name) = base_branch {
+        return remote_branch_rev(vcs_mode, repo_path, name)
+            .map(|rev| WorkspaceBase { rev, remote: true })
+            .unwrap_or_else(|| local(name));
+    }
+
+    for name in remote_default_branches(repo_path) {
+        if let Some(rev) = remote_branch_rev(vcs_mode, repo_path, &name) {
+            return WorkspaceBase { rev, remote: true };
+        }
+    }
+
+    local(base_commit_hash.unwrap_or_else(|| default_base_ref(vcs_mode)))
+}
+
+fn fetch_remote(vcs_mode: VcsMode, repo_path: &str) {
+    let mut cmd = match vcs_mode {
+        VcsMode::Git => {
+            let mut cmd = std::process::Command::new("git");
+            cmd.args(["-C", repo_path, "fetch", REMOTE, "--prune"]);
+            cmd
+        }
+        VcsMode::Jj => {
+            let mut cmd = std::process::Command::new("jj");
+            cmd.current_dir(repo_path)
+                .args(["-R", repo_path, "git", "fetch", "--remote", REMOTE]);
+            cmd
+        }
+    };
+    let _ = cmd
+        .env("GIT_TERMINAL_PROMPT", "0")
+        .stdin(std::process::Stdio::null())
+        .output();
+}
+
+fn is_plain_branch_name(name: &str) -> bool {
+    !name.is_empty()
+        && !name.starts_with('-')
+        && name
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '/' | '.'))
+}
+
+/// `origin/<name>` (git) or `<name>@origin` (jj) when that remote ref exists.
+fn remote_branch_rev(vcs_mode: VcsMode, repo_path: &str, name: &str) -> Option<String> {
+    if !is_plain_branch_name(name) {
+        return None;
+    }
+    match vcs_mode {
+        VcsMode::Git => {
+            let rev = format!("{REMOTE}/{name}");
+            git_worktree::branch_exists(repo_path, &format!("refs/remotes/{rev}"))
+                .ok()?
+                .then_some(rev)
+        }
+        VcsMode::Jj => {
+            let rev = format!("{name}@{REMOTE}");
+            jj_ws::commit_id(repo_path, &rev)
+                .ok()
+                .filter(|sha| !sha.is_empty())
+                .map(|_| rev)
+        }
+    }
+}
+
+/// `origin/HEAD`'s target first, then the conventional trunk names.
+fn remote_default_branches(repo_path: &str) -> Vec<String> {
+    let mut names = Vec::new();
+    if let Some(mut cmd) = git_worktree::git_store_command(repo_path)
+        && let Ok(output) = cmd
+            .args([
+                "symbolic-ref",
+                "--quiet",
+                "--short",
+                &format!("refs/remotes/{REMOTE}/HEAD"),
+            ])
+            .output()
+        && output.status.success()
+    {
+        let target = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        if let Some(name) = target.strip_prefix(&format!("{REMOTE}/")) {
+            names.push(name.to_string());
+        }
+    }
+    for name in ["main", "master"] {
+        if !names.iter().any(|n| n == name) {
+            names.push(name.to_string());
+        }
+    }
+    names
 }
 
 pub fn resolve_base(

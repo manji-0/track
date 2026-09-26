@@ -193,37 +193,46 @@ impl<'a> SyncTaskUseCase<'a> {
             });
         }
 
-        match vcs_mode {
-            VcsMode::Git => {
-                if git_worktree::base_repo_has_changes(&repo.repo_path, slug)? {
-                    return Err(TrackError::RepoHasPendingChanges(repo.repo_path.clone()));
+        let base = task_workspace::resolve_workspace_base(
+            vcs_mode,
+            &repo.repo_path,
+            repo.base_branch.as_deref(),
+            repo.base_commit_hash.as_deref(),
+        );
+
+        if !base.remote {
+            match vcs_mode {
+                VcsMode::Git => {
+                    if git_worktree::base_repo_has_changes(&repo.repo_path, slug)? {
+                        return Err(TrackError::RepoHasPendingChanges(repo.repo_path.clone()));
+                    }
                 }
-            }
-            VcsMode::Jj => {
-                let status_output = Command::new("jj")
-                    .current_dir(&repo.repo_path)
-                    .args(["-R", &repo.repo_path, "diff", "--summary"])
-                    .output()?;
-                if !status_output.status.success() {
-                    return Err(TrackError::FailedRepoStatusCheck(repo.repo_path.clone()));
-                }
-                if Self::base_workspace_has_changes(&repo.repo_path, &status_output.stdout, &[])? {
-                    return Err(TrackError::RepoHasPendingChanges(repo.repo_path.clone()));
+                VcsMode::Jj => {
+                    let status_output = Command::new("jj")
+                        .current_dir(&repo.repo_path)
+                        .args(["-R", &repo.repo_path, "diff", "--summary"])
+                        .output()?;
+                    if !status_output.status.success() {
+                        return Err(TrackError::FailedRepoStatusCheck(repo.repo_path.clone()));
+                    }
+                    if Self::base_workspace_has_changes(
+                        &repo.repo_path,
+                        &status_output.stdout,
+                        &[],
+                    )? {
+                        return Err(TrackError::RepoHasPendingChanges(repo.repo_path.clone()));
+                    }
                 }
             }
         }
 
-        let base_ref = repo
-            .base_branch
-            .clone()
-            .or_else(|| repo.base_commit_hash.clone())
-            .unwrap_or_else(|| task_workspace::default_base_ref(vcs_mode).to_string());
+        let base_ref = base.rev.clone();
 
         match task_workspace::ensure_workspace(
             vcs_mode,
             &repo.repo_path,
             slug,
-            &base_ref,
+            &base,
             aggressive,
             task,
         ) {

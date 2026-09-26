@@ -84,7 +84,7 @@ Scraps attach to the oldest pending TODO at insert time. Local is the default; `
 
 | Command | Description |
 |---------|-------------|
-| `track sync` | Create/refresh the task workspace (`.worktrees/<slug>` on `track/<slug>`) |
+| `track sync` | Create/refresh the task workspace (`.worktrees/<slug>` on `track/<slug>`). New workspaces fetch `origin` and start from the remote base branch when it exists, so a dirty base checkout does not block them ([details](JJ_INTEGRATION.md#workspace-base)) |
 | `track sync --legacy` | Also rebuild old per-TODO jj worktrees |
 | `track migrate legacy-worktrees [--dry-run] [--force]` | Clear legacy per-TODO worktree flags |
 

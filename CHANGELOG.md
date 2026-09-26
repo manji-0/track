@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- New task workspaces fetch `origin` and start from the remote base (`origin/<base>` in git mode, `<base>@origin` in jj mode; the remote default branch when no base bookmark was recorded). Uncommitted changes in the base checkout no longer block `track repo add` / `track sync` unless track has to fall back to a local base. Git task branches are created with `--no-track`.
 - README is a short overview (install, quick start, screenshots, doc links). Command tables live in `docs/CLI.md`; Web UI detail and recaptured screenshots in `docs/WEBUI.md` and `docs/images/`.
 - `docs/JJ_INTEGRATION.md` documents the commit + notes strategy (marker revision, one commit per TODO, `refs/notes/track`, push/fetch/import).
 - GitHub Releases that were empty/stub now take their notes from this changelog. `scripts/changelog_for_tag.py` feeds `.github/workflows/release.yml` so later tags stay in sync. Maintainers can backfill published tags with `scripts/sync-github-release-notes.sh` (`gh` write access).
