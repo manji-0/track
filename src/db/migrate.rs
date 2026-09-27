@@ -532,6 +532,7 @@ fn migrate_scrap_shared(conn: &Connection) -> Result<()> {
 }
 
 /// Existing databases that never set `vcs_mode` were implicitly jj. Keep them on jj.
+/// New databases record `git` right away so later opens are not mistaken for legacy ones.
 fn migrate_legacy_vcs_mode_default(conn: &Connection) -> Result<()> {
     let existing: Option<String> = conn
         .query_row(
@@ -545,11 +546,10 @@ fn migrate_legacy_vcs_mode_default(conn: &Connection) -> Result<()> {
     }
 
     let task_count: i64 = conn.query_row("SELECT COUNT(*) FROM tasks", [], |row| row.get(0))?;
-    if task_count > 0 {
-        conn.execute(
-            "INSERT INTO app_state (key, value) VALUES ('vcs_mode', 'jj')",
-            [],
-        )?;
-    }
+    let mode = if task_count > 0 { "jj" } else { "git" };
+    conn.execute(
+        "INSERT INTO app_state (key, value) VALUES ('vcs_mode', ?1)",
+        [mode],
+    )?;
     Ok(())
 }

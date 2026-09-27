@@ -73,6 +73,16 @@ impl<'a> TaskRevisionService<'a> {
     }
 }
 
+fn map_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<TaskRevision> {
+    Ok(TaskRevision {
+        task_id: row.get(0)?,
+        repo_path: row.get(1)?,
+        git_commit: row.get(2)?,
+        jj_change_id: row.get(3)?,
+        created_at: parse_datetime(row.get::<_, String>(4)?)?,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -96,14 +106,4 @@ mod tests {
         assert_eq!(second.git_commit, "aaa");
         assert_eq!(second.jj_change_id.as_deref(), Some("change-a"));
     }
-}
-
-fn map_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<TaskRevision> {
-    Ok(TaskRevision {
-        task_id: row.get(0)?,
-        repo_path: row.get(1)?,
-        git_commit: row.get(2)?,
-        jj_change_id: row.get(3)?,
-        created_at: parse_datetime(row.get::<_, String>(4)?)?,
-    })
 }

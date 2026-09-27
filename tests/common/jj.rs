@@ -156,7 +156,7 @@ pub fn init_clean_jj_repo(repo_path: &Path) {
 
     let output = Command::new("jj")
         .current_dir(repo_path)
-        .args(["git", "init", repo_str])
+        .args(["git", "init", "--colocate", repo_str])
         .output()
         .unwrap_or_else(|err| panic!("failed to run jj git init: {err}"));
     assert!(
