@@ -22,6 +22,7 @@ pub fn handle_new(
 ) -> Result<()> {
     let task_service = TaskService::new(ctx.db);
     let task = task_service.create_task(name, description, ticket, ticket_url)?;
+    let multi = ctx.db.get_context_mode()?.is_multi();
     let mut copied = 0usize;
     let mut template_empty: Option<String> = None;
 
@@ -64,7 +65,11 @@ pub fn handle_new(
                 }
                 println!();
             }
-            println!("Switched to task #{}", task.id);
+            if multi {
+                println!("Target it with `track --task {} <command>`", task.id);
+            } else {
+                println!("Switched to task #{}", task.id);
+            }
             if let Some(name) = template_empty {
                 println!("Warning: Template task '{name}' has no TODOs");
             } else if copied > 0 {
@@ -82,7 +87,7 @@ pub fn handle_list(ctx: &CommandCtx, include_archived: bool, json: bool) -> Resu
 
     let task_service = TaskService::new(ctx.db);
     let tasks = task_service.list_tasks(include_archived)?;
-    let current_task_id = ctx.db.get_current_task_id()?;
+    let current_task_id = ctx.target_task_id_opt()?;
 
     let mut table = Table::new();
     table.set_format(*format::consts::FORMAT_NO_LINESEP_WITH_TITLE);
@@ -119,6 +124,9 @@ pub fn handle_list(ctx: &CommandCtx, include_archived: bool, json: bool) -> Resu
 }
 
 pub fn handle_switch(ctx: &CommandCtx, task_ref: &str, json: bool) -> Result<()> {
+    if ctx.db.get_context_mode()?.is_multi() {
+        return Err(TrackError::SwitchUnavailableInMultiContext);
+    }
     let task_service = TaskService::new(ctx.db);
 
     if task_ref.to_lowercase() == "today" {
@@ -154,14 +162,7 @@ pub fn handle_info(
     json: bool,
     all_scraps: bool,
 ) -> Result<()> {
-    let task_service = TaskService::new(ctx.db);
-    let task_id = match task_ref {
-        Some(ref t_ref) => task_service.resolve_task_id(t_ref)?,
-        None => ctx
-            .db
-            .get_current_task_id()?
-            .ok_or(TrackError::NoActiveTask)?,
-    };
+    let task_id = ctx.target_task_id_with(task_ref.as_deref())?;
 
     let info = GetTaskInfoUseCase::new(ctx.db);
     let snapshot = info.load(task_id)?;
@@ -355,14 +356,8 @@ pub fn handle_info(
     Ok(())
 }
 
-pub fn handle_desc(ctx: &CommandCtx, description: Option<&str>, task: Option<i64>) -> Result<()> {
-    let task_id = match task {
-        Some(id) => crate::models::TaskId::from_i64(id),
-        None => ctx
-            .db
-            .get_current_task_id()?
-            .ok_or(TrackError::NoActiveTask)?,
-    };
+pub fn handle_desc(ctx: &CommandCtx, description: Option<&str>) -> Result<()> {
+    let task_id = ctx.target_task_id()?;
 
     let task_service = TaskService::new(ctx.db);
 
@@ -391,19 +386,8 @@ pub fn handle_desc(ctx: &CommandCtx, description: Option<&str>, task: Option<i64
     Ok(())
 }
 
-pub fn handle_ticket(
-    ctx: &CommandCtx,
-    ticket_id: &str,
-    url: &str,
-    task: Option<i64>,
-) -> Result<()> {
-    let task_id = match task {
-        Some(id) => crate::models::TaskId::from_i64(id),
-        None => ctx
-            .db
-            .get_current_task_id()?
-            .ok_or(TrackError::NoActiveTask)?,
-    };
+pub fn handle_ticket(ctx: &CommandCtx, ticket_id: &str, url: &str) -> Result<()> {
+    let task_id = ctx.target_task_id()?;
 
     let task_service = TaskService::new(ctx.db);
     task_service.link_ticket(task_id, ticket_id, url)?;
@@ -422,7 +406,7 @@ pub fn handle_archive(
     json: bool,
 ) -> Result<()> {
     let use_case = ArchiveTaskUseCase::new(ctx.db);
-    let task_id = use_case.resolve_task_id(task_ref)?;
+    let task_id = ctx.target_task_id_with(task_ref)?;
 
     let outcome = match use_case.run(task_id, force)? {
         ArchiveTaskStep::Completed(outcome) => outcome,

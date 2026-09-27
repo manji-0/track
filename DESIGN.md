@@ -49,6 +49,21 @@ The CLI binary is `track` (`task-track` on crates.io).
 
 `app_state.current_task_id` is the session. `track new` inserts a task and writes that key. `track switch` only updates the key (or `track switch today` for the daily task). Item commands (`todo`, `scrap`, `link`, `repo`) fail with `NoActiveTask` when the key is missing.
 
+### Context mode (single / multi)
+
+<!-- dagayn: implemented-by src/services/task_service.rs::TaskService.resolve_target_task_id -->
+
+`app_state.context_mode` decides how a command picks its task. The CLI (`--task`) and the WebUI (`X-Track-Task` / `?task=`) share one resolver:
+
+| Mode | Explicit reference | No reference |
+|------|--------------------|--------------|
+| `single` (default) | That task | `current_task_id` (`NoActiveTask` if unset) |
+| `multi` | That task | Refused with `TaskRefRequired`. `track switch` is disabled. |
+
+A single implicit session breaks when several agents or terminals work at once: one `track switch` silently redirects everyone else's writes. Multi mode removes the shared session instead of trying to lock it. Every write names its task, so parallel sessions cannot collide. `current_task_id` is kept (for example, `track new` still writes it) but nothing reads it in multi mode, so switching back to single restores the last session.
+
+References resolve in order: `t:<ticket>`, `a:<alias>`, numeric id, bare alias, then the exact name of an active task (ambiguous names fail and list the ids). In multi mode, suggested commands in `hint` / `workflow` carry `--task <id>` so agents can run them verbatim.
+
 User-facing TODO / link / repo IDs are **task-scoped** (`task_index` starting at 1 per task), not global row IDs.
 
 ## Database
@@ -60,6 +75,7 @@ Path: `$HOME/.local/share/track/track.db`. `CREATE TABLE` in `src/db/mod.rs` plu
 - `current_task_id`
 - `vcs-mode` (`git` \| `jj`; default `git` on new DBs)
 - `aggressive_mode` (`on` \| `off`; default `off`)
+- `context_mode` (`single` \| `multi`; default `single`)
 - `calendar_id` (WebUI today-task calendar)
 - section revision counters for SSE
 
@@ -119,7 +135,7 @@ Mutations that accept `--json` (`new`, `switch`, `archive`, `todo add/done/updat
 
 ### Other
 
-`desc`, `ticket`, `alias`, `config` (`vcs-mode`, `aggressive-mode`), `sync`, `import`, `notes`, `migrate legacy-worktrees`, `webui`, `llm-help`, `completion`.
+`desc`, `ticket`, `alias`, `config` (`vcs-mode`, `aggressive-mode`, `context-mode`), `sync`, `import`, `notes`, `migrate legacy-worktrees`, `webui`, `llm-help`, `completion`.
 
 ## Agent contract
 
@@ -138,6 +154,8 @@ MCP is intentionally absent: Cursor / Claude Code / Codex already have a shell a
 ## Web UI
 
 `track webui` — Axum + HTMX + SSE. `GET /api/status` returns the same agent fields as CLI JSON. HTML partials are for humans, not a second agent API.
+
+One server serves every task. `/tasks/<ref>` pins a browser tab to one task. The page sends `X-Track-Task` on every HTMX request and subscribes to `/api/sse?task=<id>`. `/` follows the current task in single mode and lists tasks in multi mode. Change detection reads `task_revs`, a `(task_id, section)` counter that SQLite triggers on `tasks`, `todos`, `scraps`, `links`, `task_repos`, and `worktrees` keep up to date. That way writes from any process (CLI or WebUI) notify only the tabs showing that task.
 
 Today-task and calendar behavior: [docs/TODAY_TASK.md](docs/TODAY_TASK.md).
 

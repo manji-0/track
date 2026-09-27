@@ -1,6 +1,6 @@
 # Web UI
 
-`track webui` serves a browser UI on port 3000 (override with `--port`; `--open` launches a browser). It is the same current-task database as the CLI. HTML is for humans; agents should use `track status --json` / mutation `--json` (the same snapshot is also at `GET /api/status`).
+`track webui` serves a browser UI on port 3000 (override with `--port`; `--open` launches a browser). It uses the same database as the CLI. HTML is for humans; agents should use `track status --json` / mutation `--json` (the same snapshot is also at `GET /api/status`).
 
 ![Track Web UI — task overview](images/webui-overview.png)
 
@@ -15,6 +15,18 @@ track webui --open
 ```
 
 Open `http://localhost:3000`. Changes from the CLI or another browser tab show up over Server-Sent Events (SSE).
+
+## One task per tab
+
+One `track webui` process serves every task. Each browser tab shows one task:
+
+| URL | Shows |
+|-----|-------|
+| `/` | Single mode: the current task, following `track switch` (the page reloads when it changes). Multi mode: the task list. |
+| `/tasks` | Active tasks; each link opens in a new tab |
+| `/tasks/<ref>` | That task only (id, `t:<ticket>`, `a:<alias>`, or name). The tab stays on it after `track switch`. |
+
+The **Tasks** chip in the topbar opens the list, and **Pin ↗** opens the current task in its own tab. A task page sends its task id on every HTMX request (`X-Track-Task` header) and subscribes to SSE for that task only, so edits in one tab or from `track --task N ...` refresh only the tabs showing task N. `GET /api/status?task=<ref>` returns one task's snapshot. In multi context mode, API requests without a task are rejected with 400.
 
 ## Layout
 

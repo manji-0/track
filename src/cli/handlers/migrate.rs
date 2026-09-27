@@ -11,7 +11,7 @@ pub fn handle_migrate(ctx: &CommandCtx, command: MigrateCommands) -> Result<()> 
             force,
         } => {
             let use_case = MigrateLegacyWorktreesUseCase::new(ctx.db);
-            let task_id = use_case.resolve_task_id(task_ref.as_deref())?;
+            let task_id = use_case.resolve_task_id(task_ref.as_deref().or(ctx.task_ref()))?;
             let outcome = use_case.execute(task_id, dry_run, force)?;
 
             if outcome.tasks.is_empty() {

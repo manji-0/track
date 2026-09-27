@@ -1,5 +1,5 @@
 use crate::models::{
-    AgentGuardrails, AggressiveMode, CommandHint, GitAgentContext, JjAgentContext,
+    AgentGuardrails, AggressiveMode, CommandHint, ContextMode, GitAgentContext, JjAgentContext,
     RepoRegistration, RepoWorkspaceStatus, Task, TaskRepo, Todo, TodoAgentAction, TodoAgentView,
     TodoStatus, VcsMode, WorkflowContext, WorkspaceAgentView, WorkspaceFacts, Worktree,
     build_workflow_context, jj_slug, oldest_pending_todo, workspace_lifecycle,
@@ -14,6 +14,7 @@ use serde::Serialize;
 pub struct AgentStatusExtensions {
     pub vcs_mode: VcsMode,
     pub aggressive: bool,
+    pub context_mode: ContextMode,
     pub workflow: WorkflowContext,
     pub hint: CommandHint,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -95,7 +96,7 @@ pub fn build_jj_context(task: &Task, repos: &[TaskRepo]) -> JjAgentContext {
         repos: repo_statuses,
         start_command: "track sync".to_string(),
         path_command,
-        repo_init_command: "track repo add",
+        repo_init_command: "track repo add".to_string(),
     }
 }
 
@@ -119,17 +120,24 @@ pub fn build_git_context(task: &Task, repos: &[TaskRepo]) -> GitAgentContext {
 }
 
 /// Builds agent-oriented JSON extensions for status endpoints.
+///
+/// In multi context mode every suggested `track ...` command carries `--task <id>`
+/// so an agent can run it verbatim.
+#[allow(clippy::too_many_arguments)]
 pub fn build_agent_extensions(
     vcs_mode: VcsMode,
     aggressive: AggressiveMode,
+    context_mode: ContextMode,
     task: &Task,
     todos: &[Todo],
     worktrees: &[Worktree],
     repos: &[TaskRepo],
     worktree_service: &WorktreeService<'_>,
 ) -> AgentStatusExtensions {
+    let scope = |command: &str| context_mode.scope_command(task.id, command);
     let facts = observe_workspace(vcs_mode, task, repos);
-    let workflow = build_workflow_context(vcs_mode, task, todos, worktrees, repos, &facts);
+    let mut workflow = build_workflow_context(vcs_mode, task, todos, worktrees, repos, &facts);
+    workflow.map_commands(scope);
     let hint = CommandHint::from_workflow(vcs_mode, aggressive, &facts, &workflow.next_action);
     let next_todo_id = oldest_pending_todo(todos).map(|todo| todo.id);
     let legacy_merge_required = vcs_mode == VcsMode::Jj
@@ -137,7 +145,8 @@ pub fn build_agent_extensions(
             .iter()
             .any(|todo| todo.status == TodoStatus::Pending && todo.worktree_requested);
 
-    let git_ctx = build_git_context(task, repos);
+    let mut git_ctx = build_git_context(task, repos);
+    git_ctx.sync_command = scope(&git_ctx.sync_command);
     let task_workspace_path = facts.workspace_path.clone();
 
     let todos_agent: Vec<TodoAgentView> = todos
@@ -181,13 +190,20 @@ pub fn build_agent_extensions(
     let guardrails = AgentGuardrails::for_mode(vcs_mode, legacy_merge_required);
 
     let (jj, git) = match vcs_mode {
-        VcsMode::Jj => (Some(build_jj_context(task, repos)), None),
+        VcsMode::Jj => {
+            let mut jj_ctx = build_jj_context(task, repos);
+            jj_ctx.start_command = scope(&jj_ctx.start_command);
+            jj_ctx.path_command = scope(&jj_ctx.path_command);
+            jj_ctx.repo_init_command = scope(&jj_ctx.repo_init_command);
+            (Some(jj_ctx), None)
+        }
         VcsMode::Git => (None, Some(git_ctx)),
     };
 
     AgentStatusExtensions {
         vcs_mode,
         aggressive: aggressive.is_on(),
+        context_mode,
         workflow,
         hint,
         jj,
@@ -245,6 +261,7 @@ mod tests {
         let extensions = build_agent_extensions(
             VcsMode::Jj,
             AggressiveMode::Off,
+            ContextMode::Single,
             &task,
             &todos,
             &[],
@@ -284,6 +301,7 @@ mod tests {
         let extensions = build_agent_extensions(
             db.get_vcs_mode().unwrap(),
             AggressiveMode::Off,
+            ContextMode::Single,
             &task,
             &todos,
             &[],
@@ -295,6 +313,39 @@ mod tests {
         assert!(extensions.jj.is_none());
         assert_eq!(extensions.git.as_ref().unwrap().branch, "track/task-1");
         assert!(!extensions.guardrails.must_use_jj_skill);
+    }
+
+    #[test]
+    fn agent_extensions_scope_commands_in_multi_mode() {
+        let db = Database::new_in_memory().unwrap();
+        let task = TaskService::new(&db)
+            .create_task("Task", None, None, None)
+            .unwrap();
+        let worktree_service = WorktreeService::new(&db);
+        let extensions = build_agent_extensions(
+            VcsMode::Git,
+            AggressiveMode::Off,
+            ContextMode::Multi,
+            &task,
+            &[],
+            &[],
+            &[],
+            &worktree_service,
+        );
+
+        let prefix = format!("track --task {} ", task.id);
+        let next = extensions.workflow.next_action.command.as_deref().unwrap();
+        assert!(next.starts_with(&prefix), "{next}");
+        assert_eq!(extensions.hint.next_command.as_deref(), Some(next));
+        assert!(
+            extensions
+                .git
+                .as_ref()
+                .unwrap()
+                .sync_command
+                .starts_with(&prefix)
+        );
+        assert_eq!(extensions.context_mode, ContextMode::Multi);
     }
 
     #[test]

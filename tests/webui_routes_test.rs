@@ -267,7 +267,7 @@ async fn index_renders_without_active_task() {
     assert!(html.contains("<html") || html.contains("track"));
     assert!(html.contains("htmx.org@2.0.10"));
     assert!(html.contains("htmx-ext-sse@2.2.4"));
-    assert!(html.contains("sse-connect=\"/api/sse\""));
+    assert!(html.contains("sse-connect=\"/api/sse?follow=true\""));
     assert!(html.contains("hx-ext=\"sse\""));
 }
 

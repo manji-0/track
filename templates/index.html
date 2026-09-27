@@ -1,11 +1,8 @@
 {% extends "base.html" %}
 
-{% block title %}
-{% if task %}Task #{{ task.id }}: {{ task.name }}{% else %}Track WebUI{% endif %}
-{% endblock %}
+{% block title %}Task #{{ task.id }}: {{ task.name }}{% endblock %}
 
 {% block content %}
-{% if task %}
 <div class="app">
 
     <!-- ===== Topbar ===== -->
@@ -16,6 +13,11 @@
             aria-expanded="false" aria-controls="context-drawer">
             Context <span class="chev">⌄</span>
         </button>
+        <a class="chip" href="/tasks" title="All tasks (open each in its own tab)">Tasks</a>
+        {% if page.follow %}
+        <a class="chip" href="/tasks/{{ task.id }}" target="_blank" rel="noopener"
+            title="Open this task in a tab that stays on it after `track switch`">Pin ↗</a>
+        {% endif %}
         <div class="spacer"></div>
         <div id="connection-status" class="connection-status disconnected">
             <span class="status-dot"></span>
@@ -79,6 +81,11 @@
         const form = document.getElementById('cmd-form');
         if (!input || !form) return;
 
+        // Pin writes to this tab's task even if the current task changes meanwhile.
+        function taskHeaders() {
+            return { 'X-Track-Task': document.body.dataset.taskId };
+        }
+
         function parseCommand(raw) {
             const todoMatch = raw.match(/^\/todo(?:\s+([\s\S]*))?$/);
             if (todoMatch) {
@@ -109,7 +116,7 @@
                 input.setCustomValidity('');
                 const values = { content: cmd.content };
                 if (cmd.noWorkspace) values.no_workspace = 'true';
-                htmx.ajax('POST', '/api/todo', { values: values, target: '#todos-section', swap: 'outerHTML' });
+                htmx.ajax('POST', '/api/todo', { values: values, headers: taskHeaders(), target: '#todos-section', swap: 'outerHTML' });
             } else {
                 if (cmd.share && !cmd.content) {
                     input.setCustomValidity('Add a note after /share');
@@ -119,7 +126,7 @@
                 input.setCustomValidity('');
                 const values = { content: cmd.content };
                 if (cmd.share) values.share = 'true';
-                htmx.ajax('POST', '/api/scrap', { values: values, target: '#scraps-section', swap: 'outerHTML' });
+                htmx.ajax('POST', '/api/scrap', { values: values, headers: taskHeaders(), target: '#scraps-section', swap: 'outerHTML' });
             }
             input.value = '';
             input.style.height = 'auto';
@@ -212,27 +219,4 @@
     }
 </script>
 
-{% else %}
-<!-- No Task State -->
-<div class="app">
-    <header class="topbar">
-        <span class="brand">tr</span>
-        <span class="task-title">track</span>
-        <div class="spacer"></div>
-        <div id="connection-status" class="connection-status disconnected">
-            <span class="status-dot"></span>
-            <span class="status-text">Connecting…</span>
-        </div>
-        <button class="icon-btn" id="theme-toggle" aria-label="Toggle theme">
-            <span id="theme-icon">🌙</span>
-        </button>
-    </header>
-    <div class="no-task">
-        <div class="icon">📋</div>
-        <h2>No Active Task</h2>
-        <p>Create a new task or switch to an existing one to get started.</p>
-        <p>Run <code>track new "Task name"</code> to create a new task.</p>
-    </div>
-</div>
-{% endif %}
 {% endblock %}

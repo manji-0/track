@@ -3,8 +3,8 @@
 use crate::db::Database;
 use crate::models::TodoStatus;
 use crate::models::{
-    AgentGuardrails, GitAgentContext, JjAgentContext, Scrap, Todo, TodoAgentView, VcsMode,
-    WorkflowContext, Worktree,
+    AgentGuardrails, ContextMode, GitAgentContext, JjAgentContext, Scrap, Todo, TodoAgentView,
+    VcsMode, WorkflowContext, Worktree,
 };
 use crate::services::WorktreeService;
 use crate::services::agent_context::{AgentStatusExtensions, build_agent_extensions};
@@ -26,6 +26,8 @@ pub struct StatusResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub vcs_mode: Option<VcsMode>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub context_mode: Option<ContextMode>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub jj: Option<JjAgentContext>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub git: Option<GitAgentContext>,
@@ -46,6 +48,7 @@ impl StatusResponse {
             repos: vec![],
             workflow: None,
             vcs_mode: None,
+            context_mode: None,
             jj: None,
             git: None,
             todos_agent: None,
@@ -95,6 +98,7 @@ pub fn build_api_status(db: &Database, snapshot: &TaskInfoSnapshot) -> Result<St
             .collect::<Result<Vec<_>>>()?,
         workflow: Some(agent.workflow),
         vcs_mode: Some(agent.vcs_mode),
+        context_mode: Some(agent.context_mode),
         jj: agent.jj,
         git: agent.git,
         todos_agent: Some(agent.todos_agent),
@@ -120,6 +124,7 @@ fn to_template_context(
         "calendar_id": calendar_id,
         "workflow": agent.workflow,
         "vcs_mode": agent.vcs_mode,
+        "context_mode": agent.context_mode,
         "aggressive": agent.aggressive,
         "hint": agent.hint,
         "jj": agent.jj,
@@ -133,6 +138,7 @@ fn agent_extensions(db: &Database, snapshot: &TaskInfoSnapshot) -> Result<AgentS
     Ok(build_agent_extensions(
         snapshot.vcs_mode,
         snapshot.aggressive_mode,
+        snapshot.context_mode,
         &snapshot.task,
         &snapshot.todos,
         &snapshot.worktrees,

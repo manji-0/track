@@ -2,13 +2,10 @@ use crate::cli::handlers::CommandCtx;
 use crate::cli::handlers::hint::emit_hint;
 use crate::models::VcsMode;
 use crate::use_cases::{RepoSyncOutcome, SyncTaskUseCase};
-use crate::utils::{Result, TrackError};
+use crate::utils::Result;
 
 pub fn handle_sync(ctx: &CommandCtx, legacy: bool) -> Result<()> {
-    let current_task_id = ctx
-        .db
-        .get_current_task_id()?
-        .ok_or(TrackError::NoActiveTask)?;
+    let current_task_id = ctx.target_task_id()?;
 
     let outcome = SyncTaskUseCase::new(ctx.db).execute(current_task_id, legacy)?;
 

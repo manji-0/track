@@ -34,15 +34,43 @@ pub use task::{
 };
 pub use todo::handle_todo;
 
-/// Shared database access for command handlers.
 use crate::db::Database;
+use crate::models::TaskId;
+use crate::services::TaskService;
+use crate::utils::Result;
 
+/// Shared database access and the global `--task` reference for command handlers.
 pub struct CommandCtx<'a> {
     pub db: &'a Database,
+    task_ref: Option<&'a str>,
 }
 
 impl<'a> CommandCtx<'a> {
     pub fn new(db: &'a Database) -> Self {
-        Self { db }
+        Self { db, task_ref: None }
+    }
+
+    pub fn with_task_ref(db: &'a Database, task_ref: Option<&'a str>) -> Self {
+        Self { db, task_ref }
+    }
+
+    /// The global `--task` value, if given.
+    pub fn task_ref(&self) -> Option<&'a str> {
+        self.task_ref
+    }
+
+    /// Task this command operates on (`--task`, else current task in single mode).
+    pub fn target_task_id(&self) -> Result<TaskId> {
+        TaskService::new(self.db).resolve_target_task_id(self.task_ref)
+    }
+
+    /// Like [`Self::target_task_id`], but a command-specific positional reference wins.
+    pub fn target_task_id_with(&self, positional: Option<&str>) -> Result<TaskId> {
+        TaskService::new(self.db).resolve_target_task_id(positional.or(self.task_ref))
+    }
+
+    /// Task for optional context (hints, notes); `None` when nothing is targeted.
+    pub fn target_task_id_opt(&self) -> Result<Option<TaskId>> {
+        TaskService::new(self.db).resolve_target_task_id_opt(self.task_ref)
     }
 }

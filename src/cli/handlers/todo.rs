@@ -12,10 +12,7 @@ use crate::utils::{Result, TrackError};
 use prettytable::{Cell, Row, Table, format};
 
 pub fn handle_todo(ctx: &CommandCtx, command: TodoCommands) -> Result<()> {
-    let current_task_id = ctx
-        .db
-        .get_current_task_id()?
-        .ok_or(TrackError::NoActiveTask)?;
+    let current_task_id = ctx.target_task_id()?;
     let todo_service = TodoService::new(ctx.db);
 
     match command {

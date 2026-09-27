@@ -4,14 +4,11 @@ use crate::cli::handlers::json_out::{MutationKind, emit_mutation};
 use crate::models::{ScrapIndex, ScrapVisibility};
 use crate::services::ScrapService;
 use crate::use_cases::project_task_notes_or_warn;
-use crate::utils::{Result, TrackError};
+use crate::utils::Result;
 use chrono::Local;
 
 pub fn handle_scrap(ctx: &CommandCtx, command: ScrapCommands) -> Result<()> {
-    let current_task_id = ctx
-        .db
-        .get_current_task_id()?
-        .ok_or(TrackError::NoActiveTask)?;
+    let current_task_id = ctx.target_task_id()?;
     let scrap_service = ScrapService::new(ctx.db);
 
     match command {

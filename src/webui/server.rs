@@ -19,6 +19,8 @@ pub fn build_router(web_state: WebState) -> Router {
     Router::new()
         // Pages
         .route("/", get(routes::index))
+        .route("/tasks", get(routes::tasks_page))
+        .route("/tasks/{task_ref}", get(routes::task_page))
         // Card GET endpoints for HTMX updates
         .route("/api/card/description", get(routes::get_description))
         .route("/api/card/ticket", get(routes::get_ticket))
@@ -75,6 +77,10 @@ pub async fn start_server(port: u16, open_browser: bool) -> Result<()> {
 
     println!("Starting track webui server...");
     println!("  → http://localhost:{}", port);
+    println!(
+        "  → http://localhost:{}/tasks/<id> (one task per browser tab)",
+        port
+    );
     println!();
     println!("Press Ctrl+C to stop the server.");
 

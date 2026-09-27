@@ -35,6 +35,21 @@ Set `TRACK_HINTS=0` to hide the footer. `--json` already includes `hint`.
 
 Mutating commands accept `--json` and return the **same snapshot** plus `ok` and `mutation`. Prefer `--json` on writes so you do not need a second `status` call.
 
+## Context mode (parallel tasks)
+
+`context_mode` in the JSON is `single` (default) or `multi`.
+
+- **single**: commands use the current task (`track switch`). `--task <ref>` overrides it for one command.
+- **multi**: several tasks run in parallel. Every task-scoped command needs `--task <ref>` (id, `t:TICKET`, `a:alias`, or task name). Without it the command is refused, and `track switch` is disabled. `hint.next_command` / `workflow.next_action.command` already include `--task <id>`, so run them verbatim.
+
+```bash
+track config set context-mode multi
+track --task 3 status --json
+track --task 3 todo done --json 1
+```
+
+If you were given a task id, always pass `--task <id>`. It is correct in both modes and never touches another session's task.
+
 ## Workspace (track owns this)
 
 Layout is the same in both modes:
@@ -88,6 +103,7 @@ When on, each (task, repo) gets **one empty marker revision**. Commit history on
 | `track archive [--force]` | Remove workspaces (branch/bookmark kept for PRs). `--force` skips dirty checks |
 | `track config set vcs-mode git\|jj` | Switch VCS backend |
 | `track config set aggressive-mode on\|off` | Task revision + published work record |
+| `track config set context-mode single\|multi` | Implicit current task, or `--task <ref>` required |
 | `track config show` | Print current settings |
 
 ## Slug

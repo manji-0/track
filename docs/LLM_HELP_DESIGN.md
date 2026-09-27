@@ -51,6 +51,10 @@ Human commands also print a stderr footer (`hint:` / `next:`). `--json` includes
 
 Mutating commands return the **status snapshot** plus `ok` / `mutation`. `track list --json` is a task inventory, not that snapshot.
 
+### 1a. Context mode
+
+The text explains `context_mode`. In `single`, commands use the current task. In `multi`, task-scoped commands need `--task <ref>`, `switch` is disabled, and suggested commands already carry `--task <id>`. It tells agents that were given a task id to always pass `--task <id>`, which is safe in both modes.
+
 ### 2. Task workflow (human setup, agent execute)
 
 **Setup:** `track new`, `desc`, `ticket`, `repo add`, `todo add` (`--no-workspace` for research). Legacy `--worktree` is an error.

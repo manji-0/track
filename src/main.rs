@@ -25,7 +25,7 @@ fn main() {
         }
     };
 
-    let result = handler.handle(cli.command);
+    let result = handler.handle_with_task(cli.command, cli.task.as_deref());
     if let Err(e) = result {
         eprintln!("Error: {}", e);
         process::exit(1);

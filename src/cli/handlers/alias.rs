@@ -1,33 +1,21 @@
 use crate::cli::AliasCommands;
 use crate::cli::handlers::CommandCtx;
 use crate::services::TaskService;
-use crate::utils::{Result, TrackError};
+use crate::utils::Result;
 
 pub fn handle_alias(ctx: &CommandCtx, command: AliasCommands) -> Result<()> {
     let task_service = TaskService::new(ctx.db);
 
     match command {
-        AliasCommands::Set { alias, task, force } => {
-            let task_id = match task {
-                Some(id) => crate::models::TaskId::from_i64(id),
-                None => ctx
-                    .db
-                    .get_current_task_id()?
-                    .ok_or(TrackError::NoActiveTask)?,
-            };
+        AliasCommands::Set { alias, force } => {
+            let task_id = ctx.target_task_id()?;
 
             task_service.set_alias(task_id, &alias, force)?;
             let task = task_service.get_task(task_id)?;
             println!("Set alias '{}' for task #{}: {}", alias, task.id, task.name);
         }
-        AliasCommands::Remove { task } => {
-            let task_id = match task {
-                Some(id) => crate::models::TaskId::from_i64(id),
-                None => ctx
-                    .db
-                    .get_current_task_id()?
-                    .ok_or(TrackError::NoActiveTask)?,
-            };
+        AliasCommands::Remove => {
+            let task_id = ctx.target_task_id()?;
 
             let task = task_service.get_task(task_id)?;
             if task.alias.is_none() {

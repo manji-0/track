@@ -112,17 +112,6 @@ impl<'a> ArchiveTaskUseCase<'a> {
         Self { db }
     }
 
-    pub fn resolve_task_id(&self, task_ref: Option<&str>) -> Result<crate::models::TaskId> {
-        let task_service = TaskService::new(self.db);
-        match task_ref {
-            Some(r) => task_service.resolve_task_id(r),
-            None => self
-                .db
-                .get_current_task_id()?
-                .ok_or(TrackError::NoActiveTask),
-        }
-    }
-
     pub fn find_archive_blockers(&self, task_id: crate::models::TaskId) -> Result<ArchiveBlockers> {
         let worktree_service = WorktreeService::new(self.db);
         Ok(ArchiveBlockers {

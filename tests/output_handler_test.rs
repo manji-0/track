@@ -95,16 +95,12 @@ fn test_handle_desc_view_and_set() {
     let task = task_service.create_task("Task", None, None, None).unwrap();
 
     // View mode (no description) - should not error
-    let cmd = Commands::Desc {
-        description: None,
-        task: None,
-    };
+    let cmd = Commands::Desc { description: None };
     assert!(handler.handle(cmd).is_ok());
 
     // Set mode - should not error
     let cmd = Commands::Desc {
         description: Some("New description".to_string()),
-        task: None,
     };
     assert!(handler.handle(cmd).is_ok());
 
@@ -126,7 +122,6 @@ fn test_handle_ticket_links() {
     let cmd = Commands::Ticket {
         ticket_id: "TICK-123".to_string(),
         url: "http://ticket.com".to_string(),
-        task: None,
     };
     assert!(handler.handle(cmd).is_ok());
 

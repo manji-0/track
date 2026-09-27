@@ -29,6 +29,11 @@ pub enum CompletionType {
 #[command(name = "track")]
 #[command(about = "Personal work-context manager for tasks, TODOs, and scraps", long_about = None)]
 pub struct Cli {
+    /// Target task (ID, t:<ticket>, a:<alias>, or exact task name).
+    /// Required for task-scoped commands when context-mode is multi.
+    #[arg(long = "task", global = true, value_name = "TASK_REF")]
+    pub task: Option<String>,
+
     #[command(subcommand)]
     pub command: Commands,
 }
@@ -100,10 +105,6 @@ pub enum Commands {
     Desc {
         /// Description text (if omitted, displays current description)
         description: Option<String>,
-
-        /// Target task ID (defaults to current task)
-        #[arg(short, long)]
-        task: Option<i64>,
     },
 
     /// Link a ticket to a task
@@ -113,10 +114,6 @@ pub enum Commands {
 
         /// Ticket URL
         url: String,
-
-        /// Target task ID (defaults to current task)
-        #[arg(long)]
-        task: Option<i64>,
     },
 
     /// Archive a task
@@ -434,28 +431,20 @@ pub enum AliasCommands {
         /// Alias name
         alias: String,
 
-        /// Target task ID (defaults to current task)
-        #[arg(short, long)]
-        task: Option<i64>,
-
         /// Force overwrite if alias already exists on another task
         #[arg(short, long)]
         force: bool,
     },
 
     /// Remove the alias from the current task
-    Remove {
-        /// Target task ID (defaults to current task)
-        #[arg(short, long)]
-        task: Option<i64>,
-    },
+    Remove,
 }
 
 #[derive(Subcommand)]
 pub enum ConfigCommands {
-    /// Set a configuration value (e.g. vcs-mode git|jj, aggressive-mode on|off)
+    /// Set a configuration value (e.g. vcs-mode git|jj, aggressive-mode on|off, context-mode single|multi)
     Set {
-        /// Configuration key (e.g. vcs-mode, aggressive-mode)
+        /// Configuration key (e.g. vcs-mode, aggressive-mode, context-mode)
         key: String,
 
         /// Configuration value

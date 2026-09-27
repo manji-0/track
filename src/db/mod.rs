@@ -4,7 +4,7 @@
 //! and application state management. The database stores all task, TODO, link, scrap,
 //! and Git repository information.
 
-use crate::models::{AggressiveMode, TaskId, TaskStatus, TodoStatus, VcsMode};
+use crate::models::{AggressiveMode, ContextMode, TaskId, TaskStatus, TodoStatus, VcsMode};
 use crate::utils::Result;
 use directories::ProjectDirs;
 use rusqlite::{Connection, OptionalExtension, params};
@@ -215,7 +215,57 @@ impl Database {
 
         migrate::migrate_schema(&self.conn)?;
 
+        self.initialize_task_rev_triggers()?;
+
         Ok(())
+    }
+
+    /// Per-task change counters maintained by triggers, so the WebUI can notify
+    /// only the browser tabs showing the task that changed (including CLI writes).
+    fn initialize_task_rev_triggers(&self) -> Result<()> {
+        let mut sql = String::from(
+            "CREATE TABLE IF NOT EXISTS task_revs (
+                task_id INTEGER NOT NULL,
+                section TEXT NOT NULL,
+                rev INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY (task_id, section)
+            );\n",
+        );
+        let watched = [
+            ("tasks", "id", "task"),
+            ("todos", "task_id", "todos"),
+            ("scraps", "task_id", "scraps"),
+            ("links", "task_id", "links"),
+            ("task_repos", "task_id", "repos"),
+            ("worktrees", "task_id", "worktrees"),
+        ];
+        for (table, column, section) in watched {
+            for (op, row) in [("insert", "NEW"), ("update", "NEW"), ("delete", "OLD")] {
+                sql.push_str(&format!(
+                    "CREATE TRIGGER IF NOT EXISTS task_rev_{table}_{op} AFTER {op} ON {table}
+                     BEGIN
+                         INSERT INTO task_revs (task_id, section, rev) VALUES ({row}.{column}, '{section}', 1)
+                         ON CONFLICT(task_id, section) DO UPDATE SET rev = rev + 1;
+                     END;\n"
+                ));
+            }
+        }
+        self.conn.execute_batch(&sql)?;
+        Ok(())
+    }
+
+    /// Per-task revision counters: `(task_id, section) -> rev`.
+    pub fn get_task_revs(&self) -> Result<std::collections::BTreeMap<(TaskId, String), i64>> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT task_id, section, rev FROM task_revs")?;
+        let rows = stmt.query_map([], |row| {
+            Ok((
+                (TaskId::from_i64(row.get(0)?), row.get::<_, String>(1)?),
+                row.get::<_, i64>(2)?,
+            ))
+        })?;
+        Ok(rows.collect::<rusqlite::Result<_>>()?)
     }
 
     /// Returns a reference to the underlying SQLite connection.
@@ -307,6 +357,20 @@ impl Database {
 
     pub fn set_aggressive_mode(&self, mode: AggressiveMode) -> Result<()> {
         self.set_app_state(AggressiveMode::KEY, mode.as_str())
+    }
+
+    /// Returns how commands choose their task (`single` by default).
+    pub fn get_context_mode(&self) -> Result<ContextMode> {
+        match self.get_app_state(ContextMode::KEY)? {
+            Some(value) => value
+                .parse()
+                .map_err(crate::utils::TrackError::InvalidContextMode),
+            None => Ok(ContextMode::default()),
+        }
+    }
+
+    pub fn set_context_mode(&self, mode: ContextMode) -> Result<()> {
+        self.set_app_state(ContextMode::KEY, mode.as_str())
     }
 
     /// Gets the ID of the current active task.
@@ -475,6 +539,65 @@ mod tests {
         assert_eq!(db.get_aggressive_mode().unwrap(), AggressiveMode::Off);
         db.set_aggressive_mode(AggressiveMode::On).unwrap();
         assert_eq!(db.get_aggressive_mode().unwrap(), AggressiveMode::On);
+    }
+
+    #[test]
+    fn test_new_database_stays_git_after_reopen() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("track.db");
+        let open = || {
+            let conn = Connection::open(&path).unwrap();
+            let db = Database { conn };
+            db.initialize_schema().unwrap();
+            db
+        };
+
+        let db = open();
+        db.get_connection()
+            .execute(
+                "INSERT INTO tasks (name, created_at) VALUES ('T', datetime('now'))",
+                [],
+            )
+            .unwrap();
+        drop(db);
+
+        assert_eq!(open().get_vcs_mode().unwrap(), VcsMode::Git);
+    }
+
+    #[test]
+    fn test_context_mode_defaults_single() {
+        let db = Database::new_in_memory().unwrap();
+        assert_eq!(db.get_context_mode().unwrap(), ContextMode::Single);
+        db.set_context_mode(ContextMode::Multi).unwrap();
+        assert_eq!(db.get_context_mode().unwrap(), ContextMode::Multi);
+    }
+
+    #[test]
+    fn test_task_revs_track_writes_per_task() {
+        let db = Database::new_in_memory().unwrap();
+        let conn = db.get_connection();
+        for name in ["A", "B"] {
+            conn.execute(
+                "INSERT INTO tasks (name, created_at) VALUES (?1, datetime('now'))",
+                [name],
+            )
+            .unwrap();
+        }
+        let before = db.get_task_revs().unwrap();
+
+        conn.execute(
+            "INSERT INTO todos (task_id, task_index, content, created_at) VALUES (2, 1, 'x', datetime('now'))",
+            [],
+        )
+        .unwrap();
+        conn.execute("DELETE FROM todos WHERE task_id = 2", [])
+            .unwrap();
+
+        let after = db.get_task_revs().unwrap();
+        let key = |id: i64, section: &str| (TaskId::from_i64(id), section.to_string());
+        assert_eq!(after.get(&key(2, "todos")), Some(&2));
+        assert_eq!(after.get(&key(1, "todos")), None);
+        assert_eq!(after.get(&key(1, "task")), before.get(&key(1, "task")));
     }
 
     #[test]

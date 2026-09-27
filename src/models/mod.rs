@@ -5,6 +5,7 @@
 
 mod aggressive_mode;
 mod alias;
+mod context_mode;
 mod entities;
 mod hint;
 mod http_url;
@@ -21,6 +22,7 @@ mod workflow;
 
 pub use aggressive_mode::AggressiveMode;
 pub use alias::TaskAlias;
+pub use context_mode::ContextMode;
 pub use entities::{Link, RepoLink, Scrap, Task, TaskRepo, Todo, Worktree};
 pub use hint::CommandHint;
 pub use http_url::HttpUrl;

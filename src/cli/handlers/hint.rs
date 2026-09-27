@@ -13,7 +13,7 @@ pub fn emit_hint(ctx: &CommandCtx, json: bool, task_id: Option<TaskId>) -> Resul
         return Ok(());
     }
 
-    let Some(task_id) = task_id.or(ctx.db.get_current_task_id()?) else {
+    let Some(task_id) = task_id.or(ctx.target_task_id_opt()?) else {
         return Ok(());
     };
 
@@ -22,6 +22,7 @@ pub fn emit_hint(ctx: &CommandCtx, json: bool, task_id: Option<TaskId>) -> Resul
     let extensions = build_agent_extensions(
         snapshot.vcs_mode,
         snapshot.aggressive_mode,
+        snapshot.context_mode,
         &snapshot.task,
         &snapshot.todos,
         &snapshot.worktrees,

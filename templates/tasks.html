@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block title %}Track WebUI — Tasks{% endblock %}
+
+{% block content %}
+<div class="app">
+    <header class="topbar">
+        <span class="brand">tr</span>
+        <span class="task-title">track</span>
+        <span class="task-alias">context-mode: {{ context_mode }}</span>
+        <div class="spacer"></div>
+        <div id="connection-status" class="connection-status disconnected">
+            <span class="status-dot"></span>
+            <span class="status-text">Connecting…</span>
+        </div>
+        <button class="icon-btn" id="theme-toggle" aria-label="Toggle theme">
+            <span id="theme-icon">🌙</span>
+        </button>
+    </header>
+
+    {% if tasks %}
+    <div class="task-list-page">
+        {% if context_mode == "single" and not current_task_id %}
+        <p>No active task. Run <code>track switch &lt;ref&gt;</code>, or open a task below.</p>
+        {% else %}
+        <p>Each task opens in its own tab.</p>
+        {% endif %}
+        <ul class="task-list">
+            {% for task in tasks %}
+            <li>
+                <a href="/tasks/{{ task.id }}" target="_blank" rel="noopener">
+                    <span class="task-id">#{{ task.id }}</span>
+                    <span class="task-title">{{ task.name }}</span>
+                    {% if task.alias %}<span class="task-alias">{{ task.alias }}</span>{% endif %}
+                    {% if task.ticket_id %}<span class="ticket-badge">{{ task.ticket_id }}</span>{% endif %}
+                    {% if task.id == current_task_id %}<span class="chip active">current</span>{% endif %}
+                </a>
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% else %}
+    <div class="no-task">
+        <div class="icon">📋</div>
+        <h2>No Active Task</h2>
+        <p>Run <code>track new "Task name"</code> to create a new task.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

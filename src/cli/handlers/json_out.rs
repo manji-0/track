@@ -105,7 +105,7 @@ pub fn emit_mutation(
 pub fn list_json(db: &Database, include_archived: bool) -> Result<Value> {
     let task_service = TaskService::new(db);
     let tasks = task_service.list_tasks(include_archived)?;
-    let current_task_id = db.get_current_task_id()?;
+    let current_task_id = task_service.resolve_target_task_id_opt(None)?;
 
     let mut rows = Vec::with_capacity(tasks.len());
     for task in tasks {
@@ -114,6 +114,7 @@ pub fn list_json(db: &Database, include_archived: bool) -> Result<Value> {
     }
 
     Ok(json!({
+        "context_mode": db.get_context_mode()?,
         "current_task_id": current_task_id,
         "tasks": rows,
     }))
@@ -197,5 +198,20 @@ mod tests {
         assert_eq!(one["is_current"], false);
         assert_eq!(two["is_current"], true);
         assert_eq!(two["name"], "Two");
+    }
+
+    #[test]
+    fn list_json_has_no_current_task_in_multi_mode() {
+        let db = Database::new_in_memory().unwrap();
+        TaskService::new(&db)
+            .create_task("One", None, None, None)
+            .unwrap();
+        db.set_context_mode(crate::models::ContextMode::Multi)
+            .unwrap();
+
+        let value = list_json(&db, false).unwrap();
+        assert_eq!(value["context_mode"], "multi");
+        assert!(value["current_task_id"].is_null());
+        assert_eq!(value["tasks"][0]["is_current"], false);
     }
 }

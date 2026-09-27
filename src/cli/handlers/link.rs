@@ -5,10 +5,7 @@ use crate::utils::{Result, TrackError};
 use prettytable::{Cell, Row, Table, format};
 
 pub fn handle_link(ctx: &CommandCtx, command: LinkCommands) -> Result<()> {
-    let current_task_id = ctx
-        .db
-        .get_current_task_id()?
-        .ok_or(TrackError::NoActiveTask)?;
+    let current_task_id = ctx.target_task_id()?;
     let link_service = LinkService::new(ctx.db);
 
     match command {

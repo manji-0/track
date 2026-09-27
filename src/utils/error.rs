@@ -18,6 +18,19 @@ pub enum TrackError {
     #[error("No active task. Run 'track new' or 'track switch' first.")]
     NoActiveTask,
 
+    #[error(
+        "context-mode is multi: pass the target task with `--task <ref>` (id, t:<ticket>, a:<alias>, or task name)"
+    )]
+    TaskRefRequired,
+
+    #[error(
+        "context-mode is multi: there is no current task to switch. Pass `--task <ref>` to each command, or run `track config set context-mode single`."
+    )]
+    SwitchUnavailableInMultiContext,
+
+    #[error("Task reference '{reference}' matches several tasks {ids:?}; use the task ID")]
+    AmbiguousTaskReference { reference: String, ids: Vec<i64> },
+
     #[error("Task #{0} not found")]
     TaskNotFound(i64),
 
@@ -217,13 +230,16 @@ pub enum TrackError {
     #[error("Invalid aggressive mode: {0}")]
     InvalidAggressiveMode(String),
 
+    #[error("Invalid context mode: {0}")]
+    InvalidContextMode(String),
+
     #[error("Invalid app_state value for '{key}': {detail}")]
     InvalidAppStateValue { key: String, detail: String },
 
     #[error("Migration blocked: {detail}")]
     MigrationBlocked { detail: String },
 
-    #[error("Unknown config key '{0}' (supported: vcs-mode, aggressive-mode)")]
+    #[error("Unknown config key '{0}' (supported: vcs-mode, aggressive-mode, context-mode)")]
     UnknownConfigKey(String),
 }
 

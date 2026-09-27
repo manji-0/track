@@ -1,7 +1,7 @@
 use crate::cli::ConfigCommands;
 use crate::cli::handlers::CommandCtx;
 use crate::cli::handlers::hint::emit_hint;
-use crate::models::{AggressiveMode, VcsMode};
+use crate::models::{AggressiveMode, ContextMode, VcsMode};
 use crate::utils::{Result, TrackError};
 
 pub fn handle_config(ctx: &CommandCtx, command: ConfigCommands) -> Result<()> {
@@ -51,9 +51,28 @@ pub fn handle_config(ctx: &CommandCtx, command: ConfigCommands) -> Result<()> {
                         println!("Task revisions and git notes are disabled.");
                     }
                 }
+                "context-mode" => {
+                    let mode: ContextMode =
+                        value.parse().map_err(TrackError::InvalidContextMode)?;
+                    ctx.db.set_context_mode(mode)?;
+                    println!("Set context mode: {mode}");
+                    match mode {
+                        ContextMode::Single => println!(
+                            "Commands apply to the current task (`track switch <ref>`). `--task <ref>` still overrides it."
+                        ),
+                        ContextMode::Multi => {
+                            println!(
+                                "Several tasks can be worked on in parallel. Task-scoped commands are refused without `--task <ref>` (id, t:<ticket>, a:<alias>, or task name)."
+                            );
+                            println!(
+                                "Example: track --task 3 todo add \"...\". `track switch` is disabled; the WebUI serves each task at /tasks/<id>."
+                            );
+                        }
+                    }
+                }
                 other => return Err(TrackError::UnknownConfigKey(other.to_string())),
             }
-            emit_hint(ctx, false, ctx.db.get_current_task_id()?)?;
+            emit_hint(ctx, false, None)?;
         }
         ConfigCommands::SetCalendar { calendar_id } => {
             ctx.db.set_app_state("calendar_id", &calendar_id)?;
@@ -71,6 +90,10 @@ pub fn handle_config(ctx: &CommandCtx, command: ConfigCommands) -> Result<()> {
                 "VCS mode: {vcs_mode} (git = default worktrees, jj = colocated jj workspaces)"
             );
             println!("Aggressive mode: {aggressive} (on = published work record in git notes)");
+            println!(
+                "Context mode: {} (single = implicit current task, multi = `--task <ref>` required)",
+                ctx.db.get_context_mode()?
+            );
 
             if let Some(calendar_id) = ctx.db.get_app_state("calendar_id")? {
                 println!("Google Calendar ID: {}", calendar_id);
@@ -85,6 +108,8 @@ pub fn handle_config(ctx: &CommandCtx, command: ConfigCommands) -> Result<()> {
             println!("  track config set vcs-mode jj");
             println!("  track config set aggressive-mode on");
             println!("  track config set aggressive-mode off");
+            println!("  track config set context-mode single");
+            println!("  track config set context-mode multi");
         }
     }
     Ok(())

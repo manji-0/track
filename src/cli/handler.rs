@@ -29,7 +29,12 @@ impl CommandHandler {
     }
 
     pub fn handle(&self, command: Commands) -> Result<()> {
-        let ctx = CommandCtx::new(&self.db);
+        self.handle_with_task(command, None)
+    }
+
+    /// Runs `command` against the task named by the global `--task` reference.
+    pub fn handle_with_task(&self, command: Commands, task_ref: Option<&str>) -> Result<()> {
+        let ctx = CommandCtx::with_task_ref(&self.db, task_ref);
         match command {
             Commands::New {
                 name,
@@ -52,14 +57,12 @@ impl CommandHandler {
                 super::handlers::handle_switch(&ctx, &task_ref, json)
             }
             Commands::Status { id, json, all } => super::handlers::handle_info(&ctx, id, json, all),
-            Commands::Desc { description, task } => {
-                super::handlers::handle_desc(&ctx, description.as_deref(), task)
+            Commands::Desc { description } => {
+                super::handlers::handle_desc(&ctx, description.as_deref())
             }
-            Commands::Ticket {
-                ticket_id,
-                url,
-                task,
-            } => super::handlers::handle_ticket(&ctx, &ticket_id, &url, task),
+            Commands::Ticket { ticket_id, url } => {
+                super::handlers::handle_ticket(&ctx, &ticket_id, &url)
+            }
             Commands::Archive {
                 task_ref,
                 force,

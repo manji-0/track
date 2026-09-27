@@ -18,11 +18,11 @@ pub fn handle_notes(ctx: &CommandCtx, command: NotesCommands) -> Result<()> {
             println!("Run `track import` on the PR branch to restore the task.");
         }
         NotesCommands::Push { remote } => {
-            if let Some(task_id) = ctx.db.get_current_task_id()? {
+            if let Some(task_id) = ctx.target_task_id_opt()? {
                 project_task_notes_or_warn(ctx.db, task_id);
             }
             let _ = git_notes::fetch_notes(path, &remote);
-            if let Some(task_id) = ctx.db.get_current_task_id()? {
+            if let Some(task_id) = ctx.target_task_id_opt()? {
                 project_task_notes_or_warn(ctx.db, task_id);
             }
             git_notes::push_notes(path, &remote)?;

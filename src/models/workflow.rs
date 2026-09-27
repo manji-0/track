@@ -53,6 +53,17 @@ pub struct WorkflowContext {
     pub checklist: Vec<WorkflowStep>,
 }
 
+impl WorkflowContext {
+    /// Rewrites every suggested command (next action and checklist).
+    pub fn map_commands(&mut self, f: impl Fn(&str) -> String) {
+        let commands = std::iter::once(&mut self.next_action.command)
+            .chain(self.checklist.iter_mut().map(|step| &mut step.command));
+        for command in commands.flatten() {
+            *command = f(command);
+        }
+    }
+}
+
 /// Lifecycle of a TODO's JJ workspace.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -107,7 +118,7 @@ pub struct JjAgentContext {
     pub repos: Vec<RepoWorkspaceStatus>,
     pub start_command: String,
     pub path_command: String,
-    pub repo_init_command: &'static str,
+    pub repo_init_command: String,
 }
 
 /// Git worktree context for the current task.

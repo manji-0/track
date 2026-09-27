@@ -7,7 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `track config set context-mode single|multi`. **single** (default) keeps the implicit current task. **multi** is for working on several tasks in parallel: task-scoped commands (`todo`, `scrap`, `link`, `repo`, `sync`, `status`, `desc`, `ticket`, `alias`, `archive`) are refused without a task reference, `track switch` is disabled, and `hint` / `workflow.next_action` commands include `--task <id>`. Status JSON and `track list --json` report `context_mode`.
+- Global `--task <ref>` on every command (id, `t:<ticket>`, `a:<alias>`, or exact name of an active task). In single mode it overrides the current task for one command.
+- WebUI serves each task at `/tasks/<ref>` so separate browser tabs can show separate tasks from one `track webui`. `/tasks` lists tasks. Each tab sends its task in an `X-Track-Task` header (`?task=` also works for `/api/status` etc.), and SSE only notifies the tabs showing the task that changed (per-task revision counters kept by SQLite triggers, so CLI writes are scoped too). In multi mode `/` shows the task list, and requests without a task are rejected with 400.
+
 ### Changed
+- `track desc`, `track ticket`, and `track alias set/remove` take the global `--task <ref>` instead of their own `--task <id>` / `-t <id>` (the long form still works and now accepts any task reference).
+- `a:<alias>` task references resolve as documented (previously only a bare alias worked).
 - New task workspaces fetch `origin` and start from the remote base (`origin/<base>` in git mode, `<base>@origin` in jj mode; the remote default branch when no base bookmark was recorded). Uncommitted changes in the base checkout no longer block `track repo add` / `track sync` unless track has to fall back to a local base. Git task branches are created with `--no-track`.
 - README is a short overview (install, quick start, screenshots, doc links). Command tables live in `docs/CLI.md`; Web UI detail and recaptured screenshots in `docs/WEBUI.md` and `docs/images/`.
 - `docs/JJ_INTEGRATION.md` documents the commit + notes strategy (marker revision, one commit per TODO, `refs/notes/track`, push/fetch/import).

@@ -43,6 +43,8 @@ impl Templates {
             .expect("Failed to add base.html template");
         env.add_template("index.html", include_str!("../../templates/index.html"))
             .expect("Failed to add index.html template");
+        env.add_template("tasks.html", include_str!("../../templates/tasks.html"))
+            .expect("Failed to add tasks.html template");
         env.add_template(
             "partials/todo_list.html",
             include_str!("../../templates/partials/todo_list.html"),

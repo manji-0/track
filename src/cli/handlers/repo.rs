@@ -8,10 +8,7 @@ use crate::utils::{Result, TrackError};
 use prettytable::{Cell, Row, Table, format};
 
 pub fn handle_repo(ctx: &CommandCtx, command: RepoCommands) -> Result<()> {
-    let current_task_id = ctx
-        .db
-        .get_current_task_id()?
-        .ok_or(TrackError::NoActiveTask)?;
+    let current_task_id = ctx.target_task_id()?;
     let repo_service = RepoService::new(ctx.db);
 
     match command {

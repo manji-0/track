@@ -16,6 +16,10 @@ impl WebError {
     fn status_for(err: &TrackError) -> StatusCode {
         match err {
             TrackError::NoActiveTask
+            | TrackError::TaskRefRequired
+            | TrackError::SwitchUnavailableInMultiContext
+            | TrackError::AmbiguousTaskReference { .. }
+            | TrackError::InvalidContextMode(_)
             | TrackError::EmptyTaskName
             | TrackError::EmptyTodoContent
             | TrackError::EmptyScrapContent

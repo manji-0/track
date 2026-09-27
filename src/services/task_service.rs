@@ -247,11 +247,12 @@ impl<'a> TaskService<'a> {
 
     /// Resolves a task reference to a task ID.
     ///
-    /// Accepts a numeric task ID, a ticket reference prefixed with "t:", or an alias.
+    /// Accepts a numeric task ID, a ticket reference prefixed with "t:", an alias
+    /// (optionally prefixed with "a:"), or the exact name of an active task.
     ///
     /// # Arguments
     ///
-    /// * `reference` - Either a task ID (e.g., "1"), ticket reference (e.g., "t:PROJ-123"), or alias (e.g., "daily-work")
+    /// * `reference` - Either a task ID (e.g., "1"), ticket reference (e.g., "t:PROJ-123"), alias (e.g., "daily-work"), or task name
     ///
     /// # Returns
     ///
@@ -259,13 +260,21 @@ impl<'a> TaskService<'a> {
     ///
     /// # Errors
     ///
-    /// Returns an error if the reference is invalid or no matching task is found.
+    /// Returns an error if the reference is invalid, no matching task is found,
+    /// or a task name matches several active tasks.
     pub fn resolve_task_id(&self, reference: &str) -> Result<TaskId> {
         if let Some(ticket_id) = reference.strip_prefix("t:") {
             let ticket = TicketId::parse(ticket_id)?;
             return self
                 .find_task_by_ticket(&ticket)?
                 .ok_or_else(|| TrackError::TaskReferenceNotFound(format!("t:{ticket_id}")));
+        }
+
+        if let Some(alias) = reference.strip_prefix("a:") {
+            let alias = TaskAlias::parse(alias)?;
+            return self
+                .get_task_by_alias(&alias)?
+                .ok_or_else(|| TrackError::TaskReferenceNotFound(reference.to_string()));
         }
 
         if let Ok(task_id) = reference.parse::<i64>() {
@@ -278,7 +287,50 @@ impl<'a> TaskService<'a> {
             return Ok(task_id);
         }
 
-        Err(TrackError::TaskReferenceNotFound(reference.to_string()))
+        let by_name = self.find_active_tasks_by_name(reference)?;
+        match by_name.as_slice() {
+            [task_id] => Ok(*task_id),
+            [] => Err(TrackError::TaskReferenceNotFound(reference.to_string())),
+            ids => Err(TrackError::AmbiguousTaskReference {
+                reference: reference.to_string(),
+                ids: ids.iter().map(|id| id.as_i64()).collect(),
+            }),
+        }
+    }
+
+    /// Resolves the task a command operates on under the configured context mode.
+    ///
+    /// An explicit reference always wins. Without one, single mode falls back to the
+    /// current task and multi mode refuses with [`TrackError::TaskRefRequired`].
+    pub fn resolve_target_task_id(&self, explicit: Option<&str>) -> Result<TaskId> {
+        match self.resolve_target_task_id_opt(explicit)? {
+            Some(task_id) => Ok(task_id),
+            None if self.db.get_context_mode()?.is_multi() => Err(TrackError::TaskRefRequired),
+            None => Err(TrackError::NoActiveTask),
+        }
+    }
+
+    /// Like [`Self::resolve_target_task_id`], but `None` when no task is targeted.
+    pub fn resolve_target_task_id_opt(&self, explicit: Option<&str>) -> Result<Option<TaskId>> {
+        if let Some(reference) = explicit {
+            let task_id = self.resolve_task_id(reference)?;
+            self.get_task(task_id)?;
+            return Ok(Some(task_id));
+        }
+        if self.db.get_context_mode()?.is_multi() {
+            return Ok(None);
+        }
+        self.db.get_current_task_id()
+    }
+
+    fn find_active_tasks_by_name(&self, name: &str) -> Result<Vec<TaskId>> {
+        let conn = self.db.get_connection();
+        let mut stmt =
+            conn.prepare("SELECT id FROM tasks WHERE name = ?1 AND status = ?2 ORDER BY id")?;
+        let ids = stmt
+            .query_map(params![name, TaskStatus::Active.as_str()], |row| row.get(0))?
+            .collect::<rusqlite::Result<Vec<TaskId>>>()?;
+        Ok(ids)
     }
 
     /// Sets an alias for a task.
@@ -806,5 +858,79 @@ mod tests {
         // Verify task1 no longer has the alias
         let updated1_after = service.get_task(task1.id).unwrap();
         assert!(updated1_after.alias.is_none());
+    }
+
+    #[test]
+    fn test_resolve_task_id_by_prefixed_alias_and_name() {
+        let db = setup_db();
+        let service = TaskService::new(&db);
+
+        let task1 = service.create_task("Fix login", None, None, None).unwrap();
+        let task2 = service
+            .create_task("Refactor db", None, None, None)
+            .unwrap();
+        service.set_alias(task2.id, "db", false).unwrap();
+
+        assert_eq!(service.resolve_task_id("a:db").unwrap(), task2.id);
+        assert_eq!(service.resolve_task_id("Fix login").unwrap(), task1.id);
+        assert!(matches!(
+            service.resolve_task_id("a:missing"),
+            Err(TrackError::TaskReferenceNotFound(_))
+        ));
+    }
+
+    #[test]
+    fn test_resolve_task_id_rejects_ambiguous_name() {
+        let db = setup_db();
+        let service = TaskService::new(&db);
+
+        service.create_task("Same", None, None, None).unwrap();
+        service.create_task("Same", None, None, None).unwrap();
+
+        assert!(matches!(
+            service.resolve_task_id("Same"),
+            Err(TrackError::AmbiguousTaskReference { .. })
+        ));
+    }
+
+    #[test]
+    fn test_resolve_target_uses_current_task_in_single_mode() {
+        let db = setup_db();
+        let service = TaskService::new(&db);
+        let task = service.create_task("Current", None, None, None).unwrap();
+
+        assert_eq!(service.resolve_target_task_id(None).unwrap(), task.id);
+    }
+
+    #[test]
+    fn test_resolve_target_requires_reference_in_multi_mode() {
+        let db = setup_db();
+        let service = TaskService::new(&db);
+        let task = service.create_task("Current", None, None, None).unwrap();
+        db.set_context_mode(crate::models::ContextMode::Multi)
+            .unwrap();
+
+        assert!(matches!(
+            service.resolve_target_task_id(None),
+            Err(TrackError::TaskRefRequired)
+        ));
+        assert_eq!(service.resolve_target_task_id_opt(None).unwrap(), None);
+        assert_eq!(
+            service
+                .resolve_target_task_id(Some(&task.id.to_string()))
+                .unwrap(),
+            task.id
+        );
+    }
+
+    #[test]
+    fn test_resolve_target_rejects_unknown_numeric_id() {
+        let db = setup_db();
+        let service = TaskService::new(&db);
+
+        assert!(matches!(
+            service.resolve_target_task_id(Some("999")),
+            Err(TrackError::TaskNotFound(999))
+        ));
     }
 }
