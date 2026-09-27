@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-09-27
+
 ### Added
 - `track config set context-mode single|multi`. **single** (default) keeps the implicit current task. **multi** is for working on several tasks in parallel: task-scoped commands (`todo`, `scrap`, `link`, `repo`, `sync`, `status`, `desc`, `ticket`, `alias`, `archive`) are refused without a task reference, `track switch` is disabled, and `hint` / `workflow.next_action` commands include `--task <id>`. Status JSON and `track list --json` report `context_mode`.
 - Global `--task <ref>` on every command (id, `t:<ticket>`, `a:<alias>`, or exact name of an active task). In single mode it overrides the current task for one command.
@@ -19,6 +21,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - README is a short overview (install, quick start, screenshots, doc links). Command tables live in `docs/CLI.md`; Web UI detail and recaptured screenshots in `docs/WEBUI.md` and `docs/images/`.
 - `docs/JJ_INTEGRATION.md` documents the commit + notes strategy (marker revision, one commit per TODO, `refs/notes/track`, push/fetch/import).
 - GitHub Releases that were empty/stub now take their notes from this changelog. `scripts/changelog_for_tag.py` feeds `.github/workflows/release.yml` so later tags stay in sync. Maintainers can backfill published tags with `scripts/sync-github-release-notes.sh` (`gh` write access).
+
+### Fixed
+- A new database stayed on `git` only for its first run: the next open saw tasks without a `vcs_mode` key and switched it to `jj` as if it were a legacy database. New databases now record `git` when they are created.
 
 ## [0.9.0] - 2026-09-14
 
