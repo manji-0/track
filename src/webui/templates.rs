@@ -1,6 +1,7 @@
 //! MiniJinja template engine setup.
 
 use crate::utils::{Result, TrackError};
+use minijinja::value::Serde;
 use minijinja::{AutoEscape, Environment, path_loader};
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -103,7 +104,7 @@ impl Templates {
                 name: name.to_string(),
                 detail: err.to_string(),
             })?;
-        tmpl.render(ctx)
+        tmpl.render(Serde(ctx))
             .map_err(|err| TrackError::TemplateRenderFailed {
                 name: name.to_string(),
                 detail: err.to_string(),
