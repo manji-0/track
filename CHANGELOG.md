@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-11-04
+
 ### Added
 - Per-session task binding, in both context modes. Task-scoped commands now resolve in this order: `--task <ref>`, then `TRACK_TASK=<ref>`, then a working directory inside a task workspace (`<repo>/.worktrees/<slug>`), then (single mode only) the current task. Parallel terminals and agents can each work on their own task without passing `--task` and without `track switch` redirecting each other. An unresolvable `TRACK_TASK` is an error.
 - `track status --json` reports `target_source` (`flag`, `env`, `workspace`, `current`), and human `track status` notes `Bound via TRACK_TASK` or `Bound via workspace`.
@@ -14,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - `track list`, mutation `--json` snapshots, and dynamic completion use the session's bound task instead of the global current task.
 - The multi-mode "task required" and "switch disabled" errors name the new bindings.
+- In single mode, `TRACK_TASK` and a task workspace working directory now take precedence over the task selected with `track switch`.
 
 ## [0.10.0] - 2026-09-27
 
