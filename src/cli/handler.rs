@@ -3,6 +3,7 @@
 use crate::cli::Commands;
 use crate::cli::handlers::CommandCtx;
 use crate::db::Database;
+use crate::models::SessionBinding;
 use crate::utils::Result;
 use clap_complete::Shell;
 
@@ -34,7 +35,17 @@ impl CommandHandler {
 
     /// Runs `command` against the task named by the global `--task` reference.
     pub fn handle_with_task(&self, command: Commands, task_ref: Option<&str>) -> Result<()> {
-        let ctx = CommandCtx::with_task_ref(&self.db, task_ref);
+        self.handle_with_target(command, task_ref, SessionBinding::default())
+    }
+
+    /// Runs `command` with the `--task` flag and the session's `TRACK_TASK`/cwd binding.
+    pub fn handle_with_target(
+        &self,
+        command: Commands,
+        task_ref: Option<&str>,
+        binding: SessionBinding,
+    ) -> Result<()> {
+        let ctx = CommandCtx::with_binding(&self.db, task_ref, binding);
         match command {
             Commands::New {
                 name,

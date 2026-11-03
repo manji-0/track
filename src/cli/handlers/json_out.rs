@@ -3,7 +3,7 @@
 use crate::cli::handlers::CommandCtx;
 use crate::cli::handlers::hint::emit_hint;
 use crate::db::Database;
-use crate::models::{Task, TaskId};
+use crate::models::{TargetSource, Task, TaskId};
 use crate::services::TaskService;
 use crate::use_cases::GetTaskInfoUseCase;
 use crate::utils::{Result, TrackError};
@@ -63,11 +63,7 @@ pub fn mutation_json(
     id: Option<i64>,
     task_id: Option<TaskId>,
 ) -> Result<Value> {
-    let resolved = match task_id {
-        Some(id) => Some(id),
-        None => db.get_current_task_id()?,
-    };
-    let mut output = status_json(db, resolved)?;
+    let mut output = status_json(db, task_id)?;
     let mutation = serde_json::to_value(Mutation { kind, id })
         .map_err(|err| TrackError::SerializationFailed(err.to_string()))?;
     if let Some(obj) = output.as_object_mut() {
@@ -75,6 +71,13 @@ pub fn mutation_json(
         obj.insert("mutation".to_string(), mutation);
     }
     Ok(output)
+}
+
+/// Records how the snapshot's task was chosen (`flag`, `env`, `workspace`, `current`).
+pub fn insert_target_source(value: &mut Value, source: Option<TargetSource>) {
+    if let (Some(obj), Some(source)) = (value.as_object_mut(), source) {
+        obj.insert("target_source".to_string(), json!(source.as_str()));
+    }
 }
 
 pub fn print_json(value: &Value) -> Result<()> {
@@ -93,7 +96,16 @@ pub fn emit_mutation(
     human: impl FnOnce(),
 ) -> Result<()> {
     if json {
-        let value = mutation_json(ctx.db, kind, id, task_id)?;
+        let (task_id, source) = match task_id {
+            Some(id) => (Some(id), None),
+            None => match ctx.target_with_source(None) {
+                Ok((id, source)) => (Some(id), Some(source)),
+                Err(TrackError::NoActiveTask | TrackError::TaskRefRequired) => (None, None),
+                Err(err) => return Err(err),
+            },
+        };
+        let mut value = mutation_json(ctx.db, kind, id, task_id)?;
+        insert_target_source(&mut value, source);
         print_json(&value)?;
         Ok(())
     } else {
@@ -102,10 +114,12 @@ pub fn emit_mutation(
     }
 }
 
-pub fn list_json(db: &Database, include_archived: bool) -> Result<Value> {
-    let task_service = TaskService::new(db);
-    let tasks = task_service.list_tasks(include_archived)?;
-    let current_task_id = task_service.resolve_target_task_id_opt(None)?;
+pub fn list_json(
+    db: &Database,
+    include_archived: bool,
+    current_task_id: Option<TaskId>,
+) -> Result<Value> {
+    let tasks = TaskService::new(db).list_tasks(include_archived)?;
 
     let mut rows = Vec::with_capacity(tasks.len());
     for task in tasks {
@@ -144,7 +158,7 @@ mod tests {
             .add_todo(task.id, "Work", false)
             .unwrap();
 
-        let value = mutation_json(&db, MutationKind::TodoAdd, Some(1), None).unwrap();
+        let value = mutation_json(&db, MutationKind::TodoAdd, Some(1), Some(task.id)).unwrap();
         assert_eq!(value["ok"], true);
         assert_eq!(value["mutation"]["kind"], "todo_add");
         assert_eq!(value["mutation"]["id"], 1);
@@ -181,7 +195,7 @@ mod tests {
         let first = task_service.create_task("One", None, None, None).unwrap();
         let second = task_service.create_task("Two", None, None, None).unwrap();
 
-        let value = list_json(&db, false).unwrap();
+        let value = list_json(&db, false, db.get_current_task_id().unwrap()).unwrap();
         assert!(value.get("ok").is_none());
         assert!(value.get("mutation").is_none());
         assert_eq!(value["current_task_id"], second.id.as_i64());
@@ -209,7 +223,7 @@ mod tests {
         db.set_context_mode(crate::models::ContextMode::Multi)
             .unwrap();
 
-        let value = list_json(&db, false).unwrap();
+        let value = list_json(&db, false, None).unwrap();
         assert_eq!(value["context_mode"], "multi");
         assert!(value["current_task_id"].is_null());
         assert_eq!(value["tasks"][0]["is_current"], false);

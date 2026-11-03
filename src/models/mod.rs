@@ -14,6 +14,7 @@ mod jj;
 mod markdown;
 mod scrap_visibility;
 mod status;
+mod task_target;
 mod ticket;
 mod todo_action;
 mod todo_add_options;
@@ -33,6 +34,7 @@ pub use ids::{
 pub use jj::{JjSlug, jj_slug, sanitize_jj_slug};
 pub use scrap_visibility::ScrapVisibility;
 pub use status::{TaskStatus, TodoStatus};
+pub use task_target::{SessionBinding, TargetSource};
 pub use ticket::TicketId;
 pub use todo_action::{TodoAction, TodoAgentAction};
 pub use todo_add_options::TodoAddOptions;

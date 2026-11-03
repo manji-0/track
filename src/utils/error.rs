@@ -19,12 +19,12 @@ pub enum TrackError {
     NoActiveTask,
 
     #[error(
-        "context-mode is multi: pass the target task with `--task <ref>` (id, t:<ticket>, a:<alias>, or task name)"
+        "context-mode is multi and no task is bound: pass `--task <ref>`, set `TRACK_TASK=<ref>` for this session, or run inside the task workspace (`.worktrees/<slug>`). A ref is an id, t:<ticket>, a:<alias>, or task name."
     )]
     TaskRefRequired,
 
     #[error(
-        "context-mode is multi: there is no current task to switch. Pass `--task <ref>` to each command, or run `track config set context-mode single`."
+        "context-mode is multi: there is no current task to switch. Bind each session with `export TRACK_TASK=<ref>` (or pass `--task <ref>`), or run `track config set context-mode single`."
     )]
     SwitchUnavailableInMultiContext,
 

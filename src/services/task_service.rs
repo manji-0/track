@@ -1,9 +1,10 @@
 use crate::db::Database;
 use crate::db::row_mapping::row_to_task;
-use crate::models::{Task, TaskAlias, TaskId, TaskStatus, TicketId};
+use crate::models::{Task, TaskAlias, TaskId, TaskStatus, TicketId, jj_slug};
 use crate::utils::{Result, TrackError};
 use chrono::Utc;
 use rusqlite::{OptionalExtension, params};
+use std::path::Path;
 
 /// Service for managing development tasks.
 ///
@@ -11,6 +12,11 @@ use rusqlite::{OptionalExtension, params};
 /// It handles task lifecycle management, ticket linking, and task switching.
 pub struct TaskService<'a> {
     db: &'a Database,
+}
+
+/// Canonical form so `/var` and `/private/var` compare equal; the raw path when it does not exist.
+fn canonical_or_raw(path: &Path) -> std::path::PathBuf {
+    std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
 }
 
 impl<'a> TaskService<'a> {
@@ -305,9 +311,43 @@ impl<'a> TaskService<'a> {
     pub fn resolve_target_task_id(&self, explicit: Option<&str>) -> Result<TaskId> {
         match self.resolve_target_task_id_opt(explicit)? {
             Some(task_id) => Ok(task_id),
-            None if self.db.get_context_mode()?.is_multi() => Err(TrackError::TaskRefRequired),
-            None => Err(TrackError::NoActiveTask),
+            None => Err(self.no_target_error()?),
         }
+    }
+
+    /// Error for a command that found no task: multi mode needs a reference, single mode a current task.
+    pub fn no_target_error(&self) -> Result<TrackError> {
+        Ok(if self.db.get_context_mode()?.is_multi() {
+            TrackError::TaskRefRequired
+        } else {
+            TrackError::NoActiveTask
+        })
+    }
+
+    /// Active task whose `<repo>/.worktrees/<slug>` workspace contains `cwd`.
+    pub fn find_task_by_workspace(&self, cwd: &Path) -> Result<Option<TaskId>> {
+        let cwd = canonical_or_raw(cwd);
+        let conn = self.db.get_connection();
+        let mut stmt = conn.prepare(
+            "SELECT t.id, r.repo_path FROM tasks t JOIN task_repos r ON r.task_id = t.id \
+             WHERE t.status = ?1 ORDER BY t.id, r.task_index",
+        )?;
+        let rows = stmt
+            .query_map(params![TaskStatus::ACTIVE], |row| {
+                Ok((row.get::<_, TaskId>(0)?, row.get::<_, String>(1)?))
+            })?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+        for (task_id, repo_path) in rows {
+            let task = self.get_task(task_id)?;
+            let workspace = crate::services::task_workspace::workspace_path(
+                &repo_path,
+                jj_slug(&task).as_str(),
+            );
+            if cwd.starts_with(canonical_or_raw(Path::new(&workspace))) {
+                return Ok(Some(task_id));
+            }
+        }
+        Ok(None)
     }
 
     /// Like [`Self::resolve_target_task_id`], but `None` when no task is targeted.

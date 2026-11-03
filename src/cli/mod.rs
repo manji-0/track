@@ -30,7 +30,9 @@ pub enum CompletionType {
 #[command(about = "Personal work-context manager for tasks, TODOs, and scraps", long_about = None)]
 pub struct Cli {
     /// Target task (ID, t:<ticket>, a:<alias>, or exact task name).
-    /// Required for task-scoped commands when context-mode is multi.
+    /// Beats the TRACK_TASK environment variable, which beats running inside a
+    /// task workspace (.worktrees/<slug>), which beats the global current task
+    /// (single context mode only). Multi mode refuses when none is bound.
     #[arg(long = "task", global = true, value_name = "TASK_REF")]
     pub task: Option<String>,
 

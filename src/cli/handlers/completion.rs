@@ -60,7 +60,7 @@ pub fn handle_complete(ctx: &CommandCtx, completion_type: CompletionType) -> Res
         }
         CompletionType::Todos => {
             // Output TODO IDs and content for current task
-            let current_task_id = ctx.db.get_current_task_id()?;
+            let current_task_id = ctx.target_task_id_opt().unwrap_or(None);
             if let Some(task_id) = current_task_id {
                 let todo_service = TodoService::new(ctx.db);
                 let todos = todo_service.list_todos(task_id)?;
@@ -76,7 +76,7 @@ pub fn handle_complete(ctx: &CommandCtx, completion_type: CompletionType) -> Res
         }
         CompletionType::Links => {
             // Output link IDs and URLs for current task
-            let current_task_id = ctx.db.get_current_task_id()?;
+            let current_task_id = ctx.target_task_id_opt().unwrap_or(None);
             if let Some(task_id) = current_task_id {
                 let link_service = LinkService::new(ctx.db);
                 let links = link_service.list_links(task_id)?;
@@ -89,7 +89,7 @@ pub fn handle_complete(ctx: &CommandCtx, completion_type: CompletionType) -> Res
         }
         CompletionType::Repos => {
             // Output repo IDs and paths for current task
-            let current_task_id = ctx.db.get_current_task_id()?;
+            let current_task_id = ctx.target_task_id_opt().unwrap_or(None);
             if let Some(task_id) = current_task_id {
                 let repo_service = RepoService::new(ctx.db);
                 let repos = repo_service.list_repos(task_id)?;

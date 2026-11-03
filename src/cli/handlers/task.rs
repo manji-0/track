@@ -1,8 +1,10 @@
 use crate::cli::handlers::CommandCtx;
 use crate::cli::handlers::confirm::confirm_from_tty;
 use crate::cli::handlers::hint::emit_hint;
-use crate::cli::handlers::json_out::{MutationKind, emit_mutation, list_json, print_json};
-use crate::models::TodoAddOptions;
+use crate::cli::handlers::json_out::{
+    MutationKind, emit_mutation, insert_target_source, list_json, print_json,
+};
+use crate::models::{TargetSource, TodoAddOptions};
 use crate::services::{TaskService, TodoService, WorktreeService};
 use crate::use_cases::{
     ArchiveTaskStep, ArchiveTaskUseCase, CreateTodayTaskUseCase, GetTaskInfoUseCase,
@@ -82,7 +84,11 @@ pub fn handle_new(
 
 pub fn handle_list(ctx: &CommandCtx, include_archived: bool, json: bool) -> Result<()> {
     if json {
-        return print_json(&list_json(ctx.db, include_archived)?);
+        return print_json(&list_json(
+            ctx.db,
+            include_archived,
+            ctx.target_task_id_opt()?,
+        )?);
     }
 
     let task_service = TaskService::new(ctx.db);
@@ -162,14 +168,15 @@ pub fn handle_info(
     json: bool,
     all_scraps: bool,
 ) -> Result<()> {
-    let task_id = ctx.target_task_id_with(task_ref.as_deref())?;
+    let (task_id, source) = ctx.target_with_source(task_ref.as_deref())?;
 
     let info = GetTaskInfoUseCase::new(ctx.db);
     let snapshot = info.load(task_id)?;
     let worktree_service = WorktreeService::new(ctx.db);
 
     if json {
-        let output = info.to_cli_json(&snapshot)?;
+        let mut output = info.to_cli_json(&snapshot)?;
+        insert_target_source(&mut output, Some(source));
         let json = serde_json::to_string_pretty(&output)
             .map_err(|e| TrackError::SerializationFailed(e.to_string()))?;
         println!("{json}");
@@ -185,6 +192,11 @@ pub fn handle_info(
     let base_branch = GetTaskInfoUseCase::base_bookmark(&snapshot);
 
     println!("# Task #{}: {}", task.id, task.name);
+    match source {
+        TargetSource::Env => println!("Bound via TRACK_TASK"),
+        TargetSource::Workspace => println!("Bound via workspace"),
+        TargetSource::Flag | TargetSource::Current => {}
+    }
     println!();
 
     let created = task
