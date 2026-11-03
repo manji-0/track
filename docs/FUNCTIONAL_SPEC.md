@@ -660,10 +660,11 @@ Archive and remove workspaces anyway? [y/N]:
 ### 6.1. Database Path
 
 ```
-$HOME/.local/share/track/track.db
+Linux:  $HOME/.local/share/track/track.db
+macOS:  $HOME/Library/Application Support/track/track.db
 ```
 
-Complies with XDG Base Directory specification. Uses `directories` crate.
+Resolved by `ProjectDirs::from("", "", "track").data_dir()` from the `directories` crate. On Linux this follows `XDG_DATA_HOME`. macOS ignores it.
 
 ### 6.2. Timestamp Format
 

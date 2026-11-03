@@ -3,7 +3,7 @@
   <h1>Track</h1>
 </div>
 
-A personal work-context manager for humans and coding agents: one implicit current task in an XDG SQLite database (`$HOME/.local/share/track/track.db`). Track holds **what** you are doing (tasks, TODOs, scraps) and **owns the coding workspace** (git worktree or colocated jj workspace). It is not a repo issue tracker or a multi-agent planner.
+A personal work-context manager for humans and coding agents: one implicit current task in a SQLite database (`track.db` in the platform data directory: `~/.local/share/track/` on Linux, `~/Library/Application Support/track/` on macOS). Track holds **what** you are doing (tasks, TODOs, scraps) and **owns the coding workspace** (git worktree or colocated jj workspace). It is not a repo issue tracker or a multi-agent planner.
 
 ## Features
 
