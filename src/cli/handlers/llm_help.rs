@@ -39,8 +39,8 @@ Mutating commands accept `--json` and return the **same snapshot** plus `ok` and
 
 `context_mode` in the JSON is `single` (default) or `multi`.
 
-- **single**: commands use the current task (`track switch`). `--task <ref>` overrides it for one command.
-- **multi**: several tasks run in parallel. Every task-scoped command needs `--task <ref>` (id, `t:TICKET`, `a:alias`, or task name). Without it the command is refused, and `track switch` is disabled. `hint.next_command` / `workflow.next_action.command` already include `--task <id>`, so run them verbatim.
+- **single**: commands use the current task (`track switch`) unless the session is bound (below).
+- **multi**: several tasks run in parallel. Every task-scoped command needs a binding (below) or the command is refused, and `track switch` is disabled. `hint.next_command` / `workflow.next_action.command` already include `--task <id>`, so run them verbatim.
 
 ```bash
 track config set context-mode multi
@@ -48,7 +48,9 @@ track --task 3 status --json
 track --task 3 todo done --json 1
 ```
 
-If you were given a task id, always pass `--task <id>`. It is correct in both modes and never touches another session's task.
+Binding, first match wins: `--task <ref>` (id, `t:TICKET`, `a:alias`, or task name), then `TRACK_TASK=<ref>`, then the current directory being inside `.worktrees/<slug>` of a task. `status --json` shows which one applied as `target_source`.
+
+Start a session with `export TRACK_TASK=<id>`, or `cd` into the workspace from the hint. Then plain `track todo add ...` hits your task and no other session's. A bad `TRACK_TASK` is an error, not a fallback. If you were given a task id and cannot export, pass `--task <id>`; it works in both modes.
 
 ## Workspace (track owns this)
 
@@ -103,7 +105,7 @@ When on, each (task, repo) gets **one empty marker revision**. Commit history on
 | `track archive [--force]` | Remove workspaces (branch/bookmark kept for PRs). `--force` skips dirty checks |
 | `track config set vcs-mode git\|jj` | Switch VCS backend |
 | `track config set aggressive-mode on\|off` | Task revision + published work record |
-| `track config set context-mode single\|multi` | Implicit current task, or `--task <ref>` required |
+| `track config set context-mode single\|multi` | Implicit current task, or a binding required (`--task`, `TRACK_TASK`, workspace cwd) |
 | `track config show` | Print current settings |
 
 ## Slug

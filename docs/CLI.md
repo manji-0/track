@@ -27,14 +27,18 @@ Task refs resolve as numeric id, `t:<ticket>`, `a:<alias>` (or a bare alias), th
 
 ## Targeting a task (`--task`)
 
-Every command accepts a global `--task <ref>`, before or after the subcommand (`track --task 3 todo add "..."` or `track todo add "..." --task 3`).
+Every command accepts a global `--task <ref>`, before or after the subcommand (`track --task 3 todo add "..."` or `track todo add "..." --task 3`). Sessions can also bind a task without repeating the flag. The first match wins:
 
-| Context mode | Without `--task` | With `--task` |
-|--------------|------------------|---------------|
-| `single` (default) | Current task (`track switch`) | That task, for this command only |
-| `multi` | Task-scoped commands fail; `track switch` is disabled | That task |
+| # | Source | How | `target_source` |
+|---|--------|-----|-----------------|
+| 1 | Flag | `--task <ref>` | `flag` |
+| 2 | Environment | `export TRACK_TASK=<ref>` (an unresolvable ref is an error) | `env` |
+| 3 | Workspace | cwd is inside `<repo>/.worktrees/<slug>` of an active task | `workspace` |
+| 4 | Current task | `track switch` (single mode only) | `current` |
 
-Use `multi` when several agents or terminals work on different tasks at once, so no command silently lands on another session's task. `track new`, `list`, `config`, `import`, `webui`, `llm-help`, `completion`, `migrate`, and `notes push` / `notes fetch` do not need a task. In multi mode, `hint.next_command` and `workflow.next_action.command` already include `--task <id>`.
+With none of these, `single` fails with "No active task" and `multi` refuses the command. `track switch` is disabled in `multi`. `track status --json` reports `target_source`.
+
+Use `multi` when several agents or terminals work on different tasks at once, and give each session its own `TRACK_TASK` or its own workspace directory, so no command silently lands on another session's task. `track new`, `list`, `config`, `import`, `webui`, `llm-help`, `completion`, `migrate`, and `notes push` / `notes fetch` do not need a task. In multi mode, `hint.next_command` and `workflow.next_action.command` already include `--task <id>`.
 
 ## Configuration
 
@@ -43,7 +47,7 @@ Use `multi` when several agents or terminals work on different tasks at once, so
 | `track config show` | Show current configuration |
 | `track config set vcs-mode git\|jj` | Git worktrees (default) or colocated jj workspaces |
 | `track config set aggressive-mode on\|off` | Per-task empty revision + published work record as git notes |
-| `track config set context-mode single\|multi` | Implicit current task (default) or explicit `--task <ref>` on every task-scoped command |
+| `track config set context-mode single\|multi` | Implicit current task (default), or a binding (`--task`, `TRACK_TASK`, workspace cwd) required on every task-scoped command |
 | `track import [path] [--json]` | Restore a task from git notes on the current branch |
 | `track notes push [--remote]` | Disclose `refs/notes/track` |
 | `track notes fetch [--remote]` | Receive `refs/notes/track` |

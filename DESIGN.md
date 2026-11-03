@@ -51,16 +51,22 @@ The CLI binary is `track` (`task-track` on crates.io).
 
 ### Context mode (single / multi)
 
-<!-- dagayn: implemented-by src/services/task_service.rs::TaskService.resolve_target_task_id -->
+<!-- dagayn: implemented-by src/cli/handlers/mod.rs::CommandCtx.target_with_source -->
 
-`app_state.context_mode` decides how a command picks its task. The CLI (`--task`) and the WebUI (`X-Track-Task` / `?task=`) share one resolver:
+`app_state.context_mode` decides how a command picks its task. The CLI resolves in this order, the same in both modes (`CommandCtx` in `src/cli/handlers/mod.rs`):
 
-| Mode | Explicit reference | No reference |
-|------|--------------------|--------------|
-| `single` (default) | That task | `current_task_id` (`NoActiveTask` if unset) |
-| `multi` | That task | Refused with `TaskRefRequired`. `track switch` is disabled. |
+| # | Source (`target_source`) | Input | Notes |
+|---|--------------------------|-------|-------|
+| 1 | `flag` | `--task <ref>` | Also a command's positional ref, such as `track status 3`. |
+| 2 | `env` | `TRACK_TASK=<ref>` (non-empty) | A ref that does not resolve is an error, never a fallback. |
+| 3 | `workspace` | cwd is `<repo_path>/.worktrees/<slug>` or below | Matches the active task whose registered repo and slug give that path. |
+| 4 | `current` | `current_task_id` | Single mode only. Multi mode refuses with `TaskRefRequired`. |
 
-A single implicit session breaks when several agents or terminals work at once: one `track switch` silently redirects everyone else's writes. Multi mode removes the shared session instead of trying to lock it. Every write names its task, so parallel sessions cannot collide. `current_task_id` is kept (for example, `track new` still writes it) but nothing reads it in multi mode, so switching back to single restores the last session.
+`track switch` is disabled in multi mode. In single mode it still writes `current_task_id`, but an env or workspace binding shadows it: where you stand beats the global pointer.
+
+A single implicit session breaks when several agents or terminals work at once: one `track switch` silently redirects everyone else's writes. Sessions instead bind themselves, by exporting `TRACK_TASK` or by standing in their task's workspace, so nothing is shared and nothing needs a lock. Multi mode is the strict form: an unbound command is refused rather than guessed. `current_task_id` is kept (for example, `track new` still writes it) but nothing reads it in multi mode, so switching back to single restores the last session.
+
+`TRACK_TASK` and the cwd are read once in `src/main.rs` and passed in as a `SessionBinding`. Handlers and services never read process state, so tests stay deterministic. The WebUI uses `TaskService::resolve_target_task_id` (header or query ref, else current in single mode) and ignores both.
 
 References resolve in order: `t:<ticket>`, `a:<alias>`, numeric id, bare alias, then the exact name of an active task (ambiguous names fail and list the ids). In multi mode, suggested commands in `hint` / `workflow` carry `--task <id>` so agents can run them verbatim.
 
