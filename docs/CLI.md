@@ -34,7 +34,7 @@ Every command accepts a global `--task <ref>`, before or after the subcommand (`
 | `single` (default) | Current task (`track switch`) | That task, for this command only |
 | `multi` | Task-scoped commands fail; `track switch` is disabled | That task |
 
-Use `multi` when several agents or terminals work on different tasks at once, so no command silently lands on another session's task. `track new`, `list`, `config`, `import`, `webui`, and `llm-help` do not need a task. In multi mode, `hint.next_command` and `workflow.next_action.command` already include `--task <id>`.
+Use `multi` when several agents or terminals work on different tasks at once, so no command silently lands on another session's task. `track new`, `list`, `config`, `import`, `webui`, `llm-help`, `completion`, `migrate`, and `notes push` / `notes fetch` do not need a task. In multi mode, `hint.next_command` and `workflow.next_action.command` already include `--task <id>`.
 
 ## Configuration
 

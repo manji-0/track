@@ -5,7 +5,7 @@
 
 ## Overview
 
-Track is a **personal work-context manager**. It stores one person's current work — tasks, TODOs, scraps, links, tickets — in an XDG SQLite database at `$HOME/.local/share/track/track.db`. After `track new` or `track switch`, every command applies to `current_task_id`. You do not pass a task ID on each `todo add`.
+Track is a **personal work-context manager**. It stores one person's current work — tasks, TODOs, scraps, links, tickets — in a SQLite database, `track.db`, in the platform data directory (`~/.local/share/track/` on Linux, `~/Library/Application Support/track/` on macOS). After `track new` or `track switch`, every command applies to `current_task_id`. You do not pass a task ID on each `todo add`.
 
 Track is **not**:
 
